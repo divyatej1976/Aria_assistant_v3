@@ -4,49 +4,711 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Step 4 — Complete  
-**Primary sources:** `VISION.md`, `01-product-overview-goals.md`, `02-user-context-requirements.md`, `03-functional-requirements.md`
+**Status:** Reviewed and release-classified  
+**Primary sources:** `VISION.md`, Steps 1–3 and 7–8
 
 ---
 
 # 1. Purpose
 
-ARIA is not intended to be a collection of disconnected study tools. This document defines how its product systems must cooperate as one learning environment.
+ARIA is not intended to become a collection of disconnected AI study tools. This document defines how product systems cooperate while separating the **small R0 adaptive-learning chain** from later Learning OS orchestration.
 
-It specifies:
+Central principle:
 
-- cross-system events;
-- context propagation;
-- automatic actions;
-- suggested actions;
-- approval-required actions;
-- evidence propagation;
-- roadmap and planner adaptation;
-- notification triggers;
-- conflict handling;
-- cascade limits;
-- duplicate-event protection;
-- auditability;
-- failure isolation.
+> **ARIA may automate coordination, but automation must be evidence-aware, bounded, traceable, retry-safe, failure-isolated, and correctable.**
 
-The central principle is:
-
-> **ARIA may automate coordination, but important learning decisions must remain traceable, bounded, and correctable.**
-
-This document defines product behaviour, not the eventual event-bus, queue, workflow engine, agent framework, or database implementation.
+This is product behaviour, not a decision to use an event bus, agent framework, workflow engine, queue, or any specific architecture.
 
 ---
 
-# 2. Cross-System Model
+# 2. Release Labels
 
-A typical ARIA learning loop may behave conceptually as follows:
+- **R0 MUST** — required to validate the first adaptive-learning loop.
+- **R1+** — Roadmap / learning-path adaptation.
+- **R2+** — longitudinal Revision / Progress / richer Learner Model loops.
+- **R3+** — Planner, multi-goal coordination, Home, reminders.
+- **R4+** — richer learning interfaces such as Notes/Audio.
+- **R5+** — mature cross-system orchestration/integrations.
+- **LONG-TERM MUST** — product principle whose exact release may be determined later.
+
+---
+
+# 3. R0 Cross-System Chain
+
+R0 needs one bounded closed loop:
+
+```text
+Goal / Context
+      ↓
+Resources + Study
+      ↓
+AssessmentSubmitted
+      ↓
+Evaluation
+      ↓
+EvidenceRecorded
+      ↓
+Basic Learner State update check
+      ↓
+Adaptation decision
+      ↓
+Adapted Study
+      ↓
+Targeted Reassessment
+      ↓
+New Evidence
+      ↓
+Learner State reconsidered
+      ↺
+```
+
+R0 does **not** require the same event to fan out into Progress + Revision + Roadmap + Planner + Home + Notifications.
+
+---
+
+# 4. Requirement Categories
+
+```text
+XR-EVT-*       Cross-system signals/events
+XR-CTX-*       Context propagation
+XR-EVD-*       Evidence propagation
+XR-ADAPT-*     R0 adaptive-study propagation
+XR-AUTO-*      Automation rules
+XR-HITL-*      Human control
+XR-ROAD-*      Roadmap adaptation (R1+)
+XR-REV-*       Revision/progress loops (R2+)
+XR-PLAN-*      Planner coordination (R3+)
+XR-HOME-*      Home synchronization (R3+)
+XR-NOTIF-*     Notifications (R3+)
+XR-CONFLICT-*  Conflict handling
+XR-SAFE-*      Cascade safety
+XR-IDEMP-*     Duplicate/idempotency behaviour
+XR-AUDIT-*     Traceability
+XR-FAIL-*      Failure isolation/recovery
+```
+
+---
+
+# 5. Event / Workflow-Signal Requirements
+
+## XR-EVT-001 — Meaningful state transitions — R0 MUST
+ARIA shall represent meaningful R0 state transitions using events or an equivalent explicit workflow mechanism.
+
+## XR-EVT-002 — Event context — R0 MUST
+A consequential R0 signal shall carry enough information to identify the learner, validation context, originating action, affected entity/concept, and relevant identifiers.
+
+## XR-EVT-003 — Provenance — R0 MUST
+Consequential signals shall retain their origin so derived state can be traced backward.
+
+## XR-EVT-004 — Temporal information — R0 MUST
+R0 state changes shall retain timestamps/order information sufficient for repeated-cycle validation and auditability.
+
+## XR-EVT-005 — Version/change awareness — R0 MUST WHERE APPLICABLE
+ARIA shall avoid applying derived changes against known stale mutable state.
+
+## XR-EVT-006 — Origin type — R0 MUST
+Where consequential, ARIA shall distinguish learner-originated, deterministic-system, and AI-derived changes.
+
+---
+
+# 6. Product Events by Release
+
+The names below are conceptual, not final API contracts.
+
+## R0 core
+
+```text
+ResourceAdded
+ResourceReady
+ResourceProcessingFailed
+StudySessionStarted
+StudySessionCompleted
+AssessmentCreated
+AssessmentStarted
+AssessmentSubmitted
+AssessmentEvaluated
+EvaluationCorrected
+EvidenceRecorded
+EvidenceCorrected
+LearnerStateUpdated
+AdaptationCreated
+AdaptedStudyStarted
+ReassessmentSubmitted
+```
+
+## R1+
+
+```text
+RoadmapCreated
+RoadmapChangeProposed
+RoadmapChangeAccepted
+RoadmapChangeRejected
+RoadmapUpdated
+```
+
+## R2+
+
+```text
+PossibleMisconceptionDetected
+PrerequisiteGapDetected
+RevisionScheduled
+RevisionDue
+RevisionCompleted
+ProgressUpdated
+```
+
+## R3+
+
+```text
+GoalPriorityChanged
+PlanCreated
+PlanChanged
+PlannedSessionCompleted
+PlannedSessionMissed
+PlanRecoveryProposed
+PlanRecoveryAccepted
+RecommendationCreated
+RecommendationDismissed
+DeadlineApproaching
+NotificationRequested
+```
+
+## R4/R5+
+
+Notes, Audio and integration-specific workflow signals are introduced when those systems enter scope.
+
+---
+
+# 7. Context Propagation
+
+## XR-CTX-001 — Preserve R0 context — R0 MUST
+Relevant goal/context, topic/concept, selected resources and activity context shall propagate through Study → Assessment → Evaluation → Evidence → Learner State → Adapted Study.
+
+## XR-CTX-002 — Explicit override wins — R0 MUST
+Current explicit learner context selection shall override conflicting inferred/inherited context.
+
+## XR-CTX-003 — Scope boundaries — R0 MUST
+Context shall not propagate beyond the scope where it remains valid.
+
+## XR-CTX-004 — Context provenance — R0 MUST
+Consequential downstream state should identify whether context was explicit, inherited, or inferred.
+
+## XR-CTX-005 — Correction propagation — R0 MUST
+Future dependent R0 actions shall use corrected context.
+
+## XR-CTX-006 — Historical integrity — R0 MUST
+A current correction shall not silently rewrite factually valid historical records.
+
+## XR-CTX-007 — Multi-goal isolation — LONG-TERM MUST
+When multi-goal support exists, goal boundaries shall be preserved unless an operation intentionally spans goals.
+
+---
+
+# 8. Assessment → Evaluation → Evidence
+
+## XR-EVD-001 — Assessment submission trigger — R0 MUST
+A valid submission shall make exactly one logical attempt available for evaluation despite safe retries.
+
+## XR-EVD-002 — Evaluation output — R0 MUST
+Successful evaluation shall produce learner-facing results and structured machine-usable output where reliable.
+
+## XR-EVD-003 — Evidence source — R0 MUST
+Evidence shall retain the source attempt/response/evaluation from which it originated.
+
+## XR-EVD-004 — Evidence scope — R0 MUST
+Evidence shall identify relevant concept/topic/skill and validation context.
+
+## XR-EVD-005 — Evidence strength/reliability — R0 MUST
+Evidence shall carry enough information to avoid treating every signal as equally strong.
+
+## XR-EVD-006 — Evidence does not equal learner state — R0 MUST
+Recording one evidence item shall not automatically prove a mastery, weakness, or misconception conclusion.
+
+## XR-EVD-007 — Partial evaluation — R0 MUST
+Unevaluated or unreliable portions shall remain unknown rather than becoming false negative evidence.
+
+## XR-EVD-008 — Evaluation correction — R0 MUST
+If an evaluation is corrected, dependent evidence and derived state shall be capable of recomputation/correction.
+
+## XR-EVD-009 — Repeated evidence — R0 MUST
+ARIA shall accumulate evidence across validation cycles rather than replacing history with the latest result.
+
+## XR-EVD-010 — Contradictory evidence — R0 MUST
+Conflicting evidence shall be preserved and should reduce certainty or motivate further testing rather than being silently discarded.
+
+---
+
+# 9. Evidence → Basic Learner State
+
+## XR-EVD-011 — State update check — R0 MUST
+New valid evidence shall be eligible to trigger a learner-state update evaluation.
+
+## XR-EVD-012 — Conservative state transition — R0 MUST
+Strong learner-state claims shall require sufficient supporting evidence/confidence under Step 5 rules.
+
+## XR-EVD-013 — Unknown preservation — R0 MUST
+Lack of evidence shall remain unknown/insufficiently tested rather than automatically becoming weakness.
+
+## XR-EVD-014 — Provenance access — R0 MUST
+Important state conclusions shall remain traceable to supporting evidence.
+
+## XR-EVD-015 — State is revisable — R0 MUST
+New or corrected evidence may strengthen, weaken, or overturn an earlier learner-state estimate.
+
+## XR-EVD-016 — No activity-as-mastery shortcut — R0 MUST
+Completing Study or spending time in ARIA shall not itself become proof of understanding.
+
+---
+
+# 10. Learner State → Adapted Study
+
+This is the most important R0 cross-system boundary.
+
+## XR-ADAPT-001 — Adaptation eligibility — R0 MUST
+A supported learner-state signal may trigger consideration of a changed next Study experience.
+
+## XR-ADAPT-002 — Adaptation must use evidence/state — R0 MUST
+An adaptive Study decision shall reference relevant learner-state/evidence rather than being an untraceable generic LLM variation.
+
+## XR-ADAPT-003 — Material adaptation — R0 MUST
+The adapted Study experience shall be meaningfully different when the evidence warrants it.
+
+Possible adaptations include:
+
+```text
+change explanation depth
+change example/scaffolding
+focus on a weak concept
+revisit a prerequisite
+add targeted practice
+ask a diagnostic question
+reduce unnecessary repetition where evidence is strong
+```
+
+## XR-ADAPT-004 — Bounded adaptation — R0 MUST
+An R0 adaptation shall affect only the next supported learning action(s) necessary to test the hypothesis. It shall not silently restructure future Roadmaps/Plans that do not exist in R0.
+
+## XR-ADAPT-005 — Reason — R0 MUST
+The actual factors behind an adaptation shall be stored in a form that can be inspected/tested and translated into a learner-facing explanation where appropriate.
+
+## XR-ADAPT-006 — Uncertain state behaviour — R0 MUST
+When evidence is weak or contradictory, ARIA should prefer diagnostic/reassessment behaviour over pretending it knows the learner's weakness with high certainty.
+
+## XR-ADAPT-007 — User override — R0 MUST
+The learner may choose another supported action without that override becoming negative learning evidence.
+
+---
+
+# 11. Adapted Study → Reassessment → New Evidence
+
+## XR-ADAPT-008 — Reassessment path — R0 MUST
+ARIA shall support a subsequent assessment/reassessment capable of testing the concept affected by the adaptation.
+
+## XR-ADAPT-009 — Comparable attribution — R0 MUST
+The system shall preserve enough concept/context information to compare evidence before and after the adaptive intervention without claiming causality from comparison alone.
+
+## XR-ADAPT-010 — New evidence independence — R0 MUST
+Reassessment results shall be recorded as new evidence, not overwrite the earlier attempt.
+
+## XR-ADAPT-011 — Reconsider state — R0 MUST
+New evidence shall cause the relevant learner-state estimate to be reconsidered under the same evidence/confidence rules.
+
+## XR-ADAPT-012 — Loop closure observable — R0 MUST
+Gate A tests shall be able to demonstrate that:
+
+```text
+Evidence A
+   ↓
+Learner State A
+   ↓
+Adaptation chosen because of A
+   ↓
+Adapted Study
+   ↓
+Evidence B
+   ↓
+Learner State reconsidered
+```
+
+The system must make this chain observable enough to verify mechanically or through controlled inspection.
+
+---
+
+# 12. R0 Automation Classes
+
+R0 distinguishes three product-level classes.
+
+### Class A — Automatic
+
+Low-risk state bookkeeping may occur automatically:
+
+```text
+save assessment attempt
+persist evaluation
+record valid structured evidence
+run learner-state update check
+persist adaptation provenance
+```
+
+### Class B — Automatic + visible/inspectable
+
+```text
+update basic learner-state estimate
+select/re-rank an adapted next Study action
+```
+
+These changes may happen automatically because R0 is specifically testing adaptation, but they must remain traceable and correctable.
+
+### Class C — Learner confirmation / explicit action
+
+```text
+change learner-declared context
+replace learner-selected assessment specification
+make consequential account/data changes
+```
+
+Later Roadmap/Planner approval classes remain part of R1/R3 requirements.
+
+---
+
+# 13. General Automation Rules
+
+## XR-AUTO-001 — Automate coordination, not unlimited agency — R0 MUST
+## XR-AUTO-002 — Real reason — R0 MUST
+Meaningful adaptive actions shall retain the real reason that caused them.
+
+## XR-AUTO-003 — Evidence requirement — R0 MUST
+Understanding-based adaptations shall use relevant evidence/state.
+
+## XR-AUTO-004 — Confidence awareness — R0 MUST
+Low-confidence conclusions shall not trigger unsupported high-confidence adaptations.
+
+## XR-AUTO-005 — Reversibility/correction — R0 MUST WHERE PRACTICAL
+## XR-AUTO-006 — Bounded scope — R0 MUST
+## XR-AUTO-007 — No hidden chain reaction — R0 MUST
+## XR-AUTO-008 — Explicit learner instruction precedence — R0 MUST
+
+---
+
+# 14. Human-in-the-Loop
+
+## XR-HITL-001 — Correction path — R0 MUST
+The learner/tester shall have an appropriate path to correct consequential inaccurate context/evaluation/state assumptions.
+
+## XR-HITL-002 — Explain adaptation — R0 MUST
+ARIA shall be capable of explaining why an adaptive Study action was chosen.
+
+## XR-HITL-003 — Override — R0 MUST
+A learner may ignore/override a recommended next action.
+
+## XR-HITL-004 — Override is not failure — R0 MUST
+Rejecting an ARIA recommendation shall not become evidence of inability.
+
+## XR-HITL-005 — Later proposal workflow — R1/R3+
+Roadmap/Planner proposals shall eventually support accept/reject/modify and explanation.
+
+---
+
+# 15. Roadmap Adaptation — R1+
+
+R1 extends the proven R0 learner-state mechanism into learning-path adaptation.
+
+Preserved requirements:
+
+- **XR-ROAD-001** meaningful learner-state change may trigger adaptation check;
+- **XR-ROAD-002** do not rewrite after every result;
+- **XR-ROAD-003** prerequisite insertion/reordering proposal;
+- **XR-ROAD-004** persistent weakness reinforcement;
+- **XR-ROAD-005** strong-evidence acceleration;
+- **XR-ROAD-006** explain proposal using real evidence/context;
+- **XR-ROAD-007** significant restructuring normally requires review;
+- **XR-ROAD-008** accepted changes can propagate downstream later.
+
+---
+
+# 16. Revision & Longitudinal Learning — R2+
+
+R2 turns immediate R0 adaptation into learning across time.
+
+Preserved requirements:
+
+- evidence-backed weakness may influence Revision priority;
+- supported misconception/prerequisite signals may trigger remediation;
+- strong repeated evidence may reduce unnecessary immediate repetition;
+- retrieval/revision activities can generate new evidence;
+- new evidence reconsiders learner state;
+- Progress distinguishes unknown, weak, improving and supported states according to Step 5 rules.
+
+R0's immediate `Adapted Study → Reassessment` loop is not the full Revision product.
+
+---
+
+# 17. Planner / Missed-Work Recovery — R3+
+
+Preserved long-term requirements include:
+
+- schedule actionable Roadmap work;
+- impact-check accepted Roadmap changes;
+- preserve completed work;
+- distinguish minor from major rescheduling;
+- detect missed work;
+- create feasible recovery rather than endless overdue backlog;
+- consider deadlines, priorities, dependencies, Revision needs and availability;
+- explain substantial schedule movement;
+- require review for consequential rescheduling.
+
+None are R0 acceptance criteria.
+
+---
+
+# 18. Recommendations / Home / Notifications — R3+
+
+The mature Learning OS will coordinate recommendations, Home and notifications using relevant Goal, Planner, Revision, Progress, deadline and learner-state changes.
+
+Preserved principles:
+
+- recommendation provenance;
+- no false personalization;
+- dismissal is not failure;
+- Home should not show stale high-priority actions;
+- multi-goal state must not be merged incorrectly;
+- notification preferences are respected;
+- duplicate/stale reminders are suppressed;
+- one action should not create notification spam.
+
+R0's `Adapted Study` selection is intentionally much narrower than the mature recommendation engine.
+
+---
+
+# 19. Conflict Handling
+
+## XR-CONFLICT-001 — Explicit user change wins — R0 MUST
+A recent explicit learner correction normally outranks an older automated/inferred assumption.
+
+## XR-CONFLICT-002 — Stale-state detection — R0 MUST WHERE APPLICABLE
+## XR-CONFLICT-003 — Contradictory evidence — R0 MUST
+Conflicting evidence should reduce confidence or motivate further testing rather than force an arbitrary conclusion.
+
+## XR-CONFLICT-004 — Correction propagation — R0 MUST
+Future dependent decisions shall use corrected information.
+
+## XR-CONFLICT-005 — Multi-goal scheduling conflicts — R3+
+## XR-CONFLICT-006 — Preference conflicts — LATER
+Context-specific explicit preferences shall eventually outrank conflicting global defaults for that context.
+
+---
+
+# 20. Cascade Safety
+
+## XR-SAFE-001 — Defined stopping condition — R0 MUST
+The R0 chain shall stop after its intended bounded adaptation/reassessment work rather than recursively generating unlimited actions.
+
+## XR-SAFE-002 — No recursive self-triggering — R0 MUST
+A state update shall not repeatedly trigger equivalent work without new meaningful state.
+
+## XR-SAFE-003 — Consequential boundary — LONG-TERM MUST
+Automation shall stop at approval boundaries for consequential learner decisions.
+
+## XR-SAFE-004 — Confidence cannot inflate through propagation — R0 MUST
+Uncertain upstream output shall not become more certain merely because multiple systems consumed it.
+
+## XR-SAFE-005 — Evidence vs derived state — R0 MUST
+Source evidence, learner-state conclusions and recommendations/adaptations shall remain distinguishable.
+
+## XR-SAFE-006 — Maximum adaptation scope — R0 MUST
+One weak signal shall not trigger broad learner-state or learning-path changes.
+
+## XR-SAFE-007 — No AI authority escalation — R0 MUST
+One AI component recommending an action shall not automatically grant another component permission for a higher-impact action.
+
+---
+
+# 21. Duplicate Processing / Idempotency
+
+## XR-IDEMP-001 — Duplicate signal safety — R0 MUST
+Retrying the same logical R0 operation shall not create duplicate consequential state.
+
+## XR-IDEMP-002 — Assessment submission — R0 MUST
+One logical submission shall not accidentally create multiple attempts/evidence records because of retries.
+
+## XR-IDEMP-003 — Evidence recording — R0 MUST
+The same evaluated response shall not silently create duplicate evidence.
+
+## XR-IDEMP-004 — Learner-state update — R0 MUST
+Reprocessing unchanged evidence shall not produce meaningless repeated state transitions/adaptations.
+
+## XR-IDEMP-005 — Safe retries — R0 MUST
+Transient failures shall be retryable where safe.
+
+Notification/proposal-specific idempotency is added with those later systems.
+
+---
+
+# 22. Auditability & Explainability
+
+## XR-AUDIT-001 — Consequential R0 change record — R0 MUST
+For an adaptive state/action, ARIA shall retain enough information to answer:
+
+```text
+what changed?
+when?
+for which learner/context/concept?
+what evidence triggered it?
+what state was derived?
+why was this adaptation selected?
+was it automatic, user-selected or corrected?
+```
+
+## XR-AUDIT-002 — Learner-facing explanation — R0 MUST
+Technical traces need not be exposed directly, but actual reasoning factors shall be translatable into concise explanations.
+
+## XR-AUDIT-003 — Evidence trace — R0 MUST
+Important state conclusions shall trace back to supporting evidence.
+
+## XR-AUDIT-004 — No fabricated explanation — R0 MUST
+ARIA shall not generate a plausible-sounding explanation disconnected from the factors actually used.
+
+## XR-AUDIT-005 — Proposal decisions — R1/R3+
+Accepted/rejected/modified/expired proposal audit enters scope with Roadmap/Planner automation.
+
+---
+
+# 23. Failure Isolation & Recovery
+
+## XR-FAIL-001 — Failure isolation — R0 MUST
+Failure of a downstream R0 operation shall not unnecessarily invalidate successful upstream work.
+
+Example: if evaluation/evidence are safely persisted but adaptation generation fails, the valid attempt/evidence remains preserved.
+
+## XR-FAIL-002 — Partial workflow status — R0 MUST
+ARIA shall be able to represent partially completed R0 workflows rather than pretending the whole workflow succeeded/failed atomically when it did not.
+
+## XR-FAIL-003 — Retryable operations — R0 MUST
+## XR-FAIL-004 — No fabricated success — R0 MUST
+## XR-FAIL-005 — Graceful degradation — R0 MUST
+Unaffected core functionality should remain usable when a non-critical downstream action fails.
+
+## XR-FAIL-006 — Stale derived action — R0 MUST
+An adaptation generated from obsolete/corrected state shall be invalidated or recomputed before consequential use.
+
+## XR-FAIL-007 — Preserve source data — R0 MUST
+Derived-system failure shall not delete original learner actions/evidence.
+
+## XR-FAIL-008 — Invalid evaluation protection — R0 MUST
+Failed/invalid evaluation shall not silently become evidence of learner weakness.
+
+---
+
+# 24. R0 Example — Successful Adaptive Cycle
+
+```text
+Learner studies DBMS Transactions
+              ↓
+Takes supported assessment
+              ↓
+AssessmentSubmitted [attempt A]
+              ↓
+Evaluation
+              ↓
+Evidence:
+  Transactions basics → supported
+  Conflict serializability → difficulty signal
+              ↓
+Basic Learner State update
+  serializability → uncertain/weak candidate
+              ↓
+ARIA chooses bounded adaptation
+  targeted serializability explanation
+  + worked example / diagnostic practice
+              ↓
+Reason stored:
+  selected because of attempt A evidence
+              ↓
+Learner completes adapted Study
+              ↓
+Targeted reassessment [attempt B]
+              ↓
+New evidence stored separately
+              ↓
+Learner state reconsidered
+```
+
+If attempt B improves, Gate A proves that the machinery successfully closed the adaptive loop. It does **not** by itself prove that ARIA caused human learning improvement; Gate B handles directional real-user evidence without causal overclaiming.
+
+---
+
+# 25. R0 Example — Correction Path
+
+```text
+Assessment evaluated
+       ↓
+One response incorrectly marked wrong
+       ↓
+Learner/test harness corrects evaluation
+       ↓
+Original dependent evidence invalidated/revised
+       ↓
+Learner-state estimate recomputed
+       ↓
+Any stale adaptation based on the bad evidence
+is invalidated/recomputed
+```
+
+The correction must not leave contradictory hidden derived state behind.
+
+---
+
+# 26. R0 Example — Failure Path
+
+```text
+AssessmentSubmitted
+       ↓
+Evaluation succeeds
+       ↓
+Evidence recorded
+       ↓
+Learner-state update succeeds
+       ↓
+Adaptation generation fails
+       ↓
+Attempt + evaluation + evidence + state remain preserved
+       ↓
+Adaptation can be retried safely
+```
+
+ARIA must never display "adapted successfully" when that final operation failed.
+
+---
+
+# 27. R0 Automation Decision Matrix
+
+| Change | R0 Default Behaviour |
+|---|---|
+| Save assessment attempt | Automatic |
+| Persist reliable evaluation | Automatic |
+| Record valid evidence | Automatic |
+| Run learner-state update check | Automatic |
+| Update basic learner-state estimate | Automatic + inspectable/correctable |
+| Choose bounded next-study adaptation | Automatic + visible/inspectable |
+| Override adapted action | Learner-controlled |
+| Replace learner-selected assessment rules | Confirmation / explicit learner action |
+| Correct evaluation/context/state assumption | Learner/tester correction path |
+| Major Roadmap restructuring | Not in R0 |
+| Planner rescheduling | Not in R0 |
+| Notification delivery | Not in R0 |
+
+---
+
+# 28. Later Mature Cross-System Model
+
+The complete product may eventually coordinate:
 
 ```text
 Goal / Context
       ↓
 Study / Resources
       ↓
-Practice / Assessment
+Assessment
       ↓
 Evaluation
       ↓
@@ -67,925 +729,57 @@ Progress   Revision     Roadmap     Recommendations
               Notifications
                     ↓
              Next learning action
-                    ↓
-                   ↺
+                    ↺
 ```
 
-Not every event must trigger every downstream system.
+This diagram is the **Learning OS destination**, not the R0 implementation plan.
 
 ---
 
-# 3. Requirement Categories
+# 29. Step 4 Decisions
 
-```text
-XR-EVT-*       Cross-system events
-XR-CTX-*       Context propagation
-XR-EVD-*       Evidence propagation
-XR-AUTO-*      Automation rules
-XR-HITL-*      Human-in-the-loop rules
-XR-ROAD-*      Roadmap adaptation
-XR-PLAN-*      Planner adaptation
-XR-REV-*       Revision propagation
-XR-REC-*       Recommendation propagation
-XR-HOME-*      Home propagation
-XR-NOTIF-*     Notification propagation
-XR-CONFLICT-*  Conflict handling
-XR-SAFE-*      Cascade safety
-XR-IDEMP-*     Duplicate/idempotency behaviour
-XR-AUDIT-*     Traceability/auditability
-XR-FAIL-*      Failure isolation/recovery
-```
+1. R0 cross-system scope is one adaptive learning loop, not full Learning OS orchestration.
+2. Evidence remains separate from learner-state conclusions.
+3. R0 adaptation must be causally traceable in the software sense: the stored evidence/state must actually be what selected the adaptation.
+4. This software traceability does not imply causal proof of human learning improvement.
+5. Unknown and contradictory evidence are first-class states.
+6. R0 adaptation is bounded to immediate Study/reassessment behaviour.
+7. Roadmap, Revision, Planner, Home and Notifications remain preserved for later releases.
+8. Explicit learner corrections outrank stale/inferred assumptions.
+9. Cross-system operations are retry-safe, idempotent, bounded, auditable and failure-isolated.
+10. AI components cannot escalate each other's authority through recommendation chains.
+11. R0 must expose enough traceability for Gate A to verify that the loop actually closed.
 
 ---
 
-# 4. Event Requirements
+# 30. Step 4 Completion
 
-## XR-EVT-001 — Meaningful state changes
+**Step 4 — Cross-System & Automation Requirements has been audited and realigned.**
 
-ARIA shall be capable of representing meaningful state changes as cross-system events or equivalent workflow signals.
-
-## XR-EVT-002 — Event context
-
-Cross-system signals shall carry enough context to identify the learner, relevant goal/context, originating action, and affected entity where required.
-
-## XR-EVT-003 — Event provenance
-
-ARIA should retain the origin of consequential events so downstream decisions can be traced back to their source.
-
-## XR-EVT-004 — Event timestamps
-
-Meaningful cross-system events shall retain temporal information sufficient for ordering and auditability.
-
-## XR-EVT-005 — Version/change awareness
-
-Where an event refers to mutable state, ARIA should be able to determine whether the underlying state has changed since the event was produced.
-
-## XR-EVT-006 — User vs system origin
-
-ARIA should distinguish whether a meaningful state change originated from the learner, deterministic product logic, or AI-generated reasoning.
-
----
-
-# 5. Core Product Events
-
-The exact technical names may change later, but ARIA shall support equivalent product-level state transitions.
-
-```text
-GoalCreated
-GoalUpdated
-GoalPaused
-GoalResumed
-GoalCompleted
-
-ResourceAdded
-ResourceReady
-ResourceProcessingFailed
-
-StudySessionStarted
-StudySessionCompleted
-TeachBackCompleted
-
-NoteCreated
-NoteUpdated
-
-AssessmentCreated
-AssessmentStarted
-AssessmentSubmitted
-AssessmentEvaluated
-
-EvidenceRecorded
-LearnerStateChanged
-PossibleMisconceptionDetected
-PrerequisiteGapDetected
-
-RoadmapCreated
-RoadmapChangeProposed
-RoadmapChangeAccepted
-RoadmapChangeRejected
-RoadmapUpdated
-
-PlanCreated
-PlanChanged
-PlannedSessionCompleted
-PlannedSessionMissed
-PlanRecoveryProposed
-PlanRecoveryAccepted
-
-RevisionScheduled
-RevisionDue
-RevisionCompleted
-
-RecommendationCreated
-RecommendationDismissed
-RecommendationCompleted
-
-DeadlineApproaching
-NotificationRequested
-```
-
-These are conceptual events, not final API or code contracts.
-
----
-
-# 6. Context Propagation
-
-## XR-CTX-001 — Preserve active context
-
-When the learner moves between connected features, relevant goal, topic, resource, and activity context should propagate automatically where appropriate.
-
-## XR-CTX-002 — Explicit override wins
-
-The learner's current explicit context selection shall override inferred propagated context.
-
-## XR-CTX-003 — Context scope
-
-ARIA shall not propagate context beyond the scope where it remains valid.
-
-## XR-CTX-004 — Context provenance
-
-Where consequential, downstream systems should know whether context was explicitly selected, inherited, or inferred.
-
-## XR-CTX-005 — Context correction propagation
-
-When the learner corrects an incorrectly associated goal/topic context, future downstream actions shall use the corrected context.
-
-## XR-CTX-006 — Historical integrity
-
-Correcting current context shall not silently rewrite historical records whose original context remains factually accurate.
-
-## XR-CTX-007 — Multi-goal isolation
-
-Context propagation shall preserve goal boundaries unless an action intentionally operates across goals.
-
----
-
-# 7. Evidence Propagation
-
-## XR-EVD-001 — Structured evidence
-
-Supported learning activities shall be capable of producing structured evidence rather than only human-readable feedback.
-
-## XR-EVD-002 — Evidence source
-
-Evidence shall retain its source activity, such as assessment, teach-back, revision attempt, or other supported learning interaction.
-
-## XR-EVD-003 — Evidence scope
-
-Evidence shall identify the relevant concept/topic/skill and goal/context where applicable.
-
-## XR-EVD-004 — Evidence strength
-
-Evidence should carry information sufficient for later systems to distinguish stronger from weaker signals.
-
-## XR-EVD-005 — Evidence does not equal state
-
-Recording evidence shall not automatically mean a learner-state conclusion has been proven.
-
-## XR-EVD-006 — Repeated evidence
-
-ARIA shall support accumulating evidence over time rather than replacing all prior evidence with the latest interaction.
-
-## XR-EVD-007 — Contradictory evidence
-
-ARIA shall support conflicting evidence without silently discarding inconvenient signals.
-
-## XR-EVD-008 — Downstream availability
-
-Relevant evidence shall be available to systems responsible for Learner Model updates, progress, revision, recommendations, roadmap adaptation, and planning where appropriate.
-
----
-
-# 8. Automation Classes
-
-ARIA shall distinguish at least three product-level automation classes.
-
-### Class A — Automatic
-
-Low-risk, reversible coordination actions may occur automatically.
-
-Examples:
-
-```text
-Save assessment result
-Record evidence
-Update a visible progress calculation
-Mark a completed planned session
-Surface due revision
-Refresh Home recommendations
-```
-
-### Class B — Automatic + visible
-
-ARIA may perform an action automatically, but the resulting change should be visible and explainable.
-
-Examples may include:
-
-```text
-Adjust revision priority
-Update a readiness estimate
-Refresh recommendation ordering
-```
-
-### Class C — Proposal / approval
-
-Consequential changes should normally be proposed rather than silently applied.
-
-Examples:
-
-```text
-Major roadmap restructuring
-Dropping a roadmap topic
-Moving many scheduled sessions
-Changing a goal deadline
-Changing learner-declared priority
-Replacing learner-selected assessment rules
-```
-
-The precise classification of individual behaviours will be refined during architecture and UX design.
-
----
-
-# 9. General Automation Requirements
-
-## XR-AUTO-001 — Automate coordination, not agency
-
-ARIA should automate repetitive coordination while preserving learner control over consequential choices.
-
-## XR-AUTO-002 — Reason requirement
-
-Meaningful adaptive actions shall retain an internal reason that can be surfaced where appropriate.
-
-## XR-AUTO-003 — Evidence requirement
-
-Adaptive actions based on learner understanding should be supported by relevant evidence rather than unsupported model assumptions.
-
-## XR-AUTO-004 — Minimum confidence
-
-ARIA should avoid triggering consequential automatic adaptation from low-confidence conclusions.
-
-## XR-AUTO-005 — Reversibility
-
-Automatically applied non-trivial changes should be reversible where practical.
-
-## XR-AUTO-006 — Bounded scope
-
-An automation should modify only the systems/state necessary for its intended purpose.
-
-## XR-AUTO-007 — No hidden chain reaction
-
-A single event shall not trigger an unbounded chain of opaque AI modifications.
-
-## XR-AUTO-008 — Learner instruction precedence
-
-Current explicit learner instructions shall override conflicting automated assumptions unless doing so would violate a hard product/security constraint.
-
----
-
-# 10. Human-in-the-Loop Requirements
-
-## XR-HITL-001 — Review significant changes
-
-ARIA shall provide a review path for significant proposed roadmap/planner changes where appropriate.
-
-## XR-HITL-002 — Explain proposal
-
-A proposal should explain what will change and why.
-
-## XR-HITL-003 — Accept
-
-The learner shall be able to accept a proposal.
-
-## XR-HITL-004 — Reject
-
-The learner shall be able to reject a proposal.
-
-## XR-HITL-005 — Modify
-
-Where practical, the learner should be able to modify a proposal before accepting it.
-
-## XR-HITL-006 — No punishment for rejection
-
-Rejecting an ARIA recommendation shall not create misleading negative learner-state evidence.
-
-## XR-HITL-007 — Correction
-
-The learner shall be able to correct important inaccurate assumptions that influenced a proposal.
-
----
-
-# 11. Assessment → Evaluation → Evidence
-
-## XR-EVD-009 — Assessment submission trigger
-
-Submitting an assessment shall make the attempt available for evaluation.
-
-## XR-EVD-010 — Evaluation completion
-
-Successful evaluation shall produce user-facing results and, where appropriate, structured learning evidence.
-
-## XR-EVD-011 — Format-aware evidence
-
-Evidence strength and interpretation shall account for assessment format and evaluation reliability.
-
-## XR-EVD-012 — Partial evaluation
-
-If only part of an assessment can be reliably evaluated, ARIA shall not treat unevaluated portions as known performance.
-
-## XR-EVD-013 — Evaluation correction
-
-If an evaluation is later corrected, dependent evidence and derived learner-state conclusions should be capable of being revised.
-
----
-
-# 12. Evidence → Learner Model → Progress
-
-## XR-EVD-014 — Learner-state update check
-
-New evidence shall be eligible to trigger a learner-state update evaluation.
-
-## XR-EVD-015 — State transition threshold
-
-ARIA should require sufficient evidence/confidence before making strong learner-state transitions such as "mastered" or "misconception confirmed."
-
-## XR-EVD-016 — Progress refresh
-
-Meaningful learner-state changes should update relevant progress views.
-
-## XR-EVD-017 — Untested preservation
-
-Lack of evidence shall not automatically be converted into weakness.
-
-## XR-EVD-018 — Provenance access
-
-Important learner-state conclusions should remain traceable to supporting evidence.
-
----
-
-# 13. Learner Model → Revision
-
-## XR-REV-001 — Weakness can influence revision
-
-Evidence-backed weakness may increase revision priority.
-
-## XR-REV-002 — Misconception remediation
-
-A sufficiently supported possible misconception may trigger a targeted remediation/revision recommendation.
-
-## XR-REV-003 — Prerequisite remediation
-
-A detected prerequisite gap may trigger a recommendation to review the prerequisite before continuing dependent material.
-
-## XR-REV-004 — Strong evidence can reduce unnecessary repetition
-
-Strong and repeated evidence may reduce immediate revision priority, subject to forgetting/retrieval considerations.
-
-## XR-REV-005 — Revision completion creates new evidence
-
-Revision activities that test recall/understanding should be capable of generating new evidence.
-
-## XR-REV-006 — Revision loop
-
-ARIA shall support:
-
-```text
-Weakness detected
-      ↓
-Revision recommended
-      ↓
-Revision performed
-      ↓
-Retest / retrieval
-      ↓
-New evidence
-      ↓
-Learner state reconsidered
-```
-
----
-
-# 14. Learner Model → Roadmap
-
-## XR-ROAD-001 — Adaptation check
-
-Meaningful learner-state changes may trigger a roadmap adaptation check.
-
-## XR-ROAD-002 — Do not rewrite on every result
-
-ARIA shall not restructure the roadmap after every individual assessment result.
-
-## XR-ROAD-003 — Prerequisite insertion proposal
-
-Strong evidence of a prerequisite gap may cause ARIA to propose adding/reordering prerequisite work.
-
-## XR-ROAD-004 — Weak topic reinforcement
-
-Persistent weakness may cause ARIA to propose additional learning or practice before advancing.
-
-## XR-ROAD-005 — Strong mastery acceleration
-
-Strong evidence may allow ARIA to propose reducing redundant work or advancing faster where appropriate.
-
-## XR-ROAD-006 — Explain roadmap change
-
-Roadmap proposals shall state the relevant evidence/context that motivated them in learner-understandable terms.
-
-## XR-ROAD-007 — Significant changes require review
-
-Major roadmap restructuring should normally require learner approval.
-
-## XR-ROAD-008 — Accepted change propagation
-
-Once a roadmap change is accepted, downstream planner/recommendation systems should be able to react to the updated roadmap.
-
----
-
-# 15. Roadmap → Planner
-
-## XR-PLAN-001 — Schedule roadmap work
-
-The planner shall be capable of scheduling actionable roadmap items.
-
-## XR-PLAN-002 — Accepted roadmap changes
-
-Accepted roadmap changes should trigger a planning impact check.
-
-## XR-PLAN-003 — Avoid immediate destructive rescheduling
-
-A roadmap update shall not automatically destroy the learner's existing plan without evaluating impact.
-
-## XR-PLAN-004 — Minor vs major impact
-
-Small scheduling adjustments may be automated where reversible; substantial rescheduling should be proposed.
-
-## XR-PLAN-005 — Preserve completed work
-
-Planner adaptation shall not reschedule work already completed unless explicitly required for revision.
-
----
-
-# 16. Missed Work → Plan Recovery
-
-## XR-PLAN-006 — Missed session event
-
-A missed planned session shall be eligible to trigger a recovery check.
-
-## XR-PLAN-007 — No endless overdue pile
-
-ARIA should prefer feasible replanning over simply accumulating overdue tasks indefinitely.
-
-## XR-PLAN-008 — Recovery factors
-
-Plan recovery may consider:
-
-- remaining time;
-- deadlines;
-- goal priority;
-- roadmap dependencies;
-- revision needs;
-- available time;
-- already completed work.
-
-## XR-PLAN-009 — Significant recovery proposal
-
-When recovery requires substantial changes, ARIA should present a proposed plan change.
-
-## XR-PLAN-010 — Explain movement
-
-The learner should be able to understand what was moved, removed, shortened, or reprioritized and why.
-
----
-
-# 17. Recommendations
-
-## XR-REC-001 — Recommendation refresh
-
-Meaningful changes in goal state, plan state, learner state, deadlines, or revision priority may trigger recommendation refresh.
-
-## XR-REC-002 — Recommendation ranking
-
-ARIA should prioritize recommendations using relevant context rather than presenting all possible actions equally.
-
-## XR-REC-003 — Recommendation provenance
-
-A recommendation should retain the factors that caused it to be surfaced.
-
-## XR-REC-004 — No false personalization
-
-When learner evidence is insufficient, ARIA shall avoid presenting generic recommendations as highly personalized conclusions.
-
-## XR-REC-005 — Dismissal
-
-The learner shall be able to dismiss recommendations where appropriate.
-
-## XR-REC-006 — Dismissal is not failure
-
-Dismissal alone shall not be treated as evidence that the learner cannot perform the recommended topic.
-
----
-
-# 18. Home Synchronization
-
-## XR-HOME-001 — Aggregated state
-
-Home shall reflect relevant current state from Goals, Planner, Revision, Progress, Recommendations, and deadlines.
-
-## XR-HOME-002 — Eventual refresh
-
-Meaningful state changes should be reflected on Home within an appropriate product timeframe.
-
-## XR-HOME-003 — No stale high-priority action
-
-Completed or invalidated high-priority actions should not remain prominently recommended after the system has processed the change.
-
-## XR-HOME-004 — Explain recommendation
-
-Home recommendations should provide a concise reason where useful.
-
-## XR-HOME-005 — Multi-goal awareness
-
-Home shall be capable of presenting prioritized work across multiple goals without merging their learning state incorrectly.
-
----
-
-# 19. Notifications
-
-## XR-NOTIF-001 — Event-driven reminder eligibility
-
-Relevant planner, revision, deadline, assessment, and proposal events may create notification requests.
-
-## XR-NOTIF-002 — Preference gate
-
-A notification shall respect learner channel/category preferences before delivery.
-
-## XR-NOTIF-003 — Deduplication
-
-ARIA should avoid sending duplicate notifications for the same meaningful event.
-
-## XR-NOTIF-004 — Stale notification prevention
-
-If the underlying action is completed, cancelled, or materially changed before delivery, ARIA should suppress or update the notification where feasible.
-
-## XR-NOTIF-005 — Action context
-
-Actionable notifications should preserve enough context to take the learner to the relevant item.
-
-## XR-NOTIF-006 — No notification cascade
-
-One learner action should not cause multiple redundant notifications from several downstream systems.
-
----
-
-# 20. Conflict Handling
-
-## XR-CONFLICT-001 — Explicit user change wins
-
-When a recent learner edit conflicts with an older automated proposal, the learner's explicit change shall normally take precedence.
-
-## XR-CONFLICT-002 — Concurrent change detection
-
-ARIA should detect when a proposal was generated from stale state before applying it.
-
-## XR-CONFLICT-003 — Multi-goal scheduling conflicts
-
-Planner automation shall account for competing commitments across active goals.
-
-## XR-CONFLICT-004 — Contradictory evidence
-
-Conflicting learning evidence should reduce confidence or trigger further assessment rather than forcing an arbitrary conclusion.
-
-## XR-CONFLICT-005 — Preference conflicts
-
-Context-specific explicit preferences shall take precedence over conflicting global defaults for that context.
-
-## XR-CONFLICT-006 — User correction propagation
-
-When the learner corrects an assumption, dependent future decisions should use the corrected information.
-
----
-
-# 21. Cascade Safety
-
-## XR-SAFE-001 — Bounded propagation
-
-Each automation chain shall have defined stopping conditions.
-
-## XR-SAFE-002 — No recursive self-triggering loops
-
-A system update shall not repeatedly trigger itself or equivalent downstream actions without new meaningful state.
-
-## XR-SAFE-003 — Consequential action boundary
-
-Automation shall stop at an approval boundary when a consequential learner decision requires review.
-
-## XR-SAFE-004 — Confidence degradation
-
-Uncertain upstream outputs shall not become more certain merely because they passed through multiple downstream systems.
-
-## XR-SAFE-005 — Derived-state distinction
-
-ARIA should distinguish source evidence from derived conclusions and recommendations.
-
-## XR-SAFE-006 — Maximum adaptation scope
-
-A single weak signal shall not be allowed to rewrite large portions of a learner's roadmap and planner.
-
-## XR-SAFE-007 — No agent authority escalation
-
-An AI component shall not gain permission to perform a higher-impact action merely because another AI component recommended it.
-
----
-
-# 22. Duplicate Processing / Idempotency Requirements
-
-## XR-IDEMP-001 — Duplicate event safety
-
-Repeated processing of the same logical event shall not create duplicate consequential state where avoidable.
-
-## XR-IDEMP-002 — Assessment submission
-
-The same assessment submission shall not accidentally create multiple attempts/evidence records because of retries.
-
-## XR-IDEMP-003 — Notification request
-
-Retrying notification processing shall not produce duplicate user notifications.
-
-## XR-IDEMP-004 — Proposal generation
-
-ARIA should avoid generating multiple equivalent pending roadmap/planner proposals from the same unchanged evidence state.
-
-## XR-IDEMP-005 — Safe retries
-
-Cross-system operations should be designed so transient failures can be retried safely.
-
----
-
-# 23. Auditability & Explainability
-
-## XR-AUDIT-001 — Consequential change record
-
-Significant system-generated changes/proposals should retain:
-
-```text
-what changed
-when
-why
-originating event/context
-supporting evidence where relevant
-whether it was automatic or approved
-```
-
-## XR-AUDIT-002 — Proposal decision
-
-ARIA should retain whether a significant proposal was accepted, rejected, modified, or expired where useful.
-
-## XR-AUDIT-003 — Learner-facing explanation
-
-Internal technical traces need not be exposed directly, but ARIA should be able to translate relevant reasoning into concise learner-facing explanations.
-
-## XR-AUDIT-004 — Evidence trace
-
-Important learner-state conclusions should be traceable to their supporting evidence.
-
-## XR-AUDIT-005 — No fabricated explanation
-
-ARIA shall not generate a plausible-sounding reason that is disconnected from the actual factors used by the system.
-
----
-
-# 24. Failure Isolation & Recovery
-
-## XR-FAIL-001 — Failure isolation
-
-Failure of one downstream system shall not unnecessarily invalidate successful upstream work.
-
-Example:
-
-If an assessment is successfully submitted and evaluated but recommendation generation fails, the assessment result shall remain preserved.
-
-## XR-FAIL-002 — Partial workflow status
-
-ARIA should be capable of representing partially completed workflows rather than treating them as entirely failed.
-
-## XR-FAIL-003 — Retryable operations
-
-Transient downstream failures should be retryable where safe.
-
-## XR-FAIL-004 — No fabricated success
-
-ARIA shall not present a downstream update as completed when the operation actually failed.
-
-## XR-FAIL-005 — User-facing degradation
-
-Where a non-critical automation fails, the learner should still be able to use unaffected core functionality.
-
-## XR-FAIL-006 — Recovery from stale proposals
-
-A proposal generated from obsolete state should be invalidated or recomputed before application.
-
-## XR-FAIL-007 — Preserve source data
-
-Derived-system failure shall not delete the original learner action/evidence that caused the workflow.
-
----
-
-# 25. Example Workflow — Assessment Adaptation
-
-```text
-Learner completes DBMS assessment
-             ↓
-AssessmentSubmitted
-             ↓
-Evaluation succeeds
-             ↓
-AssessmentEvaluated
-             ↓
-Evidence recorded:
-  Transactions: strong
-  Serializability: weak
-             ↓
-Learner Model update check
-             ↓
-Existing evidence also shows repeated
-Serializability difficulty
-             ↓
-Confidence becomes sufficient to mark
-Serializability as weak
-             ↓
-Progress refreshes
-             ↓
-Revision priority increases
-             ↓
-Roadmap adaptation check
-             ↓
-ARIA proposes:
-"Add one targeted Serializability practice
-session before the next Transactions unit."
-             ↓
-Learner reviews proposal
-       ↙            ↘
-    Accept          Reject
-      ↓               ↓
-Roadmap updates    Roadmap unchanged
-      ↓
-Planner impact check
-      ↓
-Minor schedule change OR proposal
-      ↓
-Home recommendation refreshes
-```
-
-One assessment answer alone does not necessarily cause this entire chain. Evidence thresholds and confidence matter.
-
----
-
-# 26. Example Workflow — Missed Study Session
-
-```text
-Planned DBMS session missed
-          ↓
-Plan recovery check
-          ↓
-ARIA checks:
-- exam date
-- remaining roadmap work
-- tomorrow's availability
-- other active goals
-- revision due
-          ↓
-ARIA creates recovery proposal
-          ↓
-"Move Transactions to tomorrow,
-shorten review from 60 to 40 minutes,
-and keep Friday's mock exam unchanged."
-          ↓
-Learner accepts / modifies / rejects
-          ↓
-Plan updates
-          ↓
-Home + reminders synchronize
-```
-
-ARIA should not simply create another overdue task and leave the learner to reorganize everything manually.
-
----
-
-# 27. Example Workflow — Resource Failure
-
-```text
-Learner uploads notes.pdf
-          ↓
-ResourceAdded
-          ↓
-Processing fails
-          ↓
-ResourceProcessingFailed
-          ↓
-Resource UI shows failure + retry path
-```
-
-Unrelated goals, chats, notes, assessments, and planner functions remain available.
-
-No learner-state conclusion is generated from the failed resource.
-
----
-
-# 28. Example Workflow — User Correction
-
-```text
-ARIA infers:
-"Operating Systems question belongs to GATE goal"
-          ↓
-Learner says:
-"No, this is for my university exam."
-          ↓
-Active context corrected
-          ↓
-Future notes/assessment/evidence from this
-session use University Exam context
-          ↓
-Old valid GATE history remains unchanged
-```
-
----
-
-# 29. Automation Decision Matrix
-
-| Change | Default Product Behaviour |
-|---|---|
-| Save assessment attempt | Automatic |
-| Record evaluation evidence | Automatic |
-| Refresh progress calculation | Automatic |
-| Surface due revision | Automatic |
-| Re-rank recommendation | Automatic + visible |
-| Adjust revision priority | Automatic + visible |
-| Suggest prerequisite review | Recommendation |
-| Add minor optional practice | Recommendation / proposal |
-| Major roadmap restructuring | Approval required |
-| Drop roadmap topic | Approval required |
-| Large planner reschedule | Approval required |
-| Change learner-declared deadline | Explicit learner action / approval |
-| Change learner-declared goal priority | Explicit learner action / approval |
-| Replace assessment specification | Learner confirmation required |
-
-This matrix is a PRD default, not a final implementation contract.
-
----
-
-# 30. Step 4 Decisions
-
-This step establishes several critical ARIA principles:
-
-1. **Events connect systems; they do not give every system unlimited authority.**
-2. **Evidence is preserved separately from conclusions.**
-3. **Low-risk coordination may be automatic.**
-4. **Consequential learning-path changes require visibility and often approval.**
-5. **One weak signal must not cascade into major roadmap/planner changes.**
-6. **Explicit learner instructions outrank stale or inferred context.**
-7. **Automation must be bounded, retry-safe, traceable, and failure-isolated.**
-8. **ARIA should recover from missed work instead of creating an endless overdue backlog.**
-9. **Notifications are downstream communication, not a reason to spam the learner.**
-10. **The system must be able to explain meaningful adaptive behaviour using the real factors that caused it.**
-
----
-
-# 31. Step 4 Completion
-
-**Step 4 — Cross-System & Automation Requirements is complete.**
+The previous version correctly contained strong orchestration safety principles, but described the complete Learning OS event graph as if it were one immediate system. The reviewed version preserves those principles while making the R0 automation chain explicit and small.
 
 Next:
 
-# Step 5 — AI, Learner Model, Memory & Evidence Requirements
+# Step 5 — AI, Learner Model, Memory & Evidence Requirements Audit
 
-Step 5 will define the intelligence layer in depth:
+Step 5 must now answer the hardest R0 intelligence questions precisely:
 
 ```text
-AI behaviour boundaries
+What counts as evidence?
         ↓
-Task decomposition
+How strong/reliable is it?
         ↓
-Tool use
+How is learner state represented?
         ↓
-Context management
+How does uncertainty behave?
         ↓
-Memory
+What may ARIA infer from one result?
         ↓
-Evidence model
+How does evidence accumulate/contradict?
         ↓
-Learner Model
+How does a state produce an adaptation?
         ↓
-Mastery / weakness / unknown state
-        ↓
-Misconception detection
-        ↓
-Prerequisite gaps
-        ↓
-Confidence / uncertainty
-        ↓
-Generate–Validate–Fix patterns
-        ↓
-Human correction
-        ↓
-AI failure behaviour
+How are incorrect AI/evaluation outputs corrected?
 ```
 
-This is where ARIA's learning intelligence is specified before any agent architecture is chosen.
+It must distinguish the **basic R0 learner state needed to close the loop** from the much richer longitudinal Learner Model, memory, misconception detection, prerequisite reasoning and agentic intelligence planned for later releases.
