@@ -4,1066 +4,385 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Step 7 — Complete  
+**Status:** Reviewed and aligned with amended `VISION.md`  
 **Primary sources:** `VISION.md`, Steps 1–6 of the Phase 1 PRD
 
 ---
 
 # 1. Purpose
 
-ARIA's full product vision is intentionally broad: a learner can define what they are preparing for, bring their own resources, study with AI, generate assessments in the format they need, receive evidence-backed feedback, revise weak areas, follow an adaptive roadmap and planner, listen to learning material, and eventually connect activity from external learning platforms.
+ARIA's complete vision is intentionally broad. This document prevents that vision from becoming the implementation scope of the first release.
 
-Trying to implement all of this simultaneously would increase technical risk and make it difficult to determine whether the core learning loop actually works.
+Release boundaries are organized around **product hypotheses**, not arbitrary feature bundles.
 
-This document therefore defines **build order**, not a smaller vision.
-
-The central principle is:
-
-> **Do not build ARIA feature-by-feature. Build it as increasingly complete learning loops.**
+> **Each release should contain the smallest coherent system needed to test the next important ARIA hypothesis.**
 
 ---
 
-# 2. Prioritization Principles
+# 2. Two Independent Scope Knobs
 
-ARIA shall prioritize work according to the following order:
+ARIA must control two different kinds of breadth.
 
-1. **Foundations before automation.**
-2. **A complete learning loop before feature breadth.**
-3. **Source-grounded learning before broad autonomous behaviour.**
-4. **Evidence before sophisticated adaptation.**
-5. **Learner control before autonomous restructuring.**
+| Scope | Long-term direction | Early validation |
+|---|---|---|
+| Domain breadth | Goal-driven and domain-independent | One or a small number of representative contexts |
+| Feature breadth | Complete Learning OS | Smallest loop required for the current hypothesis |
+
+Narrowing domain breadth does not automatically solve feature breadth. Both must be controlled deliberately.
+
+---
+
+# 3. Prioritization Principles
+
+1. **Validate a hypothesis before expanding the system built around it.**
+2. **A complete adaptive loop before feature breadth.**
+3. **Evidence before sophisticated personalization.**
+4. **Specific validated contexts before universal abstraction.**
+5. **Learner control before high-impact autonomous changes.**
 6. **Reliable deterministic workflows before unnecessary agents.**
-7. **One coherent product surface before many integrations.**
-8. **Measurable learner value before architectural complexity.**
-9. **Graceful simple behaviour before advanced intelligence.**
-10. **The full vision remains documented even when features ship later.**
+7. **Measurable learner value before architectural complexity.**
+8. **The full vision remains documented even when capabilities ship later.**
+9. **A feature's importance to the vision does not make it an R0 requirement.**
+10. **The product should earn complexity.**
 
 ---
 
-# 3. Prioritization Vocabulary
+# 4. Release Vocabulary
 
-This PRD uses four priority groups.
+## R0 — Validation Release
 
-## MUST
+R0 is not merely a product shell and is not the market-ready MVP. It is the smallest executable ARIA slice that can test the first adaptive-learning hypothesis.
 
-Required for the first coherent usable ARIA learning loop or required foundation/security.
+## Later Releases
 
-## SHOULD
+Later releases add systems because they enable the next hypothesis to be tested, not because an arbitrary feature checklist says they are next.
 
-Important to ARIA's differentiated experience and intended shortly after the first usable slice.
-
-## COULD
-
-Valuable capability that may follow once core loops are stable.
-
-## LATER
-
-Part of the product vision but intentionally deferred because it introduces substantial complexity, dependency risk, cost, or validation burden.
-
-Priority does not mean importance to the final vision. `LATER` means **not yet**, not **never**.
+The release labels below are PRD-level working boundaries. They may be refined as acceptance criteria are finalized, but the hypothesis order should remain explicit.
 
 ---
 
-# 4. Release Model
+# 5. R0 — Prove Adaptive Learning
 
-ARIA should evolve through coherent capability releases.
+## Hypothesis
 
-```text
-R0 — Foundation
-        ↓
-R1 — First Learning Loop
-        ↓
-R2 — Evidence & Personalization
-        ↓
-R3 — Adaptive Learning System
-        ↓
-R4 — Audio & Mobile Learning
-        ↓
-R5 — External Activity & Integrations
-        ↓
-R6 — Advanced ARIA
-```
+> **ARIA can observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience.**
 
-These labels define dependency/order. They do not prescribe calendar dates.
+## Validation context
 
----
+R0 should be tested using one or a small number of representative contexts from ARIA's initial audience. It does **not** need to prove equal effectiveness across university exams, placements, certifications, competitive exams, interviews, and every professional skill simultaneously.
 
-# 5. R0 — Foundation
-
-## Goal
-
-Create the secure product skeleton required for every later ARIA capability.
-
-## MUST
-
-### Identity
-
-- sign up;
-- sign in;
-- sign out;
-- secure session handling;
-- account ownership boundaries.
-
-### User profile
-
-- basic learner profile;
-- timezone;
-- relevant preferences;
-- onboarding state.
-
-### Goal model
-
-Users can create learning goals such as:
+## Required product loop
 
 ```text
-GATE preparation
-University DBMS exam
-Placement preparation
-AWS certification
-Python learning
-Any other learner-defined preparation goal
+Goal / Learning Context
+          ↓
+       Resources
+          ↓
+         Study
+          ↓
+      Assessment
+          ↓
+      Evaluation
+          ↓
+    Basic Evidence
+          ↓
+ Basic Learner State
+          ↓
+Adapt Next Study Experience
+          ↓
+          ↺
 ```
 
-Goals are **not hardcoded categories**.
+## R0 MUST
 
-### Context model
+### Foundation
 
-ARIA can associate relevant activity with:
+- secure learner identity/session sufficient for testing;
+- learner-owned data isolation;
+- basic learner profile/context;
+- one active validation goal/context at minimum;
+- basic persistence required to run repeated learning cycles.
 
-```text
-user
-    ↓
-goal
-    ↓
-topic / resource / activity
-```
+The long-term model may support multiple goals, but multiple simultaneous goals are not required to prove R0's hypothesis unless implementation makes them essentially free.
 
-### Core data model
+### Resources
 
-Foundation for:
+Support a deliberately small reliable input surface sufficient for the chosen validation context, for example PDF and/or pasted text.
 
-- goals;
-- resources;
-- chats/study sessions;
-- notes;
-- assessments;
-- attempts;
-- evidence;
-- learner state;
-- roadmap;
-- planner;
-- revision;
-- notifications.
+R0 does not need every planned file/resource type.
 
-Not every table/model must be fully feature-complete in R0, but architecture must avoid painting later requirements into a corner.
+### Study
 
-### Security baseline
+- learner can study within selected context/resources;
+- ARIA can explain and answer questions;
+- selected source/context can ground study where applicable;
+- learner can continue a study interaction after adaptation.
 
-Step 6 security requirements needed for development and testing must begin here rather than being postponed to launch.
+### Assessment
 
-## R0 Exit Condition
+R0 needs enough assessment capability to generate meaningful evidence. It does not need the complete long-term Assessment Engine.
 
-A learner can securely create an account, establish their learning context, create/manage a goal, and enter the application shell with data correctly isolated by account.
-
----
-
-# 6. R1 — First Learning Loop
-
-## Goal
-
-Prove ARIA's fundamental promise:
-
-> **Bring what you need to learn → study it → test yourself → understand what to do next.**
-
-This is the first genuinely usable ARIA release.
-
-## MUST
-
-### Goal-aware Home
-
-Home reflects the learner's actual goals rather than hardcoded DSA/AWS/etc. sections.
-
-### Resource ingestion
-
-Support an intentionally small initial set of reliable resource formats.
-
-Initial candidates:
-
-- PDF;
-- pasted text;
-- manually created notes.
-
-Additional formats can follow after ingestion quality is proven.
-
-### Resource processing
-
-- extract usable text;
-- retain source identity;
-- chunk/index where required;
-- expose processing state/failure;
-- preserve access to source.
-
-### Source-grounded Study Chat
-
-The learner can ask questions about selected resources/context.
-
-ARIA should:
-
-- retrieve relevant material;
-- explain concepts;
-- answer questions;
-- distinguish grounded information from unsupported assumptions where relevant;
-- avoid pretending unavailable material was found.
-
-### Notes
-
-The learner can create/save useful notes generated manually or from study interactions.
-
-### Assessment Builder
-
-The learner chooses the assessment specification.
-
-ARIA shall not assume every learner wants MCQs.
-
-Supported specification concepts should include, as feasible for R1:
-
-```text
-topic/source
-question count
-question type
-marks / scoring expectations
-difficulty
-time limit
-```
-
-Initial supported formats should prioritize formats ARIA can generate and evaluate reliably.
-
-Suggested first formats:
-
-- MCQ;
-- short answer;
-- descriptive answer with bounded rubric/feedback.
-
-Coding-contest execution may ship later unless infrastructure is deliberately included.
-
-### Assessment attempt
-
-- exam card/specification;
-- start assessment;
-- answer questions;
-- timer when selected;
-- submit;
-- preserve attempt.
+Initial formats should be selected for reliable generation/evaluation in the chosen validation context. Learner configuration should remain possible within the formats R0 actually supports.
 
 ### Evaluation
 
-- objective scoring where deterministic;
-- bounded AI evaluation where needed;
-- feedback;
-- source/topic association;
-- validation before consequential downstream use.
+- supported responses can be evaluated;
+- deterministic scoring is used where appropriate;
+- AI evaluation is bounded/validated where used;
+- evaluation failure does not become false learning evidence.
 
-### Basic evidence
+### Basic Evidence
 
-Assessment results create structured learning evidence.
+- evaluated performance creates structured evidence;
+- evidence retains provenance to learner/context/topic/activity;
+- one result does not automatically equal mastery or confirmed weakness.
 
-### Basic next-action recommendation
+### Basic Learner State
 
-ARIA uses the latest activity/context to suggest a reasonable next learning action without pretending a mature Learner Model exists yet.
+R0 requires only enough state to support adaptation.
 
-## R1 Explicit Non-Goals
-
-Do not block R1 on:
-
-- full multi-agent orchestration;
-- sophisticated misconception graphs;
-- automatic roadmap restructuring;
-- external platform tracking;
-- production-grade coding sandbox;
-- advanced spaced-repetition engine;
-- full audio studio;
-- every possible file format;
-- social/community features;
-- video course hosting;
-- language-learning specialization.
-
-## R1 Exit Condition
-
-A real learner can complete this loop end-to-end:
-
-```text
-Create goal
-   ↓
-Add study material
-   ↓
-Study with ARIA
-   ↓
-Generate a learner-configured assessment
-   ↓
-Take assessment
-   ↓
-Receive evaluation
-   ↓
-Store evidence
-   ↓
-Receive a grounded next action
-```
-
----
-
-# 7. R2 — Evidence & Personalization
-
-## Goal
-
-Turn ARIA from a resource-aware AI tutor into a system that starts learning from the learner's performance.
-
-## SHOULD
-
-### Learner Model v1
-
-Implement concept-level states from Step 5 with deliberately conservative inference.
-
-Initial useful states may include:
+Example conservative states may include:
 
 ```text
 UNTESTED
 DEVELOPING
-WEAK
-STRONG
-REVIEW_NEEDED
+NEEDS_REVIEW
+SUPPORTED
 ```
 
-`MASTERED` should only be introduced when the evidence policy is sufficiently validated.
+Exact state names are an implementation/design decision; the product requirement is conservative evidence-backed state rather than a sophisticated universal mastery ontology.
 
-### Evidence history
+### Adaptive next Study
 
-Learners can inspect why ARIA believes a topic may be weak/strong.
+This is the defining R0 capability.
 
-### Teach-back
+ARIA must use learner state/evidence to materially change a subsequent study experience in a way that can be inspected and tested.
 
-ARIA can ask the learner to explain a concept in their own words and use validated evaluation as another evidence source.
+Examples may include:
 
-### Diagnostic questioning
+- prioritize a weak concept;
+- provide a different explanation;
+- revisit a prerequisite;
+- increase/decrease scaffolding;
+- ask targeted follow-up questions;
+- avoid spending the same effort on already-supported concepts.
 
-ARIA can ask follow-up questions when one answer is insufficient to conclude weakness or misconception.
+The adaptation should retain enough rationale/provenance to verify why it occurred.
 
-### Revision queue
+## R0 Explicit Non-Goals
 
-Weak/review-needed concepts can become revision candidates.
+R0 should **not be blocked by**:
 
-### Memory v1
-
-Persist useful interaction preferences and durable context separately from the Learner Model.
-
-### Progress
-
-Progress reflects meaningful evidence/state rather than only hours spent or pages opened.
-
-### Recommendation Engine v1
-
-Recommendations use:
-
-- active goal;
-- current roadmap/context if available;
-- learner evidence;
-- revision state;
-- deadlines where known;
-- learner preferences.
-
-## R2 Exit Condition
-
-ARIA can explain not only **what the learner studied**, but cautiously **what evidence suggests they may know, need to review, or have not yet demonstrated**.
-
----
-
-# 8. R3 — Adaptive Learning System
-
-## Goal
-
-Connect the intelligence layer to planning and learning-path adaptation.
-
-## SHOULD
-
-### Roadmap Engine
-
-Generate goal-specific roadmaps from learner intent/context rather than hardcoded curricula.
-
-### Roadmap editing
-
-Learners can:
-
-- inspect;
-- edit;
-- reorder;
-- accept/reject proposed adaptations.
-
-### Planner
-
-Convert roadmap items and learner commitments into actionable study sessions.
-
-### Availability-aware planning
-
-Plans account for available time and relevant deadlines when the learner provides them.
-
-A universal deadline is not required during onboarding; deadlines belong to relevant goals/exams/events.
-
-### Plan recovery
-
-Missed work triggers feasible recovery rather than an endless overdue pile.
-
-### Revision integration
-
-Revision items compete appropriately with new roadmap work.
-
-### Misconception detection v1
-
-Use repeated evidence/diagnostic questioning before marking supported misconceptions.
-
-### Prerequisite-gap detection v1
-
-Use dependency knowledge + diagnostic evidence before proposing prerequisite remediation.
-
-### Adaptation proposals
-
-Roadmap/planner changes follow Step 4's automation classes.
-
-### Email reminders
-
-Email reminders may be introduced for:
-
-- planned study sessions;
-- revision due;
-- approaching learner-defined deadlines;
-- important accepted plan changes.
-
-Reminder preferences and deduplication are required.
-
-## R3 Exit Condition
-
-ARIA can operate a controlled adaptive loop:
-
-```text
-Plan
- ↓
-Learn
- ↓
-Assess
- ↓
-Evidence
- ↓
-Learner Model
- ↓
-Revision / adaptation proposal
- ↓
-Learner approval where needed
- ↓
-Updated plan
- ↓
-Next action
-```
-
----
-
-# 9. R4 — Audio & Mobile Learning
-
-## Goal
-
-Support learning when reading or typing is inconvenient, including revision while travelling or immediately before an exam.
-
-This is **not merely speech-to-text chat**.
-
-## SHOULD / COULD
-
-### Notes/resources → audio
-
-Learners can generate listenable learning material from selected notes/resources.
-
-### Audio modes
-
-Potential modes include:
-
-```text
-Quick revision
-Detailed explanation
-Question-and-answer revision
-Flash review
-Topic recap
-Exam-before-you-enter recap
-```
-
-### Audio grounding
-
-Generated audio remains grounded in the selected learner material/context where requested.
-
-### Audio player
-
-Support:
-
-- play/pause;
-- seek;
-- playback speed;
-- resume position;
-- source/title context.
-
-### Interactive voice revision
-
-ARIA can conduct a hands-free question/revision session where technically and safely feasible.
-
-The learner can answer questions verbally and receive the next question/feedback.
-
-### Audio generation lifecycle
-
-Long audio generation uses queued/processing/ready/failed states and cost controls from Step 6.
-
-## R4 Exit Condition
-
-A learner can select their own material and create a useful audio revision experience without manually rebuilding the content in another application.
-
----
-
-# 10. R5 — External Activity & Integrations
-
-## Goal
-
-Reduce manual fragmentation across learning platforms without trying to replace specialized platforms.
-
-ARIA is **not** trying to become LeetCode, YouTube, or every learning platform.
-
-It should coordinate learning around them where integrations legally and technically permit it.
-
-## COULD
-
-### External resource links
-
-Roadmap items may link to external learning resources appropriate to the learner's goal.
-
-These are dynamically recommended, not hardcoded globally.
-
-### External activity tracking
-
-Where supported through legitimate APIs/integrations, ARIA may ingest relevant completion/activity signals.
-
-Potential examples:
-
-```text
-coding-practice activity
-course progress
-video/resource completion
-calendar events
-```
-
-### LeetCode-style integration boundary
-
-For placement/DSA learners, ARIA may recommend coding problems and track supported activity where legitimate integration mechanisms exist.
-
-ARIA should not attempt to duplicate the coding platform itself unless a later product decision explicitly introduces an internal coding environment.
-
-### Calendar integration
-
-Planner items may synchronize with supported external calendars.
-
-### Integration permission model
-
-Every external integration shall have explicit user authorization and revocation.
-
-## R5 Explicit Non-Goals
-
-- scraping platforms in violation of their terms;
-- pretending unsupported external activity was tracked;
-- requiring external integrations for core ARIA functionality;
-- replacing specialized platforms merely for feature-count parity.
-
-## R5 Exit Condition
-
-ARIA can coordinate selected external learning activity while remaining useful as a standalone learning system.
-
----
-
-# 11. R6 — Advanced ARIA
-
-## Goal
-
-Expand ARIA into the fuller autonomous-but-controlled learning operating system envisioned by the product.
-
-## COULD / LATER
-
-Potential capabilities include:
-
-### Advanced Learner Model
-
-- richer mastery modelling;
-- forgetting curves;
-- concept dependency graphs;
-- cross-goal transferable knowledge;
-- stronger evidence calibration.
-
-### Advanced misconception reasoning
-
-- misconception pattern library;
-- targeted counterexamples;
-- repeated diagnostic loops;
-- remediation effectiveness tracking.
-
-### Advanced assessment modes
-
-Depending on learner goals:
-
-- timed competitive-style assessments;
-- coding assessments;
-- viva/oral examinations;
-- mixed-format exams;
-- section-level timing;
-- negative marking;
-- custom marking schemes;
-- exam templates derived from learner specification.
-
-### Advanced planning
-
-- scenario planning;
-- workload balancing across goals;
-- exam proximity strategies;
-- recovery optimization;
-- adaptive revision spacing.
-
-### Advanced agentic workflows
-
-Only after deterministic boundaries, validation, evaluation, observability, and permissions are mature.
-
-Possible specialized reasoning components may handle:
-
-```text
-study assistance
-assessment generation
-assessment evaluation
-learner-state reasoning
-roadmap generation
-planning
-revision
-resource retrieval
-```
-
-This list does **not** mandate one agent per capability.
-
-### Additional modalities
-
-- richer voice interaction;
-- diagrams/visual learning support;
-- supported image-based study material;
-- additional document/media types.
-
-### Advanced integrations
-
-Only where there is demonstrated learner value and reliable APIs/permission models.
-
----
-
-# 12. Cross-Release Foundation Matrix
-
-| Capability | R0 | R1 | R2 | R3 | R4 | R5 | R6 |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Authentication | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Goals/context | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Resources | foundation | ✓ | improve | improve | audio source | external | advanced |
-| Study chat | foundation | ✓ | personalized | adaptive | voice | external context | advanced |
-| Notes | foundation | ✓ | improve | integrated | audio source | — | advanced |
-| Assessments | foundation | ✓ | improve | adaptive | oral support | external signals | advanced |
-| Evidence | foundation | basic | ✓ | ✓ | voice evidence | external signals | advanced |
-| Learner Model | schema | minimal | v1 | ✓ | ✓ | ✓ | advanced |
-| Revision | schema | basic recommendation | ✓ | integrated | audio | — | advanced |
-| Roadmap | schema | optional/basic | basic | ✓ | ✓ | external links | advanced |
-| Planner | schema | optional/basic | basic | ✓ | ✓ | calendar | advanced |
-| Audio | — | — | — | preparation | ✓ | — | advanced |
-| Integrations | — | — | — | email | — | ✓ | advanced |
-| Agentic orchestration | — | minimal | minimal | bounded | bounded | bounded | advanced |
-
----
-
-# 13. MUST / SHOULD / COULD / LATER Summary
-
-## MUST — First coherent product
-
-- authentication;
-- learner/account isolation;
-- flexible goals;
-- goal-aware context;
-- Home shell;
-- resource ingestion;
-- resource-grounded study;
-- notes;
-- learner-configured assessment generation;
-- assessment attempt;
-- evaluation;
-- basic structured evidence;
-- basic next-action recommendation;
-- security/reliability baseline.
-
-## SHOULD — ARIA differentiation
-
-- Learner Model;
-- teach-back;
-- diagnostic questioning;
-- revision queue;
-- meaningful progress;
-- persistent memory;
-- roadmap generation;
-- adaptive roadmap proposals;
-- planner;
-- missed-work recovery;
-- misconception detection;
-- prerequisite-gap detection;
+- Notes system;
+- Audio generation;
+- Planner;
 - email reminders;
-- notes/resources-to-audio;
-- interactive audio revision.
+- full Roadmap engine;
+- automatic Roadmap restructuring;
+- sophisticated Progress dashboards;
+- mature spaced repetition;
+- full misconception detection;
+- prerequisite graphs beyond what a narrow validation case needs;
+- external platform tracking;
+- coding sandbox infrastructure unless deliberately selected as the validation context;
+- full multi-agent orchestration;
+- every resource type;
+- every assessment format;
+- multiple simultaneous goals;
+- proving domain generality.
 
-## COULD
+## R0 Exit Condition
 
-- external calendar sync;
-- supported external activity tracking;
-- richer assessment formats;
-- coding-practice coordination;
-- advanced voice;
-- richer progress analytics;
-- additional resource formats;
-- deeper cross-goal intelligence.
+R0 does **not** exit merely because these systems exist.
 
-## LATER
+It exits only when:
 
-- broad autonomous multi-agent behaviour;
-- internal replacement for specialized coding platforms;
-- large-scale social/community features;
-- video-course hosting platform;
-- every possible learning modality;
-- integrations without reliable APIs/permissions;
-- autonomous high-impact changes without learner control.
+1. **Gate A** rigorously demonstrates the adaptive pipeline in controlled/reproducible scenarios; and
+2. **Gate B** collects appropriately scoped real-user directional evidence from available target users.
 
----
-
-# 14. What ARIA Must Not Hardcode
-
-The following must remain learner/context-driven rather than universal fixed navigation/content assumptions:
-
-```text
-DSA
-AWS
-GATE
-UPSC
-bank exams
-university subjects
-placement preparation
-certifications
-specific roadmaps
-specific resource lists
-specific exam formats
-```
-
-ARIA may display any of these when relevant to a learner.
-
-It shall not assume they are relevant to every learner.
-
-The product model is:
-
-```text
-Learner intent/context
-        ↓
-Relevant goals
-        ↓
-Relevant roadmap/resources/assessments
-        ↓
-Personalized workspace
-```
-
-not:
-
-```text
-Hardcoded learning categories
-        ↓
-Learner forced into categories
-```
+Exact criteria are defined in Step 8.
 
 ---
 
-# 15. What ARIA Should Not Replace
+# 6. R1 — Prove Learning-Path Adaptation
 
-ARIA's goal is coordination and learning intelligence, not feature cloning.
+## Hypothesis
 
-Unless later evidence supports expansion, ARIA should not attempt to replace:
+> **ARIA can use accumulated learning evidence to maintain and adapt a structured learning path rather than only adapting the next individual study interaction.**
 
-- dedicated coding judges/practice platforms;
-- full video-hosting/course marketplaces;
-- general-purpose office suites;
-- every note-taking editor;
-- every research database;
-- every calendar application.
+## Candidate capabilities
 
-ARIA may integrate, recommend, organize, reason over, or coordinate with these tools where valuable.
+- Roadmap Engine v1;
+- topics/subtopics and dependencies;
+- learner-editable roadmap;
+- evidence-aware roadmap recommendations;
+- explainable adaptation proposals;
+- learner accept/modify/reject flow;
+- stronger goal structure where needed.
 
----
+## Exit direction
 
-# 16. Vertical Slice Strategy
-
-Every major implementation milestone should preferably produce a demonstrable learner loop rather than isolated backend components.
-
-Example bad sequencing:
-
-```text
-Build 15 agents
-Build 8 databases
-Build audio
-Build calendar integration
-Build analytics
-...
-Eventually connect them
-```
-
-Preferred sequencing:
-
-```text
-Goal
- ↓
-Resource
- ↓
-Study
- ↓
-Assessment
- ↓
-Evaluation
- ↓
-Next action
-```
-
-Then deepen it:
-
-```text
-Assessment
- ↓
-Evidence
- ↓
-Learner Model
- ↓
-Revision
-```
-
-Then:
-
-```text
-Learner Model
- ↓
-Roadmap
- ↓
-Planner
- ↓
-Recovery
-```
-
-Then:
-
-```text
-Notes / Resources
- ↓
-Audio revision
-```
-
-Then connect external ecosystems.
+A learner can follow a structured path and ARIA can propose justified path changes based on learning evidence without silently rewriting the learner's plan.
 
 ---
 
-# 17. Feature Dependency Rules
+# 7. R2 — Prove Longitudinal Learning
 
-## REL-DEP-001
+## Hypothesis
 
-Learner Model implementation depends on reliable evidence representation.
+> **ARIA can use evidence accumulated over time to decide what deserves review and represent changing learning state responsibly.**
 
-## REL-DEP-002
+## Candidate capabilities
 
-Adaptive roadmap behaviour depends on Learner Model confidence and Step 4 approval controls.
+- richer Learner Model;
+- evidence history;
+- revision queue;
+- repeated retrieval/reassessment;
+- teach-back/diagnostic questioning;
+- progress based on evidence;
+- memory v1 kept distinct from Learner Model;
+- conservative misconception hypotheses;
+- stronger confidence handling.
 
-## REL-DEP-003
-
-Planner adaptation depends on a stable roadmap/task representation.
-
-## REL-DEP-004
-
-Misconception detection depends on repeated/diagnostic evidence rather than raw chat memory.
-
-## REL-DEP-005
-
-Prerequisite-gap adaptation depends on concept dependency knowledge plus evidence.
-
-## REL-DEP-006
-
-Audio generation depends on reliable source/resource selection and content processing.
-
-## REL-DEP-007
-
-External activity tracking depends on legitimate integration access and explicit user authorization.
-
-## REL-DEP-008
-
-Advanced agentic orchestration depends on mature tool authorization, validation, observability, retry limits, and evaluation.
-
-## REL-DEP-009
-
-Email reminders depend on stable planner/revision/deadline state and notification preferences.
-
-## REL-DEP-010
-
-Progress analytics depend on meaningful learning events/evidence, not merely UI activity.
+Full misconception detection should only emerge when repeated evidence supports it.
 
 ---
 
-# 18. Anti-Premature-Complexity Rules
+# 8. R3 — Prove Learning Coordination
 
-During early implementation, ARIA should resist building complexity merely because it may eventually be useful.
+## Hypothesis
 
-Do **not** prematurely build:
+> **ARIA can coordinate learning work over time using goals, learning paths, evidence, revision needs, deadlines, and learner availability.**
 
-1. microservices for every feature;
-2. one AI agent per page;
-3. complex inter-agent protocols before workflows require them;
-4. a knowledge graph before simpler concept relationships prove insufficient;
-5. a custom vector database;
-6. a custom authentication system;
-7. a custom coding judge without demonstrated need;
-8. every external integration at once;
-9. an elaborate event infrastructure before event volume/requirements justify it;
-10. complex ML mastery models before sufficient real learner evidence exists.
+## Candidate capabilities
 
-This does not forbid these technologies later. It prevents architecture from becoming a research project before ARIA becomes a usable product.
+- Planner;
+- availability-aware scheduling;
+- deadline-aware prioritization;
+- missed-work recovery;
+- revision vs new-learning prioritization;
+- reminders/notifications;
+- intelligent Home/next actions;
+- multiple-goal conflict handling where needed.
 
----
+## Exit direction
 
-# 19. Release Evaluation Questions
-
-Before advancing a major release, the team should be able to answer:
-
-### R1
-
-Can a learner actually learn something useful end-to-end inside ARIA?
-
-### R2
-
-Does ARIA's evidence model produce learner-state conclusions that are more useful than simple test scores?
-
-### R3
-
-Do adaptive roadmap/planner changes help learners recover and progress without making the product feel uncontrollable?
-
-### R4
-
-Does audio materially improve revision/accessibility/travel learning rather than merely demonstrating text-to-speech?
-
-### R5
-
-Do integrations reduce fragmentation enough to justify their maintenance and permission complexity?
-
-### R6
-
-Does additional autonomy measurably improve learning workflows enough to justify agentic complexity?
+ARIA reduces manual learning-management work rather than merely generating a static schedule.
 
 ---
 
-# 20. Product Success Progression
+# 9. R4 — Expand Learning Interfaces
 
-ARIA's success should mature alongside the releases.
+## Hypothesis
+
+> **Additional learning interfaces can extend ARIA's connected learner context without fragmenting it.**
+
+## Candidate capabilities
+
+### Notes
+
+- manual/AI-assisted notes;
+- save from study;
+- notes grounded in resources/interactions;
+- revision-oriented transformations.
+
+### Audio
+
+- notes/resources → audio;
+- quick revision;
+- detailed explanation;
+- question-and-answer revision;
+- exam-before-you-enter recap;
+- playback controls;
+- interactive voice revision where feasible.
+
+### Richer resources/search
+
+- additional resource types;
+- stronger search across learner content;
+- richer resource workflows.
+
+Notes remain part of the complete ARIA vision even though they are intentionally not required to prove R0.
+
+---
+
+# 10. R5 — Prove Cross-System Orchestration
+
+## Hypothesis
+
+> **ARIA's mature systems can coordinate through shared state/events without creating unreliable autonomous chains.**
+
+## Candidate capabilities
+
+- richer cross-system event flows;
+- recommendations using multiple systems;
+- advanced adaptation;
+- stronger human-in-the-loop controls;
+- workflow retries/idempotency;
+- auditability/observability;
+- justified multi-agent orchestration where useful;
+- external learning integrations where technically/legal feasible.
+
+External integrations should connect specialist platforms rather than recreate them.
+
+---
+
+# 11. R0 Feature Elimination Test
+
+Before adding anything to R0, ask:
+
+> **If this feature is removed, can we still test whether ARIA's learner state changes future learning appropriately?**
+
+If the answer is yes, default to deferring it.
+
+Exceptions are allowed for foundational security, privacy, persistence, or engineering requirements necessary to run the validation safely and reliably.
+
+---
+
+# 12. Domain Generalization Test
+
+R0 should not attempt to prove the universal case.
+
+After a concrete validation context works, introduce a **structurally different** learning context and ask:
+
+- Which assumptions still hold?
+- Which data structures are too specific?
+- Which assessment/evidence rules are domain-specific?
+- Which learner-state concepts generalize?
+- Which UI/workflow assumptions break?
+
+Only then should those abstractions be generalized.
+
+---
+
+# 13. Release Promotion Rule
+
+A release is not promoted because all planned screens exist.
+
+Promotion requires evidence that the release's hypothesis has been sufficiently tested at the level appropriate to that release.
+
+For R0 specifically:
 
 ```text
-R1:
-Can users complete the core learning loop?
-
-R2:
-Does ARIA understand performance better over time?
-
-R3:
-Does ARIA improve what learners do next?
-
-R4:
-Can ARIA support learning beyond screen-reading workflows?
-
-R5:
-Can ARIA reduce fragmentation across tools?
-
-R6:
-Can ARIA coordinate increasingly complex learning with trustworthy autonomy?
+Implementation complete
+        ≠
+R0 validated
 ```
+
+Gate A and Gate B define the actual finish line.
 
 ---
 
-# 21. Full-Vision Preservation
+# 14. Step 7 Exit Condition
 
-Deferring a capability shall not delete it from the product vision.
+Step 7 is complete when:
 
-The PRD should preserve future requirements so early architecture understands likely direction while implementation remains focused.
+- long-term vision is preserved;
+- R0 domain breadth is constrained;
+- R0 feature breadth is constrained;
+- R0 is defined around adaptive learning rather than a foundation-only shell;
+- later releases each have a clear hypothesis direction;
+- full features are not mistaken for first-release requirements;
+- release completion depends on validation, not feature presence alone.
 
-ARIA can therefore simultaneously have:
-
-```text
-A large product vision
-        +
-A small first release
-        +
-Clear expansion boundaries
-```
-
-These are not contradictions.
-
----
-
-# 22. Step 7 Decisions
-
-Step 7 establishes the implementation strategy:
-
-1. **ARIA remains the all-in-one coordinated learning system envisioned from the beginning.**
-2. **The product will not attempt to implement every capability simultaneously.**
-3. **The first usable ARIA is a complete learning loop, not a collection of half-built pages.**
-4. **Goals, resources, assessment formats, and recommendations remain user/context-driven rather than hardcoded.**
-5. **Evidence precedes sophisticated personalization.**
-6. **Personalization precedes high-impact adaptation.**
-7. **Roadmap/planner automation remains learner-controlled.**
-8. **Audio is a real learning mode, not simply voice input.**
-9. **ARIA coordinates specialized external platforms instead of automatically cloning them.**
-10. **Advanced multi-agent architecture is deliberately deferred until simpler reliable workflows prove insufficient.**
-11. **Release boundaries protect buildability without shrinking the final product vision.**
-
----
-
-# 23. Step 7 Completion
-
-**Step 7 — Scope, Prioritization & Release Boundaries is complete.**
-
-Phase 1 PRD now contains:
-
-```text
-01 — Product Overview & Goals
-02 — User & Learning Context Requirements
-03 — Functional Requirements
-04 — Cross-System & Automation Requirements
-05 — AI, Learner Model, Memory & Evidence Requirements
-06 — Non-Functional, Privacy, Security, Reliability & Accessibility
-07 — Scope, Prioritization & Release Boundaries
-```
-
-Next:
-
-# Step 8 — Acceptance Criteria, Success Metrics & PRD Closure
-
-Step 8 should convert the requirements into testable product outcomes and close Phase 1.
-
-It will define:
-
-```text
-core user journeys
-acceptance criteria
-release-level Definition of Done
-product success metrics
-learning-quality metrics
-AI quality/evaluation metrics
-reliability metrics
-safety/control metrics
-R1 launch gates
-open questions / assumptions
-out-of-scope confirmation
-PRD traceability
-Phase 1 completion checklist
-```
-
-After Step 8, ARIA should be ready to move from **what the product must do** into the next major phase: **system architecture and technical design**.
+**Step 7 is aligned with the reviewed Phase 0 vision.**
