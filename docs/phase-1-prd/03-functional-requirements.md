@@ -4,972 +4,619 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Step 3 — Complete  
-**Primary sources:** `VISION.md`, `01-product-overview-goals.md`, `02-user-context-requirements.md`
+**Status:** Reviewed and release-classified  
+**Primary sources:** `VISION.md`, Steps 1, 2 and 7
 
 ---
 
 # 1. Purpose
 
-This document defines the functional behaviour required from ARIA's major user-facing product systems.
+This document defines ARIA's major user-facing functional requirements while separating the **complete product vision** from the **minimum R0 adaptive-learning validation loop**.
 
-It answers:
-
-> **What must each ARIA feature allow the learner to do?**
-
-It intentionally avoids premature decisions about frameworks, database schemas, APIs, agent frameworks, page layouts, and implementation details.
-
-Cross-system orchestration is specified more deeply in Step 4. Evidence, Learner Model, memory, misconceptions, AI behaviour, and confidence are specified more deeply in Step 5.
+A requirement appearing here does not automatically mean it belongs in R0.
 
 ---
 
-# 2. Requirement Language
+# 2. Release Labels
 
-- **Shall** — required product behaviour.
-- **Should** — expected behaviour unless a later design/technical constraint justifies an alternative.
-- **May** — permitted or optional behaviour.
+- **R0 MUST** — required to test the first adaptive-learning hypothesis.
+- **R1+** — learning-path adaptation.
+- **R2+** — longitudinal learning/revision/progress.
+- **R3+** — learning coordination/planning/reminders.
+- **R4+** — richer learning interfaces such as Notes and Audio.
+- **R5+** — mature orchestration/integrations.
+- **LONG-TERM MUST** — product requirement whose exact release may be determined later.
+- **SHOULD / MAY** — desirable or conditional behaviour.
 
-Requirement IDs are stable references for later user flows, architecture, APIs, implementation, and testing.
+R0 elimination rule:
 
----
-
-# 3. Account & Authentication
-
-## FR-AUTH-001 — Account creation
-
-The system shall allow a learner to create an account.
-
-## FR-AUTH-002 — Sign in
-
-The system shall allow an existing learner to authenticate and access their persistent learning environment.
-
-## FR-AUTH-003 — Email verification
-
-The system shall support email verification where email-based identity is used.
-
-## FR-AUTH-004 — Password recovery
-
-The system shall provide a secure account recovery/reset flow for password-based accounts.
-
-## FR-AUTH-005 — Session persistence
-
-Authenticated sessions should persist appropriately so normal return visits do not require unnecessary repeated authentication.
-
-## FR-AUTH-006 — Sign out
-
-The learner shall be able to end their authenticated session.
-
-## FR-AUTH-007 — Account access protection
-
-Protected learning data shall not be accessible without appropriate authorization.
-
-## FR-AUTH-008 — Account management
-
-The learner shall have access to relevant account controls, including profile and security-related settings.
+> **If removing a feature still allows us to test whether evidence changes learner state and learner state changes future study, that feature is probably not required for R0.**
 
 ---
 
-# 4. Onboarding
+# 3. R0 Functional Spine
 
-## FR-ONB-001 — Lightweight onboarding
+```text
+Authentication
+    ↓
+One Goal / Learning Context
+    ↓
+Resources
+    ↓
+Study
+    ↓
+Assessment
+    ↓
+Evaluation
+    ↓
+Structured Evidence
+    ↓
+Basic Learner State
+    ↓
+Adapted Study
+    ↓
+Reassessment / Second Cycle
+```
 
-ARIA shall provide a short initial onboarding experience rather than requiring complete learner profiling before use.
-
-## FR-ONB-002 — Initial intent
-
-The learner should be able to describe what they currently want to learn or prepare for.
-
-## FR-ONB-003 — Custom intent
-
-The learner shall not be restricted to a fixed list of subjects, exams, or learning categories.
-
-## FR-ONB-004 — Optional skipping
-
-Non-essential onboarding questions should be skippable where practical.
-
-## FR-ONB-005 — No universal deadline
-
-ARIA shall not require a single global deadline during onboarding.
-
-## FR-ONB-006 — Progressive guidance
-
-ARIA should introduce capabilities contextually after onboarding instead of explaining every feature upfront.
-
-## FR-ONB-007 — Onboarding persistence
-
-Useful onboarding information shall become part of the learner's persistent context according to its scope.
+Evidence and Learner State receive their detailed requirements in Step 5.
 
 ---
 
-# 5. Goals
+# 4. Account & Authentication
 
-## FR-GOAL-001 — Create goal
+## FR-AUTH-001 — Account creation — R0 MUST
+The learner shall be able to create an account.
 
-The learner shall be able to create a learning goal using natural language.
+## FR-AUTH-002 — Sign in — R0 MUST
+An existing learner shall be able to authenticate and access persistent R0 learning state.
 
-## FR-GOAL-002 — Edit goal
+## FR-AUTH-003 — Email verification — SHOULD
+Email verification should be supported where email/password identity is used and required by the chosen authentication design.
 
-The learner shall be able to edit a goal's relevant details.
+## FR-AUTH-004 — Password recovery — SHOULD
+A secure recovery/reset flow shall exist when password-based authentication is used.
 
-## FR-GOAL-003 — Optional deadline
+## FR-AUTH-005 — Session persistence — R0 MUST
+Normal return visits should preserve authenticated access appropriately.
 
-A goal shall support an optional target date/deadline.
+## FR-AUTH-006 — Sign out — R0 MUST
+The learner shall be able to end an authenticated session.
 
-## FR-GOAL-004 — Priority
+## FR-AUTH-007 — Account access protection — R0 MUST
+Private learner data shall require appropriate authorization.
 
-The learner shall be able to assign or modify goal priority.
-
-## FR-GOAL-005 — Multiple goals
-
-The learner shall be able to maintain multiple active goals simultaneously.
-
-## FR-GOAL-006 — Goal status
-
-Goals shall support lifecycle states such as active, paused, completed, and archived.
-
-## FR-GOAL-007 — Resume goal
-
-A paused or previously active goal should be resumable with its relevant context preserved.
-
-## FR-GOAL-008 — Goal overview
-
-The learner shall be able to view a goal's relevant roadmap, progress, resources, upcoming work, and related learning activity where available.
-
-## FR-GOAL-009 — Goal decomposition
-
-ARIA should be able to help decompose a broad goal into milestones, topics, prerequisites, or other actionable structure.
-
-## FR-GOAL-010 — Goal deletion
-
-The learner shall be able to request deletion of a goal subject to later-defined data-dependency and privacy rules.
+## FR-AUTH-008 — Rich account management — LATER
+Full profile/security settings are not required to prove R0 beyond necessary account/privacy controls.
 
 ---
 
-# 6. Home
+# 5. Onboarding
 
-Home is ARIA's personalized learning command centre.
+## FR-ONB-001 — Lightweight onboarding — R0 MUST
+ARIA shall not require complete learner profiling before use.
 
-## FR-HOME-001 — Personalized Home
+## FR-ONB-002 — Initial intent — R0 MUST
+The learner shall be able to describe the learning/preparation context they currently want help with.
 
-Home shall be generated from the learner's actual goals and learning state rather than hardcoded subject cards.
+## FR-ONB-003 — Custom intent — R0 MUST
+The learner shall not be restricted to hardcoded subject/exam categories.
 
-## FR-HOME-002 — Active goals
+This does not mean R0 must successfully validate every possible domain.
 
-Home shall surface relevant active goals.
+## FR-ONB-004 — Optional skipping — SHOULD
+Non-essential onboarding questions should be skippable.
 
-## FR-HOME-003 — Today's work
+## FR-ONB-005 — No universal deadline — R0 MUST
+A single global deadline shall not be mandatory.
 
-Where planning data exists, Home should surface scheduled learning work for the current day.
+## FR-ONB-006 — Progressive guidance — SHOULD
+ARIA should introduce capabilities contextually.
 
-## FR-HOME-004 — Due revision
-
-Where revision data exists, Home should surface due or high-priority revision.
-
-## FR-HOME-005 — Upcoming events
-
-Home should surface relevant upcoming exams, assessments, milestones, and deadlines.
-
-## FR-HOME-006 — Progress summary
-
-Home should surface meaningful progress summaries where sufficient data exists.
-
-## FR-HOME-007 — Recommended next action
-
-ARIA should be capable of presenting one or more context-aware next actions with a reason.
-
-## FR-HOME-008 — Continue learning
-
-The learner should be able to resume recent relevant learning activity directly from Home.
-
-## FR-HOME-009 — Proposed changes
-
-Important ARIA-proposed roadmap or plan changes should be visible from an appropriate high-attention surface such as Home.
-
-## FR-HOME-010 — Empty-state usefulness
-
-For new learners without sufficient data, Home shall provide useful starting actions rather than fabricated personalized insights.
+## FR-ONB-007 — Onboarding persistence — R0 MUST
+Useful R0 onboarding/context information shall persist according to scope.
 
 ---
 
-# 7. Study
+# 6. Goals / Learning Context
 
-## FR-STUDY-001 — Start study conversation
+## FR-GOAL-001 — Create goal/context — R0 MUST
+The learner shall be able to establish at least one learning goal/context using natural language.
 
-The learner shall be able to start a conversational study session.
+## FR-GOAL-002 — Edit goal — SHOULD
+The learner should be able to correct relevant R0 goal/context details.
 
-## FR-STUDY-002 — Goal association
+## FR-GOAL-003 — Optional deadline — LONG-TERM MUST
+Goals may contain deadlines, but R0 shall not structurally require one.
 
-A study session may be associated with a goal, topic, or exploratory context.
+## FR-GOAL-004 — Priority — R3+
+Goal priority becomes important when coordinating multiple goals.
 
-## FR-STUDY-003 — Resource-grounded study
+## FR-GOAL-005 — Multiple goals — LONG-TERM MUST
+ARIA shall eventually support multiple simultaneous goals; this is not required for R0.
 
-The learner shall be able to study using selected resources as context.
+## FR-GOAL-006 — Goal lifecycle — LATER
+Pause/completed/archive lifecycle is deferred unless needed for basic implementation hygiene.
 
-## FR-STUDY-004 — Follow-up questions
+## FR-GOAL-007 — Resume goal — LATER
+Rich pause/resume behaviour is deferred; R0 only requires persistence of its validation context.
 
-ARIA shall support multi-turn follow-up questions while retaining relevant session context.
+## FR-GOAL-008 — Goal overview — R1+
+Rich goal overview becomes meaningful with Roadmap/progress systems.
 
-## FR-STUDY-005 — Explanation depth
+## FR-GOAL-009 — Goal decomposition — R1+
+Roadmap/path decomposition is not required for R0.
 
-The learner shall be able to request different explanation depths or styles during a session.
-
-## FR-STUDY-006 — Guided learning
-
-ARIA should support guided explanation that progressively develops understanding rather than always providing a complete answer immediately.
-
-## FR-STUDY-007 — Socratic mode
-
-ARIA should support question-led learning where appropriate.
-
-## FR-STUDY-008 — Hinting
-
-ARIA should support hints before full solutions when requested or configured.
-
-## FR-STUDY-009 — Teach-back
-
-ARIA should support asking the learner to explain a concept back and provide feedback.
-
-## FR-STUDY-010 — Rapid revision
-
-The learner shall be able to request concise, time-constrained revision.
-
-## FR-STUDY-011 — Source visibility
-
-When an answer is grounded in learner-provided or retrieved resources, ARIA should make relevant source provenance accessible.
-
-## FR-STUDY-012 — Conversation persistence
-
-Study conversations shall be persistable and retrievable by the learner.
-
-## FR-STUDY-013 — Conversation organization
-
-The learner should be able to identify and revisit study conversations through title, goal, topic, date, search, or other appropriate organization.
-
-## FR-STUDY-014 — Create downstream learning material
-
-The learner shall be able to use relevant study content as input to connected features such as Notes, Assessment, or Audio.
-
-## FR-STUDY-015 — Correct active context
-
-The learner shall be able to correct the goal/topic/resource context associated with a study session.
+## FR-GOAL-010 — Goal deletion — LONG-TERM MUST
+Deletion must comply with later privacy/data requirements.
 
 ---
 
-# 8. Resources & Retrieval
+# 7. Home
 
-## FR-RES-001 — Add resources
+The complete Home is ARIA's personalized learning command centre, but it is not necessary to prove R0.
 
-The learner shall be able to add supported learning resources to ARIA.
-
-## FR-RES-002 — File resources
-
-ARIA shall support common document/resource file types selected during technical design.
-
-## FR-RES-003 — Link resources
-
-ARIA should support adding web-based learning resources by URL where technically and legally feasible.
-
-## FR-RES-004 — Resource metadata
-
-Resources shall store useful metadata such as title, type, source, associated goal/topic, and creation/addition time where available.
-
-## FR-RES-005 — Goal association
-
-A resource may be associated with one or more goals/topics where relevant.
-
-## FR-RES-006 — Resource organization
-
-The learner shall be able to browse and organize their learning resources.
-
-## FR-RES-007 — Resource search
-
-The learner shall be able to search available resources.
-
-## FR-RES-008 — Content retrieval
-
-ARIA shall be capable of retrieving relevant content from supported indexed resources for learning tasks.
-
-## FR-RES-009 — Provenance
-
-Retrieved content used by AI features should retain source provenance.
-
-## FR-RES-010 — Resource selection
-
-The learner shall be able to explicitly choose which resources should constrain or inform a study/assessment/notes/audio activity.
-
-## FR-RES-011 — Resource removal
-
-The learner shall be able to remove resources subject to dependency/data-retention rules.
-
-## FR-RES-012 — Processing status
-
-The learner should be able to understand whether an uploaded resource is ready, processing, unsupported, or failed.
-
-## FR-RES-013 — Failure recovery
-
-A failed resource-processing operation shall not crash unrelated learning functionality.
-
-## FR-RES-014 — External specialist resources
-
-ARIA may link to external learning platforms/resources without attempting to recreate the external platform.
+## FR-HOME-001 — Personalized Home — R3+
+## FR-HOME-002 — Active goals — R3+
+## FR-HOME-003 — Today's work — R3+
+## FR-HOME-004 — Due revision — R2/R3+
+## FR-HOME-005 — Upcoming events — R3+
+## FR-HOME-006 — Progress summary — R2+
+## FR-HOME-007 — Recommended next action — R3+
+## FR-HOME-008 — Continue learning — SHOULD
+A minimal R0 entry/resume surface may exist without implementing the complete Home intelligence layer.
+## FR-HOME-009 — Proposed changes — R1/R3+
+## FR-HOME-010 — Honest empty state — LONG-TERM MUST
+ARIA shall not fabricate personalized insights when insufficient data exists.
 
 ---
 
-# 9. Notes
+# 8. Study
 
-## FR-NOTE-001 — Create note
+Study is one of R0's core systems.
 
-The learner shall be able to create a note manually.
+## FR-STUDY-001 — Start study interaction — R0 MUST
+The learner shall be able to start a conversational learning interaction.
 
-## FR-NOTE-002 — Generate from study
+## FR-STUDY-002 — Context association — R0 MUST
+R0 study shall be attributable to the active validation goal/topic/context.
 
-The learner shall be able to create notes from relevant study-session content.
+## FR-STUDY-003 — Resource-grounded study — R0 MUST
+The learner shall be able to study using selected supported resources/context.
 
-## FR-NOTE-003 — Generate from resources
+## FR-STUDY-004 — Follow-up questions — R0 MUST
+ARIA shall support multi-turn follow-up while retaining relevant session context.
 
-The learner shall be able to generate notes from selected resources.
+## FR-STUDY-005 — Explanation adjustment — R0 MUST
+The learner shall be able to request a different explanation depth/style during the session.
 
-## FR-NOTE-004 — Edit notes
+## FR-STUDY-006 — Guided learning — SHOULD
+## FR-STUDY-007 — Socratic mode — LATER/R2+
+## FR-STUDY-008 — Hinting — SHOULD
+## FR-STUDY-009 — Teach-back — R2+
+## FR-STUDY-010 — Rapid revision — R2/R4+
 
-Generated and manual notes shall be editable.
+## FR-STUDY-011 — Source visibility — R0 MUST
+Where study output materially depends on selected resources, relevant provenance shall be retainable/surfaceable.
 
-## FR-NOTE-005 — Note organization
+## FR-STUDY-012 — Conversation persistence — R0 MUST
+R0 study interactions required for repeated validation cycles shall persist.
 
-Notes should support association with goals, topics, resources, or other useful organizational context.
+## FR-STUDY-013 — Conversation organization/search — R4+
 
-## FR-NOTE-006 — Note formats
+## FR-STUDY-014 — Downstream material — PARTIAL R0
+Study context shall be usable by R0 Assessment. Notes/Audio downstream generation is deferred to R4+.
 
-ARIA should support transformations such as concise notes, detailed notes, summaries, key points, and revision sheets.
+## FR-STUDY-015 — Correct active context — R0 MUST
+The learner shall be able to correct goal/topic/resource context.
 
-## FR-NOTE-007 — Source references
+## FR-STUDY-016 — Evidence-driven adapted study — R0 MUST
+ARIA shall be able to materially alter a subsequent study interaction using supported learner-state/evidence signals.
 
-Generated notes should retain source references where they are derived from specific resources.
+Examples include targeted explanation, prerequisite revisit, changed scaffolding, targeted practice, or reduced emphasis on already-supported concepts.
 
-## FR-NOTE-008 — Search notes
-
-Notes shall be discoverable through search.
-
-## FR-NOTE-009 — Notes to assessment
-
-The learner shall be able to use selected notes as assessment source material.
-
-## FR-NOTE-010 — Notes to audio
-
-The learner shall be able to use selected notes as source material for audio learning.
-
-## FR-NOTE-011 — Delete/archive notes
-
-The learner shall be able to remove or archive notes according to later-defined data rules.
+## FR-STUDY-017 — Adaptation rationale — R0 MUST
+The system shall retain a testable reason/provenance for an R0 adaptation.
 
 ---
 
-# 10. Assessment Engine
+# 9. Resources & Retrieval
 
-ARIA's assessment system shall be specification-driven rather than built around one universal quiz format.
+## FR-RES-001 — Add supported resources — R0 MUST
+The learner shall be able to add the resource type(s) selected for the validation context.
 
-## FR-ASSESS-001 — Create assessment
+## FR-RES-002 — File resources — PARTIAL R0
+R0 needs only the smallest reliable file/input surface required for validation, for example PDF and/or pasted text. Broad file-format support is later.
 
-The learner shall be able to create an assessment for a selected learning context.
+## FR-RES-003 — Web links — LATER
+## FR-RES-004 — Resource metadata — R0 MUST
+Store metadata necessary for attribution/provenance.
 
-## FR-ASSESS-002 — Assessment specification
+## FR-RES-005 — Goal/topic association — R0 MUST
+Supported resources shall be attributable to the active validation context.
 
-An assessment shall be generated from an explicit specification.
+## FR-RES-006 — Rich resource organization — R4+
+## FR-RES-007 — Resource search — R4+
 
-## FR-ASSESS-003 — Topic selection
+## FR-RES-008 — Content retrieval — R0 MUST
+ARIA shall retrieve relevant content from the selected supported resource input for R0 learning tasks.
 
-The learner shall be able to specify topics/scope.
+## FR-RES-009 — Provenance — R0 MUST
+Retrieved content used by AI features shall retain source provenance where technically applicable.
 
-## FR-ASSESS-004 — Resource selection
+## FR-RES-010 — Explicit resource selection — R0 MUST
+The learner shall be able to choose the supported resource/context used for study/assessment.
 
-The learner shall be able to choose source resources, notes, syllabus material, or other supported context.
+## FR-RES-011 — Resource removal — LONG-TERM MUST
+## FR-RES-012 — Processing status — R0 MUST
+The learner shall be able to distinguish ready/processing/failed/unsupported states for R0 resources.
 
-## FR-ASSESS-005 — Question-format selection
+## FR-RES-013 — Failure recovery — R0 MUST
+Resource-processing failure shall not corrupt unrelated persisted learner state.
 
-The learner shall be able to select one or more supported question formats.
-
-Potential formats include:
-
-- MCQ;
-- multiple-select;
-- true/false;
-- fill-in-the-blank;
-- numerical answer;
-- short answer;
-- long answer;
-- conceptual/application questions;
-- problem solving;
-- viva/oral;
-- teach-back;
-- coding assessment;
-- mixed/custom sections.
-
-## FR-ASSESS-006 — Question count / marks
-
-The learner shall be able to specify relevant size parameters such as question count and/or marks.
-
-## FR-ASSESS-007 — Difficulty
-
-The learner shall be able to specify desired difficulty or accept an ARIA recommendation/default.
-
-## FR-ASSESS-008 — Duration
-
-The learner shall be able to configure a duration for timed assessments or choose an untimed format.
-
-## FR-ASSESS-009 — Sections
-
-ARIA should support assessments containing multiple sections with different formats or rules.
-
-## FR-ASSESS-010 — Scoring configuration
-
-Where applicable, the assessment specification shall support scoring rules such as marks, partial credit, or negative marking.
-
-## FR-ASSESS-011 — Feedback behaviour
-
-The learner should be able to choose whether feedback is immediate, after each section, or after completion where appropriate.
-
-## FR-ASSESS-012 — Natural-language configuration
-
-The learner should be able to describe an assessment in natural language and have ARIA translate it into an editable specification.
-
-## FR-ASSESS-013 — Specification preview
-
-Before generation/start, the learner shall be able to inspect and modify the assessment specification.
-
-## FR-ASSESS-014 — ARIA recommendations
-
-ARIA may recommend assessment settings based on goal/context, but shall not remove the learner's control over the final configuration.
-
-## FR-ASSESS-015 — Dynamic rendering
-
-The assessment experience shall render according to the specification rather than assuming all assessments use the same interface.
-
-## FR-ASSESS-016 — Timed assessment
-
-Timed assessments shall display and enforce timing behaviour according to the assessment specification.
-
-## FR-ASSESS-017 — Save attempt
-
-Assessment attempts shall be persisted appropriately.
-
-## FR-ASSESS-018 — Submit assessment
-
-The learner shall be able to submit a completed or partially completed assessment according to assessment rules.
-
-## FR-ASSESS-019 — Attempt history
-
-The learner shall be able to revisit relevant assessment history and results.
-
-## FR-ASSESS-020 — Regenerate / create another
-
-The learner shall be able to create another assessment from the same or modified specification without being forced to rebuild all configuration manually.
-
-## FR-ASSESS-021 — Coding assessments
-
-When coding assessment support exists, the assessment system shall support coding-specific interaction and evaluation requirements rather than treating code as ordinary text answers.
-
-## FR-ASSESS-022 — Viva / oral assessment
-
-When oral assessment support exists, ARIA should support question-response progression appropriate to viva-style testing.
-
-## FR-ASSESS-023 — Teach-back assessment
-
-ARIA should support assessments in which the learner explains a concept and receives evaluation of conceptual coverage and errors.
+## FR-RES-014 — External specialist resources — R5+
+ARIA may later link/integrate with specialist learning platforms rather than recreating them.
 
 ---
 
-# 11. Evaluation
+# 10. Notes — R4+
 
-## FR-EVAL-001 — Evaluate submitted responses
+Notes remain a major ARIA capability but are explicitly **not required for R0**.
 
-ARIA shall evaluate supported assessment responses according to the relevant assessment format and scoring rules.
+Long-term requirements remain:
 
-## FR-EVAL-002 — Separate generation and evaluation
+- **FR-NOTE-001** manual notes;
+- **FR-NOTE-002** generate from Study;
+- **FR-NOTE-003** generate from Resources;
+- **FR-NOTE-004** editable notes;
+- **FR-NOTE-005** contextual organization;
+- **FR-NOTE-006** concise/detailed/summary/revision transformations;
+- **FR-NOTE-007** source references;
+- **FR-NOTE-008** search;
+- **FR-NOTE-009** Notes → Assessment;
+- **FR-NOTE-010** Notes → Audio;
+- **FR-NOTE-011** archive/delete according to data rules.
 
-Assessment generation and evaluation shall remain logically separable product responsibilities.
-
-## FR-EVAL-003 — Score where appropriate
-
-ARIA shall calculate scores where the assessment format supports objective or rubric-based scoring.
-
-## FR-EVAL-004 — Feedback
-
-The learner shall receive useful feedback after evaluation according to configured feedback behaviour.
-
-## FR-EVAL-005 — Topic-level results
-
-ARIA should provide topic/concept-level performance information when the assessment structure supports it.
-
-## FR-EVAL-006 — Explanation
-
-For incorrect or incomplete responses, ARIA should provide an explanation appropriate to the assessment context.
-
-## FR-EVAL-007 — Rubric-based evaluation
-
-Open-ended formats should support rubric/criteria-based evaluation where appropriate.
-
-## FR-EVAL-008 — Uncertainty
-
-ARIA should avoid presenting subjective or uncertain evaluation as perfectly objective.
-
-## FR-EVAL-009 — Evidence output
-
-Evaluation shall be capable of producing structured outputs usable by the Evidence system.
-
-## FR-EVAL-010 — Review answers
-
-The learner shall be able to review their submitted answers and corresponding evaluation where assessment rules permit.
-
-## FR-EVAL-011 — Re-evaluation/correction path
-
-Where an evaluation is incorrect or disputed, the product should provide an appropriate correction/review path.
+Deferring Notes does not remove them from the ARIA vision.
 
 ---
 
-# 12. Roadmaps
+# 11. Assessment Engine
 
-## FR-ROAD-001 — Generate roadmap
+ARIA's long-term Assessment Engine remains specification-driven. R0 implements only the subset needed to produce reliable learning evidence in the chosen validation context.
 
-ARIA shall be able to generate a learning roadmap for a goal.
+## FR-ASSESS-001 — Create assessment — R0 MUST
+The learner shall be able to create/start a supported assessment for the validation context.
 
-## FR-ROAD-002 — Roadmap structure
+## FR-ASSESS-002 — Assessment specification — R0 MUST
+R0 assessments shall have an explicit structured specification, even if the UI exposes only a subset of long-term configuration.
 
-A roadmap should support phases, milestones, topics, subtopics, prerequisites, dependencies, resources, activities, and assessments where relevant.
+## FR-ASSESS-003 — Topic/scope — R0 MUST
+## FR-ASSESS-004 — Resource/context selection — R0 MUST
 
-## FR-ROAD-003 — User editing
+## FR-ASSESS-005 — Question-format selection — PARTIAL R0
+The learner shall control the final format among formats actually supported by R0.
 
-The learner shall be able to modify an ARIA-generated roadmap.
+R0 does **not** need every planned format. Long-term formats may include MCQ, multiple-select, true/false, fill-in, numerical, short/long answer, conceptual/application, problem solving, viva, teach-back, coding, and mixed sections.
 
-## FR-ROAD-004 — Resource attachment
+## FR-ASSESS-006 — Question count / size — R0 MUST
+## FR-ASSESS-007 — Difficulty — SHOULD
+## FR-ASSESS-008 — Duration — SHOULD / CONTEXT-DEPENDENT
+Timed behaviour is required only if selected for the R0 validation context.
 
-Resources may be attached to roadmap elements.
+## FR-ASSESS-009 — Multi-section assessments — LATER
+## FR-ASSESS-010 — Advanced scoring configuration — LATER
+Basic R0 scoring rules shall still be explicit.
 
-## FR-ROAD-005 — Progress
+## FR-ASSESS-011 — Feedback timing — LATER
+## FR-ASSESS-012 — Natural-language configuration — SHOULD
+## FR-ASSESS-013 — Specification preview/edit — R0 MUST
+## FR-ASSESS-014 — ARIA recommendations — LATER
 
-Roadmap elements shall be capable of storing progress/state.
+## FR-ASSESS-015 — Dynamic rendering — PARTIAL R0
+R0 shall correctly render the formats it supports; universal assessment rendering is later.
 
-## FR-ROAD-006 — Dependencies
+## FR-ASSESS-016 — Timed assessment — CONTEXT-DEPENDENT
+## FR-ASSESS-017 — Save attempt — R0 MUST
+## FR-ASSESS-018 — Submit assessment — R0 MUST
+## FR-ASSESS-019 — Attempt history — PARTIAL R0
+R0 shall retain attempts/evidence needed for repeated validation cycles; rich history UI is later.
 
-Roadmaps should represent meaningful prerequisite/dependency relationships where applicable.
+## FR-ASSESS-020 — Reassess — R0 MUST
+The learner shall be able to complete a subsequent targeted assessment/reassessment so new evidence can update the learner-state estimate.
 
-## FR-ROAD-007 — Adaptive proposal
-
-ARIA should be able to propose roadmap changes based on new learner evidence or changed circumstances.
-
-## FR-ROAD-008 — Explain adaptation
-
-A proposed significant roadmap change should include an understandable reason.
-
-## FR-ROAD-009 — Accept/modify/reject
-
-The learner should be able to accept, modify, or reject significant proposed roadmap changes.
-
-## FR-ROAD-010 — Roadmap history
-
-ARIA should retain sufficient roadmap history to explain meaningful changes and support auditability.
-
-## FR-ROAD-011 — Multiple roadmaps
-
-The learner may maintain roadmaps for multiple goals.
-
-## FR-ROAD-012 — Roadmap without deadline
-
-Roadmap generation shall not require a deadline.
+## FR-ASSESS-021 — Coding assessments — LATER / CONTEXT-DEPENDENT
+## FR-ASSESS-022 — Viva/oral assessment — R4+
+## FR-ASSESS-023 — Teach-back assessment — R2+
 
 ---
 
-# 13. Planner
+# 12. Evaluation
 
-## FR-PLAN-001 — Create plan
+Evaluation is an R0 core system.
 
-ARIA shall be able to convert learning work into a time-based plan.
+## FR-EVAL-001 — Evaluate responses — R0 MUST
+Supported responses shall be evaluated according to their assessment format/rules.
 
-## FR-PLAN-002 — Availability
+## FR-EVAL-002 — Separate generation/evaluation — R0 MUST
+Assessment generation and evaluation shall remain logically separable responsibilities.
 
-The learner shall be able to provide or modify available learning time.
+## FR-EVAL-003 — Score where appropriate — R0 MUST
+Deterministic scoring shall be used where appropriate.
 
-## FR-PLAN-003 — Multiple goals
+## FR-EVAL-004 — Feedback — R0 MUST
+The learner shall receive useful feedback after evaluation according to R0 behaviour.
 
-Planning shall be capable of considering multiple active goals.
+## FR-EVAL-005 — Concept/topic-level result — R0 MUST
+Evaluation shall produce enough concept/topic attribution to create meaningful evidence.
 
-## FR-PLAN-004 — Deadlines
+## FR-EVAL-006 — Explanation — SHOULD
+## FR-EVAL-007 — Rubric evaluation — CONTEXT-DEPENDENT
+Open-ended evaluation is only R0-required if the validation context uses it.
 
-The planner shall consider relevant deadlines when available.
+## FR-EVAL-008 — Uncertainty — R0 MUST
+Subjective/uncertain evaluation shall not be represented as perfectly objective.
 
-## FR-PLAN-005 — Roadmap scheduling
+## FR-EVAL-009 — Structured evidence output — R0 MUST
+Evaluation shall produce validated structured output usable by the Evidence system.
 
-Roadmap activities should be schedulable into study sessions.
+## FR-EVAL-010 — Review answers — R0 MUST
+## FR-EVAL-011 — Correction/re-evaluation path — R0 MUST
+A corrected evaluation must be able to propagate appropriately to dependent R0 evidence/state.
 
-## FR-PLAN-006 — Revision scheduling
-
-Revision work should be schedulable alongside new learning.
-
-## FR-PLAN-007 — Assessment scheduling
-
-Planned assessments should be schedulable.
-
-## FR-PLAN-008 — Day view
-
-The learner should be able to view planned work for a day.
-
-## FR-PLAN-009 — Week/calendar view
-
-The learner should be able to inspect planned work across a broader time range.
-
-## FR-PLAN-010 — Manual changes
-
-The learner shall be able to move, reschedule, add, or remove planned sessions.
-
-## FR-PLAN-011 — Missed-session detection
-
-ARIA should be able to detect when planned learning work was not completed where completion state is available.
-
-## FR-PLAN-012 — Plan recovery
-
-When work is missed, ARIA should be able to propose a revised feasible plan rather than only marking work overdue.
-
-## FR-PLAN-013 — Explain recovery
-
-Significant recovery changes should explain what moved and why.
-
-## FR-PLAN-014 — Conflict detection
-
-ARIA should detect obvious scheduling conflicts or unrealistic workload where possible.
-
-## FR-PLAN-015 — Temporary availability changes
-
-The learner shall be able to communicate temporary constraints such as reduced time today without permanently changing their normal availability.
-
-## FR-PLAN-016 — Plan approval
-
-Substantial automatic rescheduling should support learner review/approval where appropriate.
+## FR-EVAL-012 — Evaluation failure safety — R0 MUST
+Failed/invalid evaluation shall not become false negative learning evidence.
 
 ---
 
-# 14. Revision
+# 13. Roadmaps — R1+
 
-## FR-REV-001 — Revision items
+Roadmaps are deliberately excluded from R0. R1 tests whether accumulated evidence can adapt a structured learning path.
 
-ARIA shall be able to create or identify concepts/material that require revision.
+Long-term/R1 requirements remain:
 
-## FR-REV-002 — Revision scheduling
-
-ARIA shall support scheduling future revision.
-
-## FR-REV-003 — Due revision
-
-The learner shall be able to see revision that is due or prioritized.
-
-## FR-REV-004 — Retrieval-based revision
-
-ARIA should support active retrieval rather than relying only on rereading.
-
-## FR-REV-005 — Multiple revision formats
-
-Revision may use formats such as questions, short answers, flashcards, teach-back, oral questioning, mini-assessments, summaries, or audio.
-
-## FR-REV-006 — Evidence-informed priority
-
-Revision priority should be capable of using learner evidence when available.
-
-## FR-REV-007 — Revision history
-
-ARIA shall retain relevant revision history.
-
-## FR-REV-008 — Revision completion
-
-The learner shall be able to mark/complete revision activities, with results recorded where appropriate.
-
-## FR-REV-009 — Retest after weakness/misconception
-
-ARIA should support targeted follow-up testing after remediation.
-
-## FR-REV-010 — Time-constrained revision
-
-The learner shall be able to request revision designed for a specified amount of available time.
+- **FR-ROAD-001** generate roadmap;
+- **FR-ROAD-002** phases/milestones/topics/subtopics/prerequisites/dependencies;
+- **FR-ROAD-003** learner editing;
+- **FR-ROAD-004** resource attachment;
+- **FR-ROAD-005** element progress/state;
+- **FR-ROAD-006** dependencies;
+- **FR-ROAD-007** evidence-aware adaptation proposal;
+- **FR-ROAD-008** explain adaptation;
+- **FR-ROAD-009** accept/modify/reject;
+- **FR-ROAD-010** history/auditability;
+- **FR-ROAD-011** multiple roadmaps later;
+- **FR-ROAD-012** no mandatory deadline.
 
 ---
 
-# 15. Progress
+# 14. Planner — R3+
 
-## FR-PROG-001 — Goal progress
+Planner is deliberately excluded from R0.
 
-ARIA shall provide progress information for active learning goals where sufficient data exists.
+Long-term requirements remain:
 
-## FR-PROG-002 — Roadmap progress
-
-ARIA shall provide progress across roadmap elements.
-
-## FR-PROG-003 — Assessment history
-
-Progress views should incorporate relevant assessment history.
-
-## FR-PROG-004 — Concept state
-
-Where sufficient evidence exists, ARIA should display concept-level learning state rather than only completion percentages.
-
-## FR-PROG-005 — Revision health
-
-Progress should surface relevant revision state/history where useful.
-
-## FR-PROG-006 — Improvement over time
-
-ARIA should support showing meaningful change in performance or learner state over time.
-
-## FR-PROG-007 — Misconceptions / gaps
-
-Where supported by sufficient evidence, progress views may surface possible misconceptions or prerequisite gaps.
-
-## FR-PROG-008 — Untested state
-
-ARIA should distinguish "not yet sufficiently tested" from "weak" where possible.
-
-## FR-PROG-009 — Activity vs mastery
-
-ARIA shall not automatically equate time spent or content consumed with mastery.
-
-## FR-PROG-010 — Readiness
-
-ARIA may provide readiness estimates when sufficient evidence exists, but uncertainty should be communicated appropriately.
+- **FR-PLAN-001** create time-based plan;
+- **FR-PLAN-002** availability;
+- **FR-PLAN-003** multiple-goal planning;
+- **FR-PLAN-004** deadlines;
+- **FR-PLAN-005** roadmap scheduling;
+- **FR-PLAN-006** revision scheduling;
+- **FR-PLAN-007** assessment scheduling;
+- **FR-PLAN-008/009** day/week views;
+- **FR-PLAN-010** manual changes;
+- **FR-PLAN-011/012** missed-work detection/recovery;
+- **FR-PLAN-013** explain recovery;
+- **FR-PLAN-014** conflict detection;
+- **FR-PLAN-015** temporary availability;
+- **FR-PLAN-016** learner review/approval.
 
 ---
 
-# 16. Recommendations
+# 15. Revision — R2+
 
-## FR-REC-001 — Next action
+R0 can adapt the immediate next Study experience and perform reassessment without building the complete Revision system.
 
-ARIA should be capable of recommending an appropriate next learning action.
+Long-term requirements remain:
 
-## FR-REC-002 — Recommendation types
-
-Recommendations may include studying a topic, revising, taking an assessment, reviewing a prerequisite, continuing a roadmap, adjusting a plan, or reviewing a proposed change.
-
-## FR-REC-003 — Recommendation reason
-
-Meaningful recommendations should include an understandable reason.
-
-## FR-REC-004 — Context awareness
-
-Recommendations should consider the relevant active goal/context and available learner state.
-
-## FR-REC-005 — Time awareness
-
-Recommendations should consider immediate available time or deadlines when known.
-
-## FR-REC-006 — User override
-
-The learner shall remain free to ignore a recommendation and choose another learning action.
-
-## FR-REC-007 — No fabricated certainty
-
-ARIA should not pretend a recommendation is strongly personalized when insufficient learner data exists.
+- **FR-REV-001** identify revision items;
+- **FR-REV-002/003** schedule/surface due revision;
+- **FR-REV-004** retrieval-based revision;
+- **FR-REV-005** multiple revision formats;
+- **FR-REV-006** evidence-informed priority;
+- **FR-REV-007** history;
+- **FR-REV-008** completion/evidence;
+- **FR-REV-009** targeted retesting;
+- **FR-REV-010** time-constrained revision.
 
 ---
 
-# 17. Audio Learning
+# 16. Progress — R2+
 
-## FR-AUDIO-001 — Generate audio from notes
+R0 needs inspectable evidence/state for validation, not a full learner-facing Progress product.
 
-The learner shall be able to generate audio learning material from selected notes.
+Long-term requirements remain:
 
-## FR-AUDIO-002 — Generate audio from resources
+- **FR-PROG-001** goal progress;
+- **FR-PROG-002** roadmap progress;
+- **FR-PROG-003** assessment history;
+- **FR-PROG-004** concept state;
+- **FR-PROG-005** revision health;
+- **FR-PROG-006** improvement over time;
+- **FR-PROG-007** sufficiently supported misconception/gap signals;
+- **FR-PROG-008** untested ≠ weak;
+- **FR-PROG-009** activity ≠ mastery;
+- **FR-PROG-010** uncertainty-aware readiness.
 
-The learner shall be able to generate audio from supported learning resources.
-
-## FR-AUDIO-003 — Generate audio from study material
-
-Relevant study content should be usable as audio source material.
-
-## FR-AUDIO-004 — Audio purpose
-
-The learner should be able to specify an audio purpose such as explanation, summary, or revision where supported.
-
-## FR-AUDIO-005 — Length/time constraint
-
-The learner should be able to request audio suited to a desired duration where technically feasible.
-
-## FR-AUDIO-006 — Adaptive revision audio
-
-ARIA should eventually be able to generate audio revision using goal context, learner state, weaknesses, revision history, upcoming assessments, and available time.
-
-## FR-AUDIO-007 — Playback
-
-The learner shall be able to play generated audio within an appropriate product experience.
-
-## FR-AUDIO-008 — Regeneration
-
-The learner should be able to regenerate audio with changed scope/style/length.
-
-## FR-AUDIO-009 — Interactive audio
-
-Later versions may support spoken question-and-answer revision where the learner responds and ARIA adapts the session.
-
-## FR-AUDIO-010 — Source traceability
-
-Where audio is generated from specific learner resources, the source context should remain identifiable.
+The principles behind FR-PROG-008/009 apply to R0's internal learner state even though the Progress UI is deferred.
 
 ---
 
-# 18. Search
+# 17. Recommendations
 
-## FR-SEARCH-001 — Unified learning search
+## FR-REC-001 — Adapted next study action — R0 MUST
+ARIA shall be capable of selecting an evidence/state-informed next study action within the R0 loop.
 
-The learner shall be able to search across supported ARIA learning content.
+## FR-REC-002 — Broad recommendation types — LATER
+Long-term recommendations may include Study, Revision, Assessment, prerequisites, Roadmap, Planner, or proposed changes.
 
-## FR-SEARCH-002 — Searchable content
+## FR-REC-003 — Reason — R0 MUST
+An R0 adaptation/recommendation shall have a testable understandable reason.
 
-Search should eventually cover relevant chats, notes, resources, roadmaps, assessments, and other learning history.
+## FR-REC-004 — Context awareness — R0 MUST
+Recommendations shall use the correct active validation context/state.
 
-## FR-SEARCH-003 — Context filters
+## FR-REC-005 — Time awareness — R3+
+## FR-REC-006 — User override — R0 MUST
+The learner remains free to ignore an adaptive recommendation and choose another supported action.
 
-The learner should be able to narrow search by relevant dimensions such as goal, content type, topic, or date where useful.
-
-## FR-SEARCH-004 — Search result navigation
-
-Selecting a result shall navigate the learner to the underlying item or appropriate context.
-
-## FR-SEARCH-005 — Semantic retrieval
-
-ARIA may support meaning-based retrieval in addition to exact keyword matching.
-
-## FR-SEARCH-006 — Permission boundaries
-
-Search results shall respect learner authorization and data-access boundaries.
+## FR-REC-007 — No fabricated certainty — R0 MUST
+ARIA shall not pretend weak evidence supports strong personalization.
 
 ---
 
-# 19. Notifications & Reminders
+# 18. Audio Learning — R4+
 
-## FR-NOTIF-001 — In-app notifications
+Audio remains a major ARIA feature and directly supports the long-term use case of hands-free/travel/pre-exam revision, but it is not needed to prove R0's adaptive-learning hypothesis.
 
-ARIA shall support in-app notifications for relevant learning events.
+Long-term requirements remain:
 
-## FR-NOTIF-002 — Email reminders
-
-ARIA shall support email reminders for enabled notification types when the learner has a usable email address.
-
-## FR-NOTIF-003 — Notification preferences
-
-The learner shall be able to control notification channels and relevant categories.
-
-## FR-NOTIF-004 — Planner reminders
-
-Notifications may be triggered by upcoming planned learning sessions.
-
-## FR-NOTIF-005 — Revision reminders
-
-Notifications may be triggered by due/high-priority revision.
-
-## FR-NOTIF-006 — Assessment reminders
-
-Notifications may be triggered by scheduled assessments or relevant exam events.
-
-## FR-NOTIF-007 — Deadline reminders
-
-Notifications may be triggered by approaching deadlines where configured.
-
-## FR-NOTIF-008 — Proposed-change notifications
-
-ARIA may notify the learner when an important roadmap or plan change requires review.
-
-## FR-NOTIF-009 — Frequency control
-
-The learner shall have reasonable control over reminder frequency and unnecessary notification volume.
-
-## FR-NOTIF-010 — Disable notifications
-
-The learner shall be able to disable optional notification categories/channels.
-
-## FR-NOTIF-011 — Actionable notification
-
-Where appropriate, a notification should lead directly to the relevant learning action/context.
+- **FR-AUDIO-001** Notes → Audio;
+- **FR-AUDIO-002** Resources → Audio;
+- **FR-AUDIO-003** Study → Audio;
+- **FR-AUDIO-004** purpose such as explanation/summary/revision;
+- **FR-AUDIO-005** desired duration;
+- **FR-AUDIO-006** evidence/state-aware adaptive revision audio;
+- **FR-AUDIO-007** playback;
+- **FR-AUDIO-008** regeneration;
+- **FR-AUDIO-009** later interactive spoken Q&A;
+- **FR-AUDIO-010** source traceability.
 
 ---
 
-# 20. Settings & Learner Controls
+# 19. Search — R4+
 
-## FR-SET-001 — Profile settings
+Long-term requirements remain:
 
-The learner shall be able to view and edit relevant profile information.
+- **FR-SEARCH-001** unified learning search;
+- **FR-SEARCH-002** chats/notes/resources/roadmaps/assessments/history;
+- **FR-SEARCH-003** context filters;
+- **FR-SEARCH-004** navigation;
+- **FR-SEARCH-005** semantic retrieval;
+- **FR-SEARCH-006** authorization boundaries.
 
-## FR-SET-002 — Learning preferences
-
-The learner shall be able to manage supported explicit learning preferences.
-
-## FR-SET-003 — Notification settings
-
-The learner shall be able to manage notification preferences.
-
-## FR-SET-004 — Memory controls
-
-The learner shall eventually be able to inspect/manage supported persistent memory information.
-
-## FR-SET-005 — Learner-state correction
-
-The learner should be able to correct important inaccurate learner-state assumptions through appropriate product surfaces.
-
-## FR-SET-006 — Privacy/data controls
-
-The learner shall have access to privacy and data-management controls defined in Step 6.
-
-## FR-SET-007 — Integrations
-
-Where external integrations exist, the learner shall be able to view/manage their connection state.
-
-## FR-SET-008 — Accessibility preferences
-
-Relevant accessibility preferences shall be configurable where required.
-
-## FR-SET-009 — Account deletion
-
-The learner shall be able to initiate account deletion according to later-defined privacy/security requirements.
+Internal resource retrieval required for R0 Study is covered by `FR-RES-008`; that does not require a full user-facing unified Search product.
 
 ---
 
-# 21. Global Functional Requirements
+# 20. Notifications & Reminders — R3+
 
-## FR-GLOBAL-001 — Domain independence
+Email reminders remain part of ARIA, but R0 does not require them.
 
-ARIA's core experience shall not hardcode specific learning domains into the product model.
+Long-term requirements remain:
 
-## FR-GLOBAL-002 — Multiple goals
-
-Major systems shall be designed to operate correctly when a learner has multiple goals.
-
-## FR-GLOBAL-003 — Context preservation
-
-Connected features should preserve relevant learning context when moving between them.
-
-## FR-GLOBAL-004 — Context correction
-
-The learner shall be able to correct incorrectly assumed goal/topic/resource context.
-
-## FR-GLOBAL-005 — User override
-
-AI-generated structures and recommendations that are not inherently fixed system rules should remain editable/overridable where appropriate.
-
-## FR-GLOBAL-006 — Empty states
-
-ARIA shall not fabricate personalized information when insufficient data exists.
-
-## FR-GLOBAL-007 — Graceful partial intelligence
-
-Core features should remain useful even when advanced learner modeling or cross-system automation is unavailable.
-
-## FR-GLOBAL-008 — Provenance
-
-Where AI output materially depends on learner-provided resources or evidence, provenance should be preserved where appropriate.
-
-## FR-GLOBAL-009 — Explainability
-
-Significant adaptive decisions should have a reason that can be surfaced to the learner.
-
-## FR-GLOBAL-010 — External ecosystem
-
-ARIA may integrate or link to specialist external platforms instead of rebuilding them when that better serves the learner.
+- **FR-NOTIF-001** in-app notifications;
+- **FR-NOTIF-002** email reminders;
+- **FR-NOTIF-003** notification preferences;
+- **FR-NOTIF-004** Planner reminders;
+- **FR-NOTIF-005** Revision reminders;
+- **FR-NOTIF-006** Assessment reminders;
+- **FR-NOTIF-007** deadline reminders;
+- **FR-NOTIF-008** proposed-change notifications;
+- **FR-NOTIF-009** frequency control;
+- **FR-NOTIF-010** disable optional notifications;
+- **FR-NOTIF-011** actionable deep-link/context behaviour.
 
 ---
 
-# 22. Functional Product Map
+# 21. Settings & Learner Controls
+
+## FR-SET-001 — Basic account/profile controls — R0 MUST
+Only controls necessary for account identity and R0 use are required initially.
+
+## FR-SET-002 — Learning preferences — SHOULD
+R0 may expose preferences that materially affect Study.
+
+## FR-SET-003 — Notification settings — R3+
+## FR-SET-004 — Memory controls — R2+
+
+## FR-SET-005 — Learner-state correction — R0 MUST
+Important inaccurate R0 learner-state assumptions shall have an appropriate correction/review path.
+
+## FR-SET-006 — Privacy/data controls — R0 MUST AS APPLICABLE
+Step 6 defines the exact minimum.
+
+## FR-SET-007 — Integrations — R5+
+## FR-SET-008 — Accessibility preferences — LONG-TERM MUST
+Required baseline accessibility is handled in Step 6 even if a rich preference UI is later.
+
+## FR-SET-009 — Account deletion — LONG-TERM MUST
+Must comply with privacy/data obligations.
+
+---
+
+# 22. Global Functional Requirements
+
+## FR-GLOBAL-001 — Domain extensibility — R0 MUST AS PRINCIPLE
+ARIA shall avoid unnecessary coupling that prevents later domain generalization.
+
+R0 is **not required to demonstrate support for every domain** and may contain implementation details specific to the chosen validation context when those details are not incorrectly embedded as universal product rules.
+
+## FR-GLOBAL-002 — Multiple goals — LONG-TERM MUST
+Major mature systems shall eventually operate correctly with multiple goals; this is not an R0 acceptance criterion.
+
+## FR-GLOBAL-003 — Context preservation — R0 MUST
+Relevant context shall persist through the R0 functional spine.
+
+## FR-GLOBAL-004 — Context correction — R0 MUST
+## FR-GLOBAL-005 — User override — R0 MUST WHERE APPLICABLE
+## FR-GLOBAL-006 — Honest empty/unknown states — R0 MUST
+## FR-GLOBAL-007 — Graceful partial intelligence — R0 MUST
+Core behaviour shall remain useful when advanced learner modeling/orchestration is unavailable.
+
+## FR-GLOBAL-008 — Provenance — R0 MUST
+Material AI outputs based on resources/evidence shall retain appropriate provenance.
+
+## FR-GLOBAL-009 — Explainability — R0 MUST
+Significant R0 adaptive decisions shall have a reason that can be surfaced/inspected.
+
+## FR-GLOBAL-010 — External ecosystem — R5+
+ARIA may integrate/link to specialist platforms rather than rebuilding them.
+
+---
+
+# 23. R0 Functional Product Map
+
+```text
+                    R0 ARIA
+                       │
+              Identity / Account
+                       │
+             Goal / Learning Context
+                       │
+                   Resources
+                       │
+                     Study
+                       │
+                  Assessment
+                       │
+                  Evaluation
+                       │
+                    Evidence
+                       │
+              Basic Learner State
+                       │
+                Adapted Study
+                       │
+                  Reassessment
+                       │
+                       ↺
+```
+
+Everything outside this map must justify itself using the R0 elimination test.
+
+---
+
+# 24. Complete Product Map
 
 ```text
                          ARIA
@@ -992,118 +639,83 @@ ARIA may integrate or link to specialist external platforms instead of rebuildin
                               Notifications
 ```
 
-Later requirements will define the intelligence and event layer connecting these systems.
+This remains the long-term product map, not R0 scope.
 
 ---
 
-# 23. Example End-to-End Functional Scenario
+# 25. R0 End-to-End Functional Scenario
 
-A learner creates:
+Illustrative only; the final validation context is still an open PRD decision.
 
 ```text
-Goal: Prepare for a university DBMS exam
-Deadline: Friday
+Learner creates/enters:
+"Prepare DBMS Transactions"
+        ↓
+Adds/selects supported notes/PDF
+        ↓
+Studies Transactions with ARIA
+        ↓
+Takes supported assessment
+        ↓
+ARIA evaluates responses
+        ↓
+Structured concept evidence is stored
+        ↓
+Basic learner state updates conservatively
+        ↓
+ARIA identifies a supported next-study adaptation
+        ↓
+Example: focus on conflict serializability with different scaffolding
+        ↓
+Learner studies adapted material
+        ↓
+Targeted reassessment
+        ↓
+New evidence updates/qualifies previous state
 ```
 
-They upload their syllabus and class notes.
-
-ARIA can then support:
-
-```text
-Create Goal
-    ↓
-Add Resources
-    ↓
-Generate / Edit Roadmap
-    ↓
-Create Plan
-    ↓
-Study Transactions
-    ↓
-Generate Revision Notes
-    ↓
-Create Assessment
-    ↓
-Learner chooses:
-  - theory questions
-  - 5 questions
-  - 40 minutes
-  - syllabus + class notes
-    ↓
-Take Assessment
-    ↓
-Receive Evaluation
-    ↓
-View Progress
-    ↓
-Revision / next action
-    ↓
-Receive relevant reminder
-    ↓
-Generate 15-minute audio revision before exam
-```
-
-This scenario uses several systems but does not yet define how automatic updates propagate between them. That belongs to Step 4.
+This scenario is intentionally missing Roadmap, Planner, Notes, Audio, full Progress, reminders, and multi-goal coordination. Their absence is the scope decision, not an omission from the vision.
 
 ---
 
-# 24. Functional Scope Validation
+# 26. Functional Scope Validation
 
-The requirements in this document preserve the major Phase 0 decisions:
+The reviewed Step 3 now preserves both truths:
 
-- ARIA remains goal-driven rather than domain-hardcoded;
-- onboarding remains lightweight;
-- deadlines are contextual and optional;
-- multiple goals are supported;
-- resources are learner-specific;
-- Study is connected to resources and downstream learning material;
-- Notes are editable and reusable;
-- assessments are user-configurable rather than fixed-format;
-- evaluation is separate from generation;
-- roadmaps can evolve;
-- planner supports recovery from missed work;
-- revision is more than rereading;
-- progress does not equal time spent;
-- recommendations remain overridable;
-- audio includes resource-to-audio and adaptive revision ambitions;
-- reminders include email and in-app delivery;
-- external specialist platforms can remain part of the learning ecosystem;
-- learner control remains a core requirement.
+**ARIA's complete vision remains broad:** Goals, Home, Study, Resources, Notes, Assessment, Evaluation, Roadmaps, Planner, Revision, Progress, Recommendations, Audio, Search, Notifications, Settings and future integrations remain part of the product direction.
+
+**R0 remains narrow:** Authentication + one context + Resources + Study + Assessment + Evaluation + Evidence + Basic Learner State + Adapted Study + Reassessment.
+
+R0 does not require universal domain support, multiple simultaneous goals, full Notes, Audio, Planner, Roadmap, Progress, Revision, Search, notifications, coding infrastructure, oral assessment, or mature orchestration.
 
 ---
 
-# 25. Step 3 Completion
+# 27. Step 3 Completion
 
-**Step 3 — Functional Requirements is complete.**
+**Step 3 — Functional Requirements has been audited and realigned.**
+
+The old document described almost every full-vision capability using mandatory language without release boundaries. The requirements are now preserved but classified so they cannot silently become R0 implementation scope.
 
 Next:
 
-# Step 4 — Cross-System & Automation Requirements
+# Step 4 — Cross-System & Automation Requirements Audit
 
-Step 4 will define how these systems behave as one connected Learning OS.
-
-It will specify requirements for interactions such as:
+Step 4 should narrow the R0 event/automation chain to:
 
 ```text
-AssessmentCompleted
+Assessment submitted
         ↓
 Evaluation
         ↓
 Evidence
         ↓
-Learner Model
+Basic Learner State
         ↓
-Progress
+Adaptation decision
         ↓
-Revision priority
+Adapted Study
         ↓
-Roadmap adaptation check
-        ↓
-Planner adaptation check
-        ↓
-Recommendations
-        ↓
-Home
+Reassessment
 ```
 
-It will also define event boundaries, automatic vs approval-required actions, conflict handling, idempotency expectations, propagation rules, and how ARIA avoids turning cross-system automation into uncontrolled cascading AI changes.
+Later Progress, Revision, Roadmap, Planner, Home, notifications and advanced orchestration should remain documented without being required to validate R0.
