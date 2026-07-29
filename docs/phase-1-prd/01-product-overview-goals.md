@@ -4,561 +4,272 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Step 1 — Complete  
+**Status:** Reviewed and aligned with amended `VISION.md`  
 **Primary source:** `VISION.md`
 
 ---
 
-# 1. Purpose of This Document
+# 1. Purpose
 
-This document translates ARIA's Phase 0 product vision into PRD-level product goals and boundaries.
+This document translates ARIA's reviewed Phase 0 vision into PRD-level goals and boundaries.
 
-It establishes what ARIA must ultimately accomplish before later Phase 1 steps define detailed functional, AI, cross-system, reliability, and acceptance requirements.
+It deliberately separates three levels that must not be confused:
 
-This document intentionally does **not** choose frameworks, databases, APIs, agent frameworks, page layouts, or visual designs.
+1. **Vision** — what ARIA can ultimately become.
+2. **Architecture direction** — how the product should remain extensible without premature universal abstraction.
+3. **Validation releases** — the deliberately constrained slices used to prove product hypotheses.
+
+The complete product vision is **not** the feature list for R0.
 
 ---
 
 # 2. Product Overview
 
-ARIA is an AI-powered learning operating system for goal-driven learners.
+ARIA is an AI-powered learning operating system intended initially for **college students, recent graduates, and early-career learners** pursuing academic, placement, competitive-exam, certification, interview, technical/professional skill, or upskilling goals.
 
-It brings studying, resources, notes, assessments, evaluation, revision, roadmaps, planning, progress, audio, reminders, search, and recommendations into one connected learning environment.
+Its long-term purpose is to connect studying, resources, assessment, evidence, learner state, revision, roadmaps, planning, progress, notes, audio, reminders, and recommendations around persistent learner context.
 
-ARIA is designed around a persistent learner context rather than isolated feature sessions.
-
-Its central product behaviour is:
-
-```text
-Goal
- ↓
-Roadmap
- ↓
-Plan
- ↓
-Study
- ↓
-Practice / Assessment
- ↓
-Evaluation
- ↓
-Evidence
- ↓
-Learner Model
- ↓
-Adaptation
- ↓
-Revision / Next Action
- ↓
-New Evidence
- ↓
-↺
-```
-
-The product should reduce the learner's need to manually coordinate every part of this loop.
+The product thesis is not merely that these features exist in one interface. It is that they can increasingly **share learning state and adapt what happens next**.
 
 ---
 
 # 3. Problem Statement
 
-Learners currently use many independent systems for different parts of learning.
+Learning workflows are fragmented across tutoring, resources, notes, assessments, planning, revision, progress tracking, and specialist platforms.
 
-Even when those systems are individually effective, context is fragmented across conversations, notes, documents, calendars, quizzes, roadmaps, course platforms, practice systems, and reminders.
+The learner is therefore often responsible for repeatedly coordinating:
 
-The learner remains responsible for manually answering questions such as:
+- what to learn next;
+- which resources matter;
+- what has been understood;
+- what needs more work;
+- what should be tested or revised;
+- how learning plans should respond to new evidence.
 
-- What should I study next?
-- What resources belong to this goal?
-- What have I already covered?
-- What have I actually understood?
-- What am I weak at?
-- Am I repeatedly misunderstanding a concept?
-- What should I revise now?
-- When should I revise again?
-- Should my learning path change after this assessment?
-- What happens to my plan if I miss today's work?
-- How should I balance multiple goals?
+> **ARIA's problem is excessive manual coordination across a fragmented learning journey.**
 
-ARIA's product problem is therefore not simply lack of AI-generated educational content.
-
-> **The learning workflow itself is fragmented and requires excessive manual coordination.**
+ARIA should reduce that coordination burden without automating away the intellectual effort required to learn.
 
 ---
 
-# 4. Product Objective
+# 4. Initial Audience Boundary
 
-ARIA's primary objective is:
+ARIA initially serves:
 
-> **Reduce manual learning coordination while helping learners make meaningful progress toward their goals through a connected, adaptive, evidence-aware learning environment.**
+> **College students, recent graduates, and early-career learners working toward concrete learning or preparation goals.**
 
-ARIA should automate organizational work surrounding learning without removing the intellectual effort required to learn.
+Representative contexts include university learning/exams, placements, interviews, certifications, competitive/government exams, technical/professional skills, and post-college upskilling.
+
+ARIA is not initially optimized for primary-school/children's education, institutional LMS administration, teacher/classroom management, or corporate training administration.
+
+This audience boundary does not mean every listed context must be proven in R0.
+
+---
+
+# 5. Domain Principle
+
+ARIA's long-term product model is goal-driven and domain-independent.
+
+However:
+
+> **Domain independence is a long-term product and architecture direction, not an R0 acceptance criterion.**
+
+Early validation releases may deliberately use one or a small number of representative learning contexts.
+
+The architecture should avoid **unnecessary domain-specific coupling** that would prevent later generalization, but it should not attempt to invent universal abstractions before concrete cases have been validated.
+
+The intended method is:
+
+```text
+Specific case
+    ↓
+Validate
+    ↓
+Add structurally different case
+    ↓
+Observe broken assumptions
+    ↓
+Generalize
+    ↓
+Repeat
+```
 
 ---
 
-# 5. Primary Product Goals
+# 6. Primary Product Goals
 
-## G-01 — Unify the learning workflow
+## G-01 — Connect the learning workflow
 
-ARIA shall provide one connected environment in which the major stages of a learner's journey can share context.
-
-The learner should not need to manually reconstruct the same goal, topic, resource, weakness, or progress context across every feature.
-
----
+Major learning systems should eventually share relevant learner and goal context rather than behaving as unrelated mini-products.
 
 ## G-02 — Reduce manual coordination
 
-ARIA should reduce repetitive work involved in coordinating:
+ARIA should reduce repetitive organizational work around goals, resources, learning activities, assessment, revision, planning, and next actions.
 
-- learning goals;
-- resources;
-- roadmaps;
-- study activities;
-- assessments;
-- revision;
-- schedules;
+## G-03 — Adapt from evidence
+
+ARIA should increasingly use meaningful learning evidence to influence future learning behaviour.
+
+## G-04 — Preserve persistent learning context
+
+Relevant goals, resources, activity, evidence, preferences, and learning state should survive across sessions where appropriate.
+
+## G-05 — Preserve learner control
+
+Consequential personalized changes should remain understandable, correctable, and reviewable where appropriate.
+
+## G-06 — Support flexible assessment
+
+ARIA should not assume one universal assessment format. The learner controls the final assessment specification within supported capabilities.
+
+## G-07 — Make progress meaningful
+
+Learning evidence and goal progress should matter more than vanity activity metrics.
+
+## G-08 — Become progressively intelligent
+
+ARIA should remain useful before advanced learner modeling, misconception detection, planning, audio, or multi-agent orchestration exist.
+
+## G-09 — Integrate rather than unnecessarily recreate
+
+Specialist external learning platforms may remain part of the learner's ecosystem.
+
+## G-10 — Earn complexity through validation
+
+New systems should be introduced because they are required to validate the next product hypothesis, not merely because they exist in the long-term feature map.
+
+---
+
+# 7. R0 Product Hypothesis
+
+R0 is an **experimental validation release**, not a compressed version of the entire ARIA Learning OS.
+
+Its first product question is:
+
+> **Can ARIA observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience?**
+
+The minimum conceptual loop is:
+
+```text
+Goal / Learning Context
+          ↓
+       Resources
+          ↓
+         Study
+          ↓
+      Assessment
+          ↓
+      Evaluation
+          ↓
+    Basic Evidence
+          ↓
+ Basic Learner State
+          ↓
+Adapt Next Study Experience
+          ↓
+          ↺
+```
+
+A proposed R0 feature should face this elimination test:
+
+> **If we remove this feature, can we still test whether ARIA's learner state changes future learning appropriately?**
+
+If yes, it is probably not required for R0.
+
+---
+
+# 8. R0 Is Not the Full Vision
+
+The following remain important ARIA capabilities but are **not automatically R0 requirements**:
+
+- Notes;
+- Audio;
+- Planner;
 - reminders;
-- progress;
-- next actions.
+- full Roadmap generation/adaptation;
+- sophisticated Progress dashboards;
+- full Revision engine;
+- full misconception detection;
+- external-platform tracking;
+- advanced multi-agent orchestration;
+- broad domain validation.
 
-Automation should reduce management overhead rather than automate away learning itself.
-
----
-
-## G-03 — Support goal-driven learning across domains
-
-ARIA shall support learners preparing for different goals without hardcoding the core product around a particular subject or exam.
-
-The same product foundation should be capable of supporting university study, competitive exams, certifications, technical learning, interview preparation, professional skills, and independent learning.
+Their detailed requirements may remain documented in Phase 1 because the PRD also describes the product direction. Release boundaries determine when they become implementation requirements.
 
 ---
 
-## G-04 — Build persistent learning context
+# 9. Validation Principle
 
-ARIA shall preserve relevant context across sessions and product systems.
+R0 success has two levels.
 
-This may include goals, topics, resources, study history, assessment history, revision history, roadmaps, plans, relevant preferences, and evidence-backed learning state.
+## Gate A — Engineering Validation
 
----
+Gate A must rigorously demonstrate, through controlled and reproducible scenarios, that the adaptive machinery correctly closes the loop from learning activity to evidence to learner-state change to adapted future behaviour.
 
-## G-05 — Personalize from evidence
+## Gate B — Real-User Signal
 
-ARIA should increasingly adapt learning experiences based on meaningful evidence rather than superficial activity alone.
+Gate B should collect small-scale before/after observations and qualitative feedback from available target users.
 
-Assessment responses, retrieval attempts, teach-back, problem solving, revision results, and other appropriate signals may contribute to learner-state estimates.
+At solo-capstone scale, Gate B provides **directional evidence**, not statistically rigorous causal proof of improved learning outcomes.
 
-ARIA should distinguish evidence strength and uncertainty where necessary.
-
----
-
-## G-06 — Identify more than right and wrong answers
-
-Where sufficient evidence exists, ARIA should help distinguish among:
-
-- unknown knowledge;
-- developing or weak understanding;
-- strong understanding;
-- possible misconceptions;
-- prerequisite gaps.
-
-ARIA should avoid making confident conclusions from weak evidence.
+Exact acceptance criteria and evaluation methods are defined in the Phase 1 validation/closure document.
 
 ---
 
-## G-07 — Create living learning paths
+# 10. Non-Goals
 
-Roadmaps and plans should not be treated as one-time generated documents.
+ARIA is not intended to become:
 
-They should be capable of responding to meaningful changes such as:
+- a replacement for learner effort;
+- a general-purpose chatbot;
+- a full coding-practice ecosystem;
+- a course marketplace;
+- a video-hosting platform;
+- a general-purpose productivity workspace;
+- an institutional LMS;
+- a primary-school/children's learning platform in the initial product scope;
+- a corporate training administration platform;
+- a general-purpose search engine.
 
-- new goals;
-- changed deadlines;
-- assessment evidence;
-- prerequisite gaps;
-- missed work;
-- changing availability;
-- learner corrections.
+ARIA should also not:
 
----
-
-## G-08 — Preserve learner control
-
-ARIA should automate low-risk coordination while keeping consequential learning decisions inspectable and correctable.
-
-The learner should be able to review significant proposed changes where appropriate.
-
-Examples include major roadmap changes, substantial planner changes, or corrections to important learner-state assumptions.
-
----
-
-## G-09 — Support flexible assessment
-
-ARIA shall not assume one universal exam format.
-
-Learners should be able to define the assessment experience appropriate to their goal, including question formats, topics, resources, difficulty, duration, scoring, sections, and other relevant parameters.
-
-ARIA may recommend or prefill an assessment configuration, but the learner controls the final assessment specification.
+- treat one mistake as confirmed weakness or misconception;
+- treat one correct answer as mastery;
+- silently make high-impact learning decisions from weak evidence;
+- hardcode permanent DSA/AWS/GATE/etc. branches into the core product;
+- make every subsystem an AI agent;
+- optimize primarily for engagement or screen time.
 
 ---
 
-## G-10 — Make progress meaningful
+# 11. Constraints Carried Forward
 
-ARIA should prioritize learning evidence and goal progress over vanity engagement metrics.
+The remainder of the PRD must preserve these constraints:
 
-Time spent, messages sent, or notes generated may provide activity context but should not automatically be interpreted as mastery.
-
----
-
-## G-11 — Support learning under real-world constraints
-
-ARIA should support learners who have limited time, changing schedules, multiple goals, upcoming exams, missed sessions, and different preferred ways of reviewing material.
-
-The system should help the learner recover and reprioritize rather than merely accumulate overdue work.
-
----
-
-## G-12 — Enable multiple learning modalities
-
-ARIA should support learning through appropriate combinations of:
-
-- conversation;
-- reading/resources;
-- notes;
-- problem solving;
-- assessments;
-- retrieval/revision;
-- teach-back;
-- audio.
-
-These modalities should share context where useful.
+1. Initial audience: college students, recent graduates, and early-career learners.
+2. Long-term domain independence; early validation may be domain-constrained.
+3. Avoid unnecessary domain-specific coupling, not all domain-specific implementation.
+4. Lightweight onboarding; no universal mandatory deadline.
+5. Learner-controlled assessment specification within supported capabilities.
+6. Evidence-backed learning state is distinct from ordinary conversational memory.
+7. Meaningful adaptation should be explainable/correctable where appropriate.
+8. External learning resources remain valid.
+9. Full product feature scope does not equal R0 scope.
+10. R0 validates the smallest adaptive-learning loop.
+11. Gate A is rigorous engineering validation.
+12. Gate B is directional real-user evidence at capstone scale and must not be overclaimed.
 
 ---
 
-## G-13 — Make adaptation explainable
+# 12. Step 1 Exit Condition
 
-When ARIA makes or proposes a meaningful personalized decision, the learner should be able to understand the reason where practical.
+Step 1 is complete when later PRD documents can distinguish:
 
-Examples:
+- the long-term ARIA vision;
+- the initial audience;
+- architecture extensibility;
+- R0's constrained hypothesis;
+- later-release capabilities;
+- engineering validation from real-user product evidence.
 
-> "This topic was added because your last two assessments showed difficulty with its prerequisite."
-
-or
-
-> "This revision was prioritized because recall performance has declined and the exam is approaching."
-
----
-
-## G-14 — Work with the wider learning ecosystem
-
-ARIA should allow external resources and specialist platforms to remain part of the learner's workflow.
-
-ARIA may link, organize, recommend, or integrate with external systems where technically and legally appropriate rather than recreating every specialist platform.
-
----
-
-## G-15 — Become progressively intelligent
-
-ARIA should remain useful before every advanced AI capability exists.
-
-Basic product systems should work reliably first. Evidence, learner modeling, recommendations, adaptive roadmaps, adaptive planning, and cross-system orchestration should progressively increase intelligence as the required foundations become available.
-
----
-
-# 6. Desired User Outcomes
-
-A successful ARIA experience should help a learner reach outcomes such as:
-
-### Orientation
-
-The learner can quickly understand what they are working toward and what should happen next.
-
-### Continuity
-
-The learner can return later without manually reconstructing their learning context.
-
-### Understanding
-
-The learner can study concepts interactively and use their own resources where appropriate.
-
-### Practice
-
-The learner can test themselves in a format suitable for their actual goal.
-
-### Awareness
-
-The learner can see what appears strong, weak, untested, forgotten, or potentially misunderstood.
-
-### Adaptation
-
-New evidence can influence future revision, recommendations, roadmaps, and planning.
-
-### Recovery
-
-Falling behind does not require manually rebuilding the entire learning plan.
-
-### Revision
-
-ARIA can surface what deserves review rather than requiring the learner to manually remember everything that needs revisiting.
-
-### Portability
-
-Learning can continue in different contexts, including audio-based revision when reading or typing is inconvenient.
-
-### Control
-
-The learner can inspect and correct important ARIA assumptions and proposed changes.
-
----
-
-# 7. Non-Goals
-
-Non-goals prevent ARIA from becoming an undefined "everything app."
-
-## NG-01 — ARIA is not a replacement for learning effort
-
-ARIA should not complete the intellectual work the learner is supposed to practice merely to create the appearance of progress.
-
-It may explain, guide, hint, evaluate, and support—but productive struggle remains part of learning.
-
----
-
-## NG-02 — ARIA is not a general-purpose chatbot
-
-ARIA may provide rich conversation, but its product identity is centered on longitudinal learning rather than unrestricted general assistant functionality.
-
----
-
-## NG-03 — ARIA is not a full coding-practice ecosystem
-
-ARIA may support coding assessment and connect to specialist coding platforms, but rebuilding the entire functionality and community ecosystem of dedicated coding-practice products is not a primary product goal.
-
----
-
-## NG-04 — ARIA is not a course marketplace
-
-ARIA may organize or recommend courses and learning resources, but it is not intended to become a marketplace or replace major course platforms.
-
----
-
-## NG-05 — ARIA is not a video platform
-
-Videos may be resources inside a learning journey. Hosting and recreating a complete video ecosystem is outside the primary product purpose.
-
----
-
-## NG-06 — ARIA is not a general-purpose productivity workspace
-
-ARIA may contain notes, planning, organization, and reminders, but those systems exist specifically to support learning goals.
-
-It is not intended to replace every use case of general workspace/project-management products.
-
----
-
-## NG-07 — ARIA is not an institutional LMS
-
-ARIA is learner-centered rather than primarily designed around institutional administration, attendance, grading administration, classroom management, or school-wide course delivery.
-
-Institutional functionality may be considered separately in the future but does not define the current product vision.
-
----
-
-## NG-08 — ARIA is not a general-purpose search engine
-
-Search exists to retrieve and connect relevant learning history, learner resources, and appropriate external learning information—not to recreate a web-scale search product.
-
----
-
-## NG-09 — ARIA should not infer certainty where none exists
-
-ARIA should not present uncertain learner-state conclusions as objective facts.
-
-One mistake should not automatically mean "weak topic," and one correct answer should not automatically mean "mastered."
-
----
-
-## NG-10 — ARIA should not silently control consequential learning decisions
-
-Automation should not mean removing learner agency.
-
-Significant roadmap or plan changes should be visible and reviewable where appropriate.
-
----
-
-## NG-11 — ARIA should not hardcode one learner type
-
-The product should not assume every user is a university student, competitive-exam candidate, coder, certification learner, or any other single category.
-
----
-
-## NG-12 — ARIA should not hardcode one assessment model
-
-MCQs are not appropriate for every learner. Neither are coding contests, essays, viva, or flashcards.
-
-The assessment system must remain configurable.
-
----
-
-## NG-13 — ARIA should not make every subsystem an AI agent
-
-Agent architecture must be justified by product and technical needs.
-
-Reliable deterministic software should be preferred where AI reasoning is unnecessary.
-
----
-
-## NG-14 — ARIA should not optimize primarily for engagement
-
-The product should not intentionally maximize screen time, message count, streak anxiety, or notification volume at the expense of effective learning.
-
----
-
-# 8. Product Constraints Established by Phase 0
-
-The following decisions are treated as constraints for the remainder of the PRD.
-
-### Domain independence
-
-Core content, goals, roadmaps, resources, and Home experiences must be generated from learner context rather than hardcoded subject categories.
-
-### Lightweight onboarding
-
-ARIA should not require every deadline, examination, learning preference, or future goal during initial onboarding.
-
-### Multiple goals
-
-The product model must permit a learner to pursue multiple goals and deadlines over time.
-
-### Assessment control
-
-The learner controls the final exam/assessment configuration.
-
-### Evidence-backed learning state
-
-ARIA's learner-state confidence should improve from meaningful evidence rather than conversation memory alone.
-
-### Memory ≠ Learner Model
-
-Persistent preferences/context and evidence-backed learning state are related but conceptually distinct.
-
-### Explainable adaptation
-
-Meaningful automated changes should retain a reason that can be surfaced to the learner where appropriate.
-
-### External resources remain valid
-
-ARIA should not require all learning to occur inside ARIA in order to be useful.
-
-### Notifications are user-controlled
-
-In-app and email reminders should respect learner preferences and avoid unnecessary notification volume.
-
----
-
-# 9. Product Scope at PRD Level
-
-The complete PRD will define requirements for:
-
-```text
-Account & Authentication
-Onboarding
-Goals & Learning Contexts
-Home
-Study
-Resources & Retrieval
-Notes
-Assessment
-Evaluation
-Evidence
-Learner Model
-Memory
-Misconception Tracking
-Prerequisite Detection
-Roadmaps
-Planner
-Revision
-Progress
-Recommendations
-Audio
-Search
-Notifications
-Settings & User Controls
-Cross-System Automation
-Reliability / Validation
-Privacy / Security
-Accessibility
-```
-
-Detailed functional requirements belong to later Phase 1 steps.
-
----
-
-# 10. Product Decision Framework
-
-When later requirements conflict or scope questions arise, evaluate them in this order:
-
-```text
-1. Does it help meaningful learning progress?
-                ↓
-2. Does it support the learner's goal?
-                ↓
-3. Does it reduce unnecessary coordination?
-                ↓
-4. Can it use/share learning context responsibly?
-                ↓
-5. Does the learner retain appropriate control?
-                ↓
-6. Can the behaviour be made reliable enough?
-                ↓
-7. Does ARIA need to build it, or can it integrate it?
-```
-
-A feature being technically possible is not sufficient reason to add it.
-
----
-
-# 11. Step 1 Decisions
-
-Phase 1 Step 1 establishes the following:
-
-> **ARIA's job is not to generate more learning content. Its job is to coordinate a learner's journey and make each learning interaction more useful because the system understands the surrounding context.**
-
-The product should aim for:
-
-```text
-Less manual coordination
-        +
-More learning continuity
-        +
-Better evidence of understanding
-        +
-Adaptive next actions
-        +
-Learner control
-```
-
-The complete feature set remains part of the product vision, but every feature must serve the learning journey rather than existing merely to increase feature count.
-
----
-
-# 12. Step 1 Completion
-
-**Step 1 — Product Overview, Goals & Non-Goals is complete.**
-
-Next:
-
-# Step 2 — User & Learning-Context Requirements
-
-Step 2 will define requirements for:
-
-- goal-driven learners;
-- different learning situations;
-- multiple simultaneous goals;
-- learning contexts;
-- onboarding;
-- deadlines and exam contexts;
-- learner preferences;
-- personalization boundaries;
-- returning-user continuity;
-- context switching between goals;
-- user control over inferred information.
-
-These requirements will establish what ARIA must know about a learner and how that context should behave before the detailed feature requirements are written.
+**Step 1 is aligned with the reviewed Phase 0 vision.**
