@@ -4,26 +4,32 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Step 2 — Complete  
-**Primary sources:** `VISION.md`, `01-product-overview-goals.md`
+**Status:** Reviewed and aligned with amended `VISION.md`  
+**Primary sources:** `VISION.md`, `01-product-overview-goals.md`, `07-scope-prioritization-release-boundaries.md`
 
 ---
 
 # 1. Purpose
 
-This document defines what ARIA must know about a learner, how learning contexts should be represented, and how learner identity, goals, deadlines, preferences, and inferred information should behave across the product.
+This document defines what ARIA must know about a learner, how learning contexts should be represented, and how identity, goals, preferences, constraints, and inferred information behave across the product.
 
-ARIA is intended to support the same person across multiple learning situations without forcing them into one permanent learner category.
+It distinguishes **long-term product-model requirements** from the smaller subset required to validate R0.
 
-The central requirement is:
+Long-term principle:
 
 > **One learner identity may contain many goals and learning contexts, while each context preserves the information relevant to that goal.**
 
+R0 does not need to implement the entire multi-goal model to prove adaptive learning.
+
 ---
 
-# 2. User Model
+# 2. Audience & User Model
 
-ARIA should model a person as a persistent learner rather than as a single exam candidate, student type, or subject-specific user.
+ARIA initially serves college students, recent graduates, and early-career learners working toward academic, placement, competitive-exam, certification, interview, technical/professional skill, or upskilling goals.
+
+ARIA should model a person as a persistent learner rather than permanently classifying them as one exam candidate, subject-specific user, or learner category.
+
+Long-term model:
 
 ```text
 Learner
@@ -35,27 +41,22 @@ Learner
 │   └── Learning Context A
 ├── Goal B
 │   └── Learning Context B
-├── Goal C
-│   └── Learning Context C
-└── Cross-goal learning history where appropriate
+└── Additional contexts/history where appropriate
 ```
 
-The product must not permanently classify the learner as only:
-
-- a university student;
-- a competitive-exam candidate;
-- a coding learner;
-- a certification learner;
-- an interview candidate;
-- a self-directed learner.
-
-Those are situations a learner may enter, leave, or combine.
+The product must not permanently classify the learner as only a university student, competitive-exam candidate, coding learner, certification learner, interview candidate, or self-directed learner. Those are contexts the learner may enter, leave, or combine.
 
 ---
 
-# 3. User Requirement Categories
+# 3. Requirement Scope Labels
 
-Requirements in this document use the following identifiers:
+Requirements use these maturity labels:
+
+- **R0 MUST** — necessary to validate the first adaptive-learning loop.
+- **LONG-TERM MUST** — required by the complete product model but not required for R0 validation.
+- **SHOULD / MAY** — desirable or conditional behaviour whose release can be determined later.
+
+Requirement identifiers remain stable for traceability.
 
 ```text
 UR-ID-*       Identity and account context
@@ -75,19 +76,17 @@ UR-STATE-*    Goal/context lifecycle
 
 # 4. Identity Requirements
 
-## UR-ID-001 — Persistent learner identity
+## UR-ID-001 — Persistent learner identity — R0 MUST
 
-ARIA shall associate persistent learning data with an authenticated learner identity.
+ARIA shall associate persistent validation data with an authenticated learner identity.
 
-Relevant persistent data may include goals, learning contexts, resources, conversations, notes, assessments, roadmaps, plans, revision history, progress, learner-model state, and preferences.
+## UR-ID-002 — Identity is broader than a goal — LONG-TERM MUST
 
-## UR-ID-002 — Identity is broader than a learning goal
+The learner account shall remain stable as goals are created, completed, paused, archived, or deleted.
 
-The learner account shall remain stable when goals are created, completed, paused, archived, or deleted.
+## UR-ID-003 — Global vs context-specific information — LONG-TERM MUST
 
-## UR-ID-003 — Global and context-specific information
-
-ARIA shall distinguish information that applies globally to the learner from information that applies only to a specific goal or learning context.
+ARIA shall distinguish information that applies globally from information that applies only to a specific learning context.
 
 Example:
 
@@ -99,147 +98,116 @@ Context-specific:
 "For this university exam, answers should follow the uploaded syllabus."
 ```
 
-## UR-ID-004 — Cross-context leakage prevention
+## UR-ID-004 — Context leakage prevention — R0 MUST
 
-ARIA shall avoid applying context-specific information to unrelated goals unless the information is intentionally shared or reasonably global.
+Information/evidence from one validation context shall not silently contaminate an unrelated context.
 
-Example:
-
-A preferred GATE assessment format should not automatically become the format for a university theory exam.
+R0 may demonstrate this through controlled fixtures even if the user-facing product initially exposes only one active goal.
 
 ---
 
 # 5. Onboarding Requirements
 
-## UR-ONB-001 — Lightweight onboarding
+## UR-ONB-001 — Lightweight onboarding — R0 MUST
 
 Initial onboarding shall request only information necessary to begin using ARIA effectively.
 
-ARIA shall not require the learner to provide every subject, deadline, exam, schedule, preference, or future goal before entering the product.
+## UR-ONB-002 — No mandatory universal deadline — R0 MUST
 
-## UR-ONB-002 — No mandatory universal deadline
+Onboarding shall not assume every learner has one deadline or examination date. Deadlines belong to goals/events where relevant.
 
-Onboarding shall not assume every learner has one deadline or examination date.
+## UR-ONB-003 — Broad starting intent — R0 MUST
 
-Deadlines belong to goals/events where relevant.
+ARIA may ask what the learner currently wants help with or allow creation of an initial goal/context in the learner's own language.
 
-## UR-ONB-003 — Broad starting intent
+Examples such as learning a topic, preparing for an exam, interview, certification, or custom goal are illustrative rather than hardcoded product categories.
 
-ARIA may ask the learner what they currently want help with or allow them to create an initial goal.
+## UR-ONB-004 — Optional initial preferences — SHOULD
 
-Examples may include learning a topic, preparing for an exam, preparing for an interview, completing a certification, or creating another custom goal.
+ARIA may collect a small set of immediately useful preferences. They remain editable.
 
-These examples must not constrain the domain model.
+## UR-ONB-005 — Progressive discovery — LONG-TERM MUST
 
-## UR-ONB-004 — Optional initial preferences
+Information not required initially should be collected when it becomes relevant.
 
-ARIA may collect a small set of immediately useful preferences, but preferences should remain editable and should continue to evolve through explicit user choices and later evidence.
+## UR-ONB-006 — Product guidance — SHOULD
 
-## UR-ONB-005 — Progressive discovery
-
-Information not required during onboarding should be collected later when it becomes relevant to a feature or goal.
-
-Example:
-
-A deadline can be requested when a learner creates a time-bound goal or asks ARIA to build a schedule.
-
-## UR-ONB-006 — Product guidance
-
-ARIA should introduce major capabilities progressively through contextual guidance rather than forcing the learner through a long feature questionnaire during signup.
+Major capabilities should be introduced contextually rather than through a long signup questionnaire.
 
 ---
 
 # 6. Goal Requirements
 
-## UR-GOAL-001 — Create goals
+## UR-GOAL-001 — Create a learning goal/context — R0 MUST
 
-The learner shall be able to create learning goals.
-
-A goal represents an outcome the learner is trying to achieve.
+The learner shall be able to establish at least one learning goal/context for the R0 validation loop.
 
 Examples:
 
 ```text
-Prepare for GATE CSE
-Learn FastAPI
-Pass a DBMS semester exam
-Prepare for a Java interview
-Complete an AWS certification
-Learn linear algebra
+Prepare for a DBMS semester exam
+Learn FastAPI fundamentals
+Prepare one certification topic
+Revise a defined subject unit
 ```
 
-These examples are illustrative and must not be hardcoded categories.
+Examples are not hardcoded categories.
 
-## UR-GOAL-002 — Custom goal language
+## UR-GOAL-002 — Custom goal language — R0 MUST
 
-Learners shall be able to describe goals in their own words rather than selecting only from predefined categories.
+Learners shall be able to describe the validation goal/context in their own words rather than selecting only from predefined domain categories.
 
-## UR-GOAL-003 — Goal metadata
+## UR-GOAL-003 — Goal metadata — LONG-TERM MUST
 
-A goal may contain relevant metadata such as:
+A goal may eventually contain title, description, desired outcome, optional deadlines, priority, status, resources, roadmap, plan, and assessment context. Not every field is mandatory.
 
-- title;
-- description;
-- desired outcome;
-- target/deadline if applicable;
-- priority;
-- status;
-- related resources;
-- roadmap;
-- plan;
-- assessment context.
+R0 only needs metadata necessary for the selected validation context.
 
-Not every field shall be mandatory.
+## UR-GOAL-004 — Goals without deadlines — LONG-TERM MUST
 
-## UR-GOAL-004 — Goals without deadlines
+ARIA's product model shall support open-ended goals. R0 should not make a deadline structurally mandatory.
 
-ARIA shall support open-ended goals with no deadline.
+## UR-GOAL-005 — Goal refinement — SHOULD
 
-## UR-GOAL-005 — Goal refinement
+Learners should be able to modify a goal as intention changes.
 
-A learner shall be able to modify a goal as their intention changes.
+## UR-GOAL-006 — Goal decomposition — LATER RELEASE
 
-## UR-GOAL-006 — Goal hierarchy / decomposition
+Broad-goal decomposition into phases, milestones, topics, or subgoals is primarily a learning-path/Roadmap concern and is not required for R0.
 
-ARIA should support decomposition of broad goals into phases, milestones, topics, or subgoals without requiring the learner to manually create every component.
+## UR-GOAL-007 — Suggested goals require confirmation — LONG-TERM MUST
 
-## UR-GOAL-007 — Goal source
-
-A goal may originate from explicit user creation or from an ARIA suggestion that the learner confirms.
-
-ARIA shall not silently create consequential long-term goals from casual conversation without appropriate confirmation.
+ARIA shall not silently create consequential long-term goals from casual conversation without appropriate learner confirmation.
 
 ---
 
 # 7. Multiple-Goal Requirements
 
-## UR-MULTI-001 — Multiple simultaneous goals
+Multiple simultaneous goals are part of ARIA's complete product model, **not an R0 validation requirement**.
 
-ARIA shall support multiple active learning goals for one learner.
+## UR-MULTI-001 — Multiple simultaneous goals — LONG-TERM MUST
 
-## UR-MULTI-002 — Independent contexts
+ARIA shall eventually support multiple active learning goals for one learner.
 
-Each goal shall be capable of maintaining its own resources, roadmap, assessment configuration, progress, deadlines, and relevant learning state.
+## UR-MULTI-002 — Independent contexts — LONG-TERM MUST
 
-## UR-MULTI-003 — Shared learner identity
+Each goal shall be capable of maintaining its own relevant resources, roadmap, assessment configuration, progress, deadlines, and learning state.
 
-Multiple goals shall remain connected to the same learner identity so appropriate global preferences and reusable learning information can persist.
+## UR-MULTI-003 — Shared learner identity — LONG-TERM MUST
 
-## UR-MULTI-004 — Priority
+Multiple goals shall remain connected to the same learner identity while preserving context boundaries.
 
-The learner shall be able to indicate or modify goal priority.
+## UR-MULTI-004 — Goal priority — LATER RELEASE
 
-ARIA may recommend priority changes based on deadlines, workload, or learner state, but meaningful reprioritization should remain visible to the learner.
+Learners can eventually indicate/modify priority. Evidence/deadline-based reprioritization must remain visible.
 
-## UR-MULTI-005 — Scheduling conflicts
+## UR-MULTI-005 — Scheduling conflicts — R3+
 
-When multiple goals compete for limited learner time, ARIA should be capable of identifying conflicts and proposing a feasible allocation rather than independently over-scheduling each goal.
+Cross-goal time allocation belongs to the learning-coordination release and is not an R0 requirement.
 
-## UR-MULTI-006 — Goal-specific progress
+## UR-MULTI-006 — Goal-specific progress/evidence — LONG-TERM MUST
 
-Progress for one goal shall not be incorrectly interpreted as progress toward another goal merely because topics overlap.
-
-Where concepts genuinely overlap, ARIA may reuse evidence carefully while preserving provenance and context.
+Progress/evidence from one goal shall not be incorrectly interpreted as another goal's progress. Justified reuse should retain provenance.
 
 ---
 
@@ -247,373 +215,270 @@ Where concepts genuinely overlap, ARIA may reuse evidence carefully while preser
 
 A **Learning Context** represents the active information surrounding a learning activity.
 
-A context may include:
+Long-term it may include learner, goal, topic/concept, resources, current activity, relevant history, assessment context, Roadmap/Plan state, learner-state evidence, preferences, and time constraints.
+
+R0 requires only the subset needed for the adaptive loop.
+
+## UR-CTX-001 — Context association — R0 MUST
+
+Study, assessment, evaluation, evidence, learner state, and subsequent adaptation shall be attributable to the relevant validation goal/context and concept/topic where applicable.
+
+## UR-CTX-002 — Exploratory learning — LATER RELEASE
+
+ARIA may eventually support learning not attached to a formal goal. R0 may require an explicit validation context to simplify evidence attribution.
+
+## UR-CTX-003 — Context propagation — R0 MUST
+
+Relevant context shall propagate through the R0 loop without requiring the learner to repeatedly reselect the same goal/topic/resources.
 
 ```text
-Learning Context
-│
-├── Learner
-├── Goal
-├── Topic / Concept
-├── Resources
-├── Current activity
-├── Relevant conversation/history
-├── Assessment context
-├── Roadmap state
-├── Plan state
-├── Learner-state evidence
-├── Relevant preferences
-└── Time / deadline constraints
+Study
+  ↓
+Assessment
+  ↓
+Evaluation
+  ↓
+Evidence
+  ↓
+Learner State
+  ↓
+Adapted Study
 ```
 
-## UR-CTX-001 — Context association
+## UR-CTX-004 — Context visibility — R0 MUST
 
-Study sessions, assessments, notes, resources, roadmap activities, and revision sessions should be capable of being associated with a goal and/or topic where relevant.
+The active validation goal/topic/resource context shall be understandable where ambiguity could produce incorrect evidence or adaptation.
 
-## UR-CTX-002 — Context is not always mandatory
+## UR-CTX-005 — Context correction — R0 MUST
 
-ARIA shall still support exploratory learning that is not yet attached to a formal goal.
+The learner shall be able to correct the active goal/topic/resources when ARIA's assumed context is incorrect.
 
-The learner may later attach useful content to a goal.
+## UR-CTX-006 — Context isolation — R0 MUST
 
-## UR-CTX-003 — Context propagation
+Context-specific evidence shall not silently contaminate unrelated contexts.
 
-When the learner moves between connected features, relevant context should be carried forward where appropriate.
+## UR-CTX-007 — Cross-context reuse — LATER RELEASE
 
-Example:
-
-```text
-Study DBMS Transactions
-        ↓
-Generate Notes
-        ↓
-Generate Assessment
-```
-
-The learner should not need to reselect DBMS Transactions and the same resources at every step unless they want to change them.
-
-## UR-CTX-004 — Context visibility
-
-The interface should make the active goal/topic/context understandable where confusion could cause incorrect actions.
-
-## UR-CTX-005 — Context modification
-
-The learner shall be able to change the active goal/topic/resources when ARIA's assumed context is incorrect.
-
-## UR-CTX-006 — Context isolation
-
-Information specific to one learning context shall not silently contaminate unrelated contexts.
-
-## UR-CTX-007 — Cross-context reuse
-
-ARIA may reuse relevant knowledge across contexts when there is a justified relationship.
-
-Example:
-
-A learner's demonstrated understanding of SQL joins may be relevant to multiple database-related goals.
-
-The reused evidence should retain its original provenance.
+Cross-context evidence reuse may be introduced when multiple-goal/context support exists and provenance/confidence rules are mature enough.
 
 ---
 
 # 9. Deadline & Time-Constraint Requirements
 
-## UR-DEAD-001 — Optional deadlines
+Deadlines are important to the complete ARIA product but are not necessary to prove R0 adaptive learning unless the chosen validation scenario specifically requires one.
 
-A goal may have zero, one, or multiple relevant dates/events depending on its structure.
+## UR-DEAD-001 — Optional deadlines — LONG-TERM MUST
 
-## UR-DEAD-002 — Deadlines belong to context
+A goal may have zero, one, or multiple relevant dates/events.
 
-ARIA shall associate deadlines with the appropriate goal, exam, milestone, assessment, or learning event rather than treating one date as the learner's universal deadline.
+## UR-DEAD-002 — Deadlines belong to context — LONG-TERM MUST
 
-## UR-DEAD-003 — Deadline modification
+Dates shall attach to the appropriate goal/event rather than becoming a universal learner deadline.
 
-Learners shall be able to add, edit, or remove deadlines.
+## UR-DEAD-003 — Deadline modification — LONG-TERM MUST
 
-## UR-DEAD-004 — Time-to-goal awareness
+Learners shall eventually be able to add/edit/remove deadlines.
 
-Planner and recommendation systems should be capable of considering remaining time when a deadline exists.
+## UR-DEAD-004 — Time-to-goal awareness — R3+
 
-## UR-DEAD-005 — Short-time learning requests
+Planner/recommendation systems may consider remaining time when scheduling is introduced.
 
-ARIA shall support immediate constraints such as:
+## UR-DEAD-005 — Temporary time constraints — R3/R4+
 
-> "I have 20 minutes."
+Requests such as "I have 20 minutes" or "my exam starts soon" should eventually influence current recommendations/audio/revision without necessarily becoming permanent preferences.
 
-or
+## UR-DEAD-006 — Conflicting deadlines — R3+
 
-> "My exam starts soon."
-
-These temporary constraints should influence the current recommendation without necessarily becoming permanent learner preferences.
-
-## UR-DEAD-006 — Conflicting deadlines
-
-When multiple active goals have conflicting time demands, ARIA should surface the conflict and propose a prioritization or schedule adjustment.
+Cross-goal deadline conflict resolution belongs to learning coordination.
 
 ---
 
 # 10. Preference Requirements
 
-## UR-PREF-001 — Explicit preferences
+## UR-PREF-001 — Explicit study preferences — SHOULD
 
-The learner shall be able to explicitly set relevant learning and product preferences.
+The learner may set supported preferences such as explanation depth or hints before solutions. R0 should expose only preferences that materially affect its validation loop.
 
-Potential examples include:
+Notification, audio, and planner-specific preferences belong with those later systems.
 
-- explanation depth;
-- hints before solutions;
-- concise vs detailed revision;
-- notification preferences;
-- preferred assessment defaults;
-- audio preferences;
-- accessibility preferences.
+## UR-PREF-002 — Global vs contextual preferences — LONG-TERM MUST
 
-## UR-PREF-002 — Global vs contextual preferences
+ARIA shall distinguish global and context-specific preferences where necessary.
 
-ARIA shall distinguish global preferences from context-specific preferences where necessary.
+## UR-PREF-003 — Editable preferences — LONG-TERM MUST
 
-## UR-PREF-003 — Editable preferences
+Explicit preferences shall remain editable.
 
-Learners shall be able to modify explicit preferences.
+## UR-PREF-004 — Inferred preferences — LATER RELEASE
 
-## UR-PREF-004 — Inferred preferences
+ARIA may infer interaction preferences from repeated behaviour, but inferred preferences are not immutable facts.
 
-ARIA may infer useful interaction preferences from repeated behaviour, but inferred preferences should not be treated as immutable facts.
+## UR-PREF-005 — Preference correction — LONG-TERM MUST
 
-## UR-PREF-005 — Preference correction
+Important inferred preferences shall be correctable/removable when inference exists.
 
-Learners should be able to correct or remove important inferred preferences.
+## UR-PREF-006 — No rigid learning-style labeling — R0 MUST
 
-## UR-PREF-006 — No rigid learning-style labeling
-
-ARIA should not permanently classify a learner using simplistic learning-style categories and then constrain future teaching to that label.
-
-Personalization should respond to actual behaviour, explicit preferences, context, and evidence.
+ARIA shall not permanently classify a learner using simplistic learning-style labels and then constrain teaching to that label.
 
 ---
 
 # 11. Returning-User Continuity Requirements
 
-## UR-CONT-001 — Resume learning
+## UR-CONT-001 — Resume R0 learning — R0 MUST
 
-A returning learner should be able to resume relevant active learning without reconstructing the entire context manually.
+A returning learner shall be able to resume the validation learning context without reconstructing the entire loop manually.
 
-## UR-CONT-002 — Recent context
+## UR-CONT-002 — Recent context — SHOULD
 
-ARIA should be capable of surfacing recent goals, sessions, resources, notes, assessments, and planned work where relevant.
+ARIA may surface recent relevant validation activity. Rich Home/recommendation surfaces belong later.
 
-## UR-CONT-003 — Longitudinal state
+## UR-CONT-003 — Longitudinal state — PARTIAL R0 / R2+
 
-Learning evidence, revision history, roadmap progress, and learner-model state should persist across sessions according to data-retention and privacy rules.
+R0 shall persist the evidence and basic learner state needed across repeated validation cycles.
 
-## UR-CONT-004 — Session independence
+Rich revision history, longitudinal mastery modeling, Roadmap progress, and mature learner-model history belong to later releases.
 
-Closing a browser/app session shall not erase persistent learning state.
+## UR-CONT-004 — Session independence — R0 MUST
 
-## UR-CONT-005 — Re-entry recommendation
+Closing a browser/app session shall not erase persisted R0 learning state.
 
-ARIA should eventually be able to answer:
+## UR-CONT-005 — Re-entry recommendation — LATER RELEASE
 
-> "Where was I?"
-
-with a useful summary of recent learning state and next actions.
+A richer "Where was I?" experience belongs to later Home/coordination capabilities.
 
 ---
 
 # 12. Context-Switching Requirements
 
-## UR-SWITCH-001 — Switch active goal
+## UR-SWITCH-001 — Switch active goal — LATER RELEASE
 
-The learner shall be able to switch between active goals without losing state.
+Multiple active-goal switching is not required for R0.
 
-## UR-SWITCH-002 — Preserve per-goal state
+## UR-SWITCH-002 — Preserve per-goal state — LONG-TERM MUST
 
-Switching goals shall preserve each goal's relevant roadmap position, resources, assessments, notes, progress, and plan state.
+When multiple goals exist, switching shall preserve relevant state for each.
 
-## UR-SWITCH-003 — Clear active context
+## UR-SWITCH-003 — Clear active context — R0 MUST
 
-ARIA should make the current goal/context visible when an action could otherwise be applied to the wrong goal.
+ARIA shall make the active validation context clear when an action could otherwise be attributed incorrectly.
 
-## UR-SWITCH-004 — Cross-goal actions
+## UR-SWITCH-004 — Cross-goal actions — R3+
 
-Some actions, such as global planning or Home recommendations, may intentionally consider multiple goals at once.
+Global planning/Home recommendations that intentionally combine goals belong to learning coordination.
 
-The system shall distinguish these from single-goal actions.
+## UR-SWITCH-005 — Exploratory context — LATER RELEASE
 
-## UR-SWITCH-005 — Exploratory context
-
-The learner may temporarily study something outside an active goal without being forced to create a new goal immediately.
+Temporary study outside formal goals can be introduced after the evidence/context model is stable.
 
 ---
 
 # 13. Inference & User-Control Requirements
 
-ARIA will sometimes infer information. This must be controlled carefully.
+## UR-INF-001 — Explicit vs inferred data — R0 MUST
 
-## UR-INF-001 — Explicit vs inferred data
+Where relevant, ARIA shall distinguish learner-provided information from system inference.
 
-Where relevant, ARIA should internally distinguish information explicitly provided by the learner from information inferred by the system.
+## UR-INF-002 — Confidence/uncertainty — R0 MUST
 
-## UR-INF-002 — Confidence
+Important inferred learner-state information shall support a confidence or equivalent uncertainty mechanism.
 
-Important inferred learner information should support a confidence representation or equivalent uncertainty mechanism.
+## UR-INF-003 — Evidence provenance — R0 MUST
 
-## UR-INF-003 — Evidence provenance
+Learner-state inferences shall retain links to supporting evidence.
 
-Learning-state inferences should retain links to the evidence that influenced them where practical.
+## UR-INF-004 — User correction — R0 MUST
 
-## UR-INF-004 — User correction
+The learner shall be able to correct important inaccurate assumptions where correction is meaningful in the R0 flow.
 
-The learner shall be able to correct important inaccurate assumptions.
+## UR-INF-005 — No single-signal overreaction — R0 MUST
 
-## UR-INF-005 — No single-signal overreaction
+ARIA shall not make unsupported high-confidence learner-state conclusions from one weak signal alone.
 
-ARIA should not make major learner-state or roadmap conclusions from one weak signal alone.
+## UR-INF-006 — Temporary context vs persistent memory — LONG-TERM MUST
 
-## UR-INF-006 — Temporary context vs persistent memory
+Temporary instructions shall not automatically become permanent preferences/memory.
 
-ARIA shall distinguish temporary statements from persistent preferences.
+## UR-INF-007 — Consequential inference review — PARTIAL R0 / LATER
 
-Example:
-
-> "Explain this one quickly because I'm late."
-
-should not necessarily become:
-
-> "This learner always prefers short explanations."
-
-## UR-INF-007 — Consequential inference review
-
-When an inference would cause a significant roadmap, plan, or learning-state change, ARIA should support explanation and correction/review where appropriate.
+R0 adaptations shall be explainable/testable. Later Roadmap/Planner changes require stronger learner review/approval controls.
 
 ---
 
 # 14. Goal & Context Lifecycle Requirements
 
-## UR-STATE-001 — Goal states
+Full goal lifecycle is useful product functionality but not required to prove R0.
 
-Goals should support lifecycle states such as:
+## UR-STATE-001 — Goal states — LATER RELEASE
 
-```text
-Draft / New
-Active
-Paused
-Completed
-Archived
-```
+Long-term states may include Draft/New, Active, Paused, Completed, and Archived.
 
-Exact UI terminology may be decided later.
+## UR-STATE-002 — Pause without data loss — LATER RELEASE
 
-## UR-STATE-002 — Pause without data loss
+## UR-STATE-003 — Resume paused goal — LATER RELEASE
 
-Pausing a goal shall preserve its relevant learning state.
+## UR-STATE-004 — Complete goal — LATER RELEASE
 
-## UR-STATE-003 — Resume
+## UR-STATE-005 — Archive goal — LATER RELEASE
 
-A paused goal shall be resumable with prior context available.
+## UR-STATE-006 — Delete goal/data — LONG-TERM MUST
 
-## UR-STATE-004 — Complete
-
-Completing a goal should preserve historical learning records unless the learner chooses deletion according to product data controls.
-
-## UR-STATE-005 — Archive
-
-The learner should be able to remove inactive goals from normal active views without necessarily deleting their history.
-
-## UR-STATE-006 — Delete
-
-Deletion behaviour must be explicitly defined in later privacy/data requirements, including what dependent data is deleted, detached, or retained.
+Deletion behaviour must be explicitly defined by privacy/data requirements. Basic account/data deletion obligations are not waived merely because richer lifecycle UI is deferred.
 
 ---
 
-# 15. Example: One Learner, Multiple Contexts
+# 15. R0 Example — One Concrete Context
+
+This is illustrative, not a final selection of the Gate A/Gate B validation context.
+
+```text
+Learner
+  ↓
+Goal/context: University DBMS learning
+  ↓
+Topic: Transactions
+  ↓
+Resources: lecturer PDF / notes
+  ↓
+Study
+  ↓
+Assessment
+  ↓
+Evaluation
+  ↓
+Evidence: concept-level result
+  ↓
+Basic learner state
+  ↓
+Adapted Study: targeted serializability explanation/practice
+  ↓
+Reassessment
+```
+
+R0 does not need GATE + FastAPI + DBMS + AWS contexts running simultaneously to validate this mechanism.
+
+---
+
+# 16. Long-Term Example — One Learner, Multiple Contexts
 
 ```text
 Learner
 │
 ├── Goal: GATE CSE
-│   ├── Deadline: Exam date
-│   ├── Roadmap
-│   ├── OS / DBMS / CN resources
-│   ├── MCQ + MSQ + NAT assessment preferences
-│   ├── Progress
-│   └── Revision schedule
-│
+│   └── exam-specific resources / assessment / progress
 ├── Goal: Learn FastAPI
-│   ├── No hard deadline
-│   ├── Documentation + course resources
-│   ├── Project-based roadmap
-│   ├── Conceptual + coding assessment
-│   └── Progress
-│
+│   └── project-oriented resources / assessment / progress
 └── Goal: University DBMS Exam
-    ├── Deadline: Semester exam
-    ├── Uploaded syllabus
-    ├── Class notes
-    ├── Theory-answer assessment format
-    ├── Revision plan
-    └── Progress
+    └── syllabus / notes / theory assessment / revision
 ```
 
-The learner is still one person.
+The learner remains one person, but context-specific rules are not interchangeable.
 
-But ARIA must not assume that the GATE assessment configuration, FastAPI roadmap, and university DBMS exam rules are interchangeable.
-
----
-
-# 16. Example: Context Propagation
-
-A learner opens their university DBMS goal and selects Unit 4 plus two uploaded resources.
-
-```text
-Goal: DBMS Semester Exam
-Topic: Transactions
-Resources: Unit 4 Notes + Lecturer PDF
-            ↓
-          Study
-            ↓
-       Generate Notes
-            ↓
-      Generate Exam
-            ↓
-         Evaluate
-            ↓
-          Evidence
-```
-
-The connected workflow should preserve the relevant context.
-
-The learner may still override it at any point.
+This illustrates the eventual product model rather than R0 implementation scope.
 
 ---
 
-# 17. Example: Context Correction
-
-Suppose ARIA assumes a conversation belongs to GATE CSE because the learner was previously studying operating systems.
-
-The learner says:
-
-> "No, this is for my university exam."
-
-ARIA should be able to switch the active context and avoid storing subsequent context under the wrong goal.
-
-This correction should not require recreating the conversation.
-
----
-
-# 18. Example: Temporary Constraint
-
-A learner normally prefers detailed explanations.
-
-Before an exam they say:
-
-> "I have 15 minutes. Only revise the important points."
-
-ARIA should treat the 15-minute constraint and concise style as part of the current activity unless the learner explicitly chooses to make that a persistent preference.
-
----
-
-# 19. Context Precedence
+# 17. Context Precedence
 
 When multiple sources of context conflict, ARIA should generally prioritize:
 
@@ -631,66 +496,69 @@ High-confidence inferred context
 Low-confidence inference / default
 ```
 
-This precedence principle should guide later AI and orchestration requirements.
-
-The exact implementation belongs to architecture phases.
+R0 should implement only the levels it actually supports, while preserving the principle that explicit current instruction outranks weaker inference.
 
 ---
 
-# 20. Requirements Summary
+# 18. R0 Requirement Summary
 
-Step 2 establishes that ARIA must support:
+R0 user/context requirements are intentionally small:
 
-- one persistent learner identity;
-- multiple simultaneous goals;
+```text
+Persistent learner identity
+        ↓
+One validation goal/context
+        ↓
+Selected resources/topic
+        ↓
+Context preserved through Study + Assessment
+        ↓
+Evidence attributed correctly
+        ↓
+Basic learner state persists
+        ↓
+Adaptation uses the correct context
+        ↓
+Second cycle can occur
+```
+
+R0 does **not** require multiple simultaneous goals, cross-goal scheduling, full goal lifecycle, universal domain support, rich Roadmaps/Plans, or sophisticated cross-context reuse.
+
+---
+
+# 19. Requirements Summary — Complete Product
+
+Long-term ARIA should support:
+
+- persistent learner identity;
+- multiple goals and independent learning contexts;
 - open-ended and deadline-driven goals;
-- goal-specific learning contexts;
-- exploratory learning outside formal goals;
 - lightweight onboarding;
 - progressive context collection;
-- global and context-specific preferences;
-- persistent continuity across sessions;
-- safe switching between goals;
-- shared context across connected features;
-- context isolation where required;
-- careful cross-goal evidence reuse;
+- global/context-specific preferences;
+- persistent continuity;
+- safe context switching;
+- context propagation across connected systems;
+- context isolation;
+- careful evidence reuse;
 - explicit vs inferred information;
-- uncertainty and provenance for important inferences;
-- user correction of ARIA assumptions;
-- temporary constraints that do not automatically become permanent preferences;
-- goal pause/resume/completion/archive lifecycle;
-- multiple-goal scheduling awareness.
+- uncertainty/provenance;
+- learner correction;
+- goal lifecycle;
+- later multi-goal planning/coordination.
+
+These are product-model requirements, not a statement that every capability belongs in R0.
 
 ---
 
-# 21. Step 2 Completion
+# 20. Step 2 Completion
 
-**Step 2 — User & Learning-Context Requirements is complete.**
+**Step 2 — User & Learning-Context Requirements has been reviewed and realigned.**
+
+The audit changed the old assumption that multiple simultaneous goals and the complete context model must exist in the first release. The long-term model is preserved while R0 now requires only the learner/context capabilities needed to run and repeat the adaptive-learning validation loop.
 
 Next:
 
-# Step 3 — Functional Requirements
+# Step 3 — Functional Requirements Audit
 
-Step 3 will define detailed, numbered functional requirements for the major ARIA product systems:
-
-```text
-Authentication
-Onboarding
-Goals
-Home
-Study
-Resources & Retrieval
-Notes
-Assessment
-Evaluation
-Roadmaps
-Planner
-Revision
-Progress
-Audio
-Search
-Notifications
-Settings & User Controls
-```
-
-Evidence, Learner Model, Memory, misconceptions, prerequisite detection, AI behaviour, and related intelligence constraints will receive deeper treatment in Step 5, while Step 4 will specify how these product systems communicate and automate across feature boundaries.
+Step 3 must preserve the complete ARIA feature requirements while explicitly distinguishing R0 implementation requirements from R1+ and long-term product requirements.
