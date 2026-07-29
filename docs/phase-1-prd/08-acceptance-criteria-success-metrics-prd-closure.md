@@ -4,20 +4,16 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Reviewed for amended R0 validation model  
-**Primary sources:** `VISION.md`, Steps 1–7 of the Phase 1 PRD
+**Status:** Reviewed and R0 decisions resolved  
+**Primary sources:** `VISION.md`, Steps 1–7, `R0-DECISIONS.md`
 
 ---
 
 # 1. Purpose
 
-This document defines how ARIA requirements become testable product outcomes.
+A release is not complete because its UI exists or its pipeline executes once. It is complete when the release hypothesis has been tested at the appropriate level.
 
-The central rule is:
-
-> **A release is not complete because its UI exists or its pipeline executes once. It is complete when the release hypothesis has been tested at the appropriate level.**
-
-For R0, this requires two distinct gates:
+For R0:
 
 - **Gate A — Engineering Validation:** rigorous and reproducible;
 - **Gate B — Real-User Signal:** small-scale and directional, without causal overclaiming.
@@ -27,8 +23,6 @@ For R0, this requires two distinct gates:
 # 2. R0 Hypothesis
 
 > **ARIA can observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience.**
-
-R0 therefore validates this loop:
 
 ```text
 Goal / Learning Context
@@ -47,282 +41,282 @@ Goal / Learning Context
           ↓
 Adapt Next Study Experience
           ↓
+Targeted Reassessment
+          ↓
+      New Evidence
           ↺
 ```
 
-R0 acceptance is intentionally narrower than acceptance of the complete Learning OS.
-
 ---
 
-# 3. R0 Validation Context
+# 3. Frozen R0 Validation Context
 
-R0 shall use one or a small number of representative learning contexts from ARIA's initial audience: college students, recent graduates, and early-career learners.
+R0 validates the loop in a **college-level DBMS context**, initially centered on Transactions, Concurrency Control, Schedules and Serializability.
 
-The validation context should be concrete enough to produce repeatable learning cycles and meaningful assessment evidence.
+This is a validation fixture, not a permanent hardcoded ARIA domain.
 
-R0 is **not required** to prove that the same implementation is equally effective for every university subject, certification, competitive exam, placement journey, interview type, or professional skill.
+R0 supports **PDF upload and pasted text** as its required resource surface.
 
-A later structurally different context should be used to expose assumptions before generalizing abstractions.
+R0's required assessment format is **MCQ**, enabling deterministic evaluation. Short-answer evaluation is optional and cannot block R0 completion.
 
 ---
 
 # 4. Core R0 User Journey
 
-A learner can complete at least two connected learning cycles:
+A learner completes at least two connected cycles:
 
 ```text
-Create / enter validation goal-context
+Create / enter DBMS validation context
         ↓
-Add/select supported learning material
+Upload PDF and/or paste text
         ↓
 Study with ARIA
         ↓
-Take supported assessment
+Take configurable MCQ assessment
         ↓
-Receive validated evaluation
+Deterministic evaluation
         ↓
-Evidence is stored
+Concept-attributed evidence
         ↓
-Basic learner state changes when warranted
+Basic learner state reconsidered
         ↓
-ARIA adapts the next study experience
+ARIA adapts the next Study experience
         ↓
 Learner studies again
         ↓
-Targeted reassessment / new evidence
+Targeted MCQ reassessment
+        ↓
+New evidence + state reconsideration
 ```
 
-The second cycle matters: a one-shot Study → Assessment demo does not prove adaptation influenced future behaviour.
+The second cycle is mandatory to validate the adaptive loop.
 
 ---
 
 # 5. R0 Acceptance — Foundation
 
 ## AC-R0-FND-001
-
 A learner can securely access their own validation workspace and persistent learning context.
 
 ## AC-R0-FND-002
-
 Private learner-owned validation data cannot be accessed by another normal learner through predictable/copied identifiers.
 
 ## AC-R0-FND-003
-
-The validation goal/context persists across the repeated cycles required for testing.
+The validation goal/context persists across repeated cycles.
 
 ## AC-R0-FND-004
-
-Failures in later AI stages do not erase already persisted learner input, assessment attempts, or valid evidence.
+Failures in later AI stages do not erase already persisted learner input, attempts or valid evidence.
 
 ---
 
 # 6. R0 Acceptance — Resources & Study
 
-## AC-R0-STUDY-001
+## AC-R0-RES-001
+The learner can upload a supported PDF and/or provide pasted text for the active validation context.
 
-A learner can provide/select at least the resource type(s) chosen for the validation context.
+## AC-R0-RES-002
+Resource processing exposes explicit ready/failed state and retains source/context association.
+
+## AC-R0-STUDY-001
+ARIA can conduct a study interaction grounded in selected resources where grounding is expected.
 
 ## AC-R0-STUDY-002
-
-ARIA can conduct a study interaction grounded in the selected context/resources where grounding is required.
-
-## AC-R0-STUDY-003
-
 ARIA does not claim unavailable source material was retrieved.
 
+## AC-R0-STUDY-003
+Study can receive an adaptation instruction derived from learner state and materially alter the subsequent experience.
+
 ## AC-R0-STUDY-004
-
-The study system can receive an adaptation instruction derived from learner state and materially alter the subsequent study experience.
-
-## AC-R0-STUDY-005
-
-The system retains enough information to identify **what changed and why** between the baseline and adapted study experiences.
+The system retains enough information to identify what changed and why between baseline and adapted Study.
 
 ---
 
 # 7. R0 Acceptance — Assessment & Evaluation
 
 ## AC-R0-ASSESS-001
-
-The learner can take an assessment format supported by the selected R0 validation context.
+The learner can take an MCQ assessment scoped to the selected DBMS concept/context.
 
 ## AC-R0-ASSESS-002
+Within supported limits, the learner can configure question count, concept/topic scope, difficulty and optional time limit.
 
-The assessment produces evidence attributable to the relevant concept/topic/context.
+## AC-R0-ASSESS-003
+Targeted MCQ reassessment can be generated/conducted after adaptation.
 
 ## AC-R0-EVAL-001
-
-Deterministically scorable responses use deterministic scoring where appropriate.
+Required R0 MCQs are scored deterministically.
 
 ## AC-R0-EVAL-002
-
-AI-evaluated responses use bounded evaluation criteria and validated structured output where applicable.
+Evaluation produces concept-attributed results with provenance to the attempt/question/context.
 
 ## AC-R0-EVAL-003
-
-Evaluation failure does not become false negative evidence.
+Evaluation failure does not become false negative learning evidence.
 
 ## AC-R0-EVAL-004
+A corrected evaluation can propagate into dependent evidence/state/adaptation.
 
-A corrected evaluation can be reflected in dependent evidence/state when correction is supported.
+Optional short-answer AI evaluation, if implemented, must use bounded criteria and validated structured output.
 
 ---
 
 # 8. R0 Acceptance — Evidence & Basic Learner State
 
-## AC-R0-EVD-001
+R0 states are:
 
-Supported evaluated activity creates structured evidence with provenance.
+```text
+UNTESTED
+DEVELOPING
+NEEDS_REVIEW
+SUPPORTED
+```
+
+## AC-R0-EVD-001
+Each usable evaluated MCQ creates structured concept-attributed evidence with provenance.
 
 ## AC-R0-EVD-002
-
-One isolated wrong answer does not automatically become a confirmed misconception.
+One isolated wrong answer does not establish `NEEDS_REVIEW` or a confirmed misconception.
 
 ## AC-R0-EVD-003
-
-One isolated correct answer does not automatically become mastery.
+One isolated correct answer does not establish `SUPPORTED` or mastery.
 
 ## AC-R0-EVD-004
-
-Lack of evidence remains distinguishable from evidence of difficulty.
+No evidence remains distinguishable from evidence of difficulty.
 
 ## AC-R0-LM-001
-
-The system can derive/update a conservative concept-level state from supported evidence.
+No sufficient evidence maps to `UNTESTED`.
 
 ## AC-R0-LM-002
-
-Learner-state changes are traceable to the evidence that caused them.
+One usable observation normally maps to `DEVELOPING` rather than a strong conclusion.
 
 ## AC-R0-LM-003
+At least two aligned weak evidence points across distinct questions/opportunities are normally required before `NEEDS_REVIEW` and strong remediation.
 
-Contradictory/uncertain evidence does not silently become high-confidence state.
+## AC-R0-LM-004
+At least two aligned correct evidence points across distinct opportunities are normally required before `SUPPORTED`, including an independent/later question or reassessment opportunity.
 
-Full misconception diagnosis is not required for R0.
+## AC-R0-LM-005
+Mixed/contradictory evidence remains conservative, normally `DEVELOPING` or a lower-confidence retained prior state.
+
+## AC-R0-LM-006
+State changes retain evidence references, confidence, time and reason/rule.
+
+`SUPPORTED` means current evidence supports understanding in the R0 context; it is not permanent mastery.
 
 ---
 
 # 9. R0 Acceptance — Adaptation
 
-## AC-R0-ADAPT-001
+Allowed R0 adaptations include:
 
-A supported learner-state change can alter the next study experience.
+- prioritize the weak/uncertain concept;
+- change explanation strategy;
+- add a relevant worked example;
+- recap a prerequisite when justified;
+- increase/decrease scaffolding;
+- provide targeted practice/check questions;
+- reduce unnecessary repetition for supported concepts;
+- request more evidence instead of forcing a strong adaptation.
+
+## AC-R0-ADAPT-001
+A supported learner-state change can alter the next Study experience.
 
 ## AC-R0-ADAPT-002
-
 The adaptation is relevant to the evidence/state that triggered it.
 
 ## AC-R0-ADAPT-003
-
-The system can expose a testable reason for the adaptation.
+The system exposes a testable reason and provenance for the adaptation.
 
 ## AC-R0-ADAPT-004
-
-The adaptation does not silently modify unrelated learner contexts.
+Adaptation does not silently modify unrelated contexts.
 
 ## AC-R0-ADAPT-005
-
-When evidence is insufficient, ARIA can retain uncertainty rather than forcing an adaptation.
+Insufficient evidence may retain uncertainty instead of forcing remediation/support conclusions.
 
 ## AC-R0-ADAPT-006
-
-A subsequent assessment can generate new evidence that confirms, weakens, or changes the previous learner-state estimate.
+A subsequent assessment creates new evidence capable of confirming, weakening or changing the prior state.
 
 ---
 
 # 10. Gate A — Engineering Validation
 
-Gate A is **mandatory and rigorous**.
-
-Its question is:
+Gate A asks:
 
 > **Does the adaptive machinery correctly close the loop under controlled, reproducible scenarios?**
 
-Gate A should include automated and/or controlled integration scenarios such as:
+Required scenarios include:
 
-### Scenario A — Evidence causes targeted adaptation
+### A — Weak evidence causes targeted adaptation
+Controlled repeated weak performance → expected evidence → expected conservative state → targeted remediation.
 
-```text
-Known concept/context
-    ↓
-Controlled weak performance
-    ↓
-Expected evidence record
-    ↓
-Expected conservative learner-state change
-    ↓
-Expected targeted study adaptation
-```
+### B — Supported evidence produces different behaviour
+Repeated supported performance must not produce the same remediation as the weak case.
 
-### Scenario B — Stronger evidence changes behaviour differently
+### C — Insufficient evidence
+One/ambiguous observation must not trigger unsupported high-confidence conclusions.
 
-A controlled supported-performance pattern should not produce the same remediation as the weak-performance scenario.
+### D — Evaluation failure
+Failure creates no false negative evidence or downstream learner-state damage.
 
-### Scenario C — Insufficient evidence
+### E — Contradictory evidence
+Contradictory results reduce/retain uncertainty according to policy rather than being discarded.
 
-Weak/ambiguous evidence should not trigger an unsupported high-confidence conclusion.
+### F — Context isolation
+Evidence from one context cannot incorrectly adapt another context.
 
-### Scenario D — Evaluation failure
+### G — Correction propagation
+Correcting a source evaluation/evidence record recomputes or invalidates dependent state/adaptation as required.
 
-Failed evaluation should not create false negative evidence or downstream learner-state damage.
+### H — Retry/idempotency
+Retrying a consequential operation cannot create duplicate evidence/state/adaptation.
 
-### Scenario E — Contradictory evidence
+### I — Downstream AI failure
+A downstream generation/provider failure cannot erase already persisted valid attempts/evidence.
 
-Contradictory results should affect state/confidence according to the defined evidence policy rather than being silently discarded.
+### J — Repeated adaptive cycle
+Adapted Study → targeted reassessment → new evidence → learner-state reconsideration works end to end.
 
-### Scenario F — Context isolation
+### K — Cross-user isolation/security
+One learner cannot retrieve or mutate another learner's private R0 data.
 
-Evidence from one validation context should not incorrectly adapt an unrelated context.
+## Gate A critical failure
 
-### Scenario G — Repeated cycle
+Any required-scenario failure involving authorization/privacy, evidence attribution/integrity, false evidence, incorrect controlled state transition, unrelated adaptation, correction failure, duplicate consequential state, lost valid state, inability to close the second cycle, or unsafe secrets/security is critical.
 
-New evidence after an adapted study session can update the learner state again and influence the next action.
+## Gate A completion
 
-## Gate A completion condition
-
-Gate A passes when all critical controlled scenarios have documented expected outcomes and pass reproducibly under the defined test environment, with no unresolved severity-critical defects in the adaptive loop.
-
-Exact numeric AI-quality thresholds may be added once the selected models/evaluation datasets are known.
+All required critical scenarios must pass reproducibly with **zero unresolved critical failures**.
 
 ---
 
 # 11. Gate B — Real-User Signal
 
-Gate B is **small-scale product evidence**, not a controlled educational trial.
-
-Its question is:
+Gate B asks:
 
 > **When target learners use the R0 loop, do the adaptations appear relevant and useful enough to justify continuing the product direction?**
 
-Appropriate Gate B evidence can include:
+Target:
 
-- initial assessment → adaptation → targeted reassessment;
-- before/after performance observations;
-- repeated sessions where feasible;
-- whether learners understood why ARIA adapted;
-- whether the adapted explanation/activity felt relevant;
-- whether ARIA adapted to the wrong thing;
+- 5–10 target learners where realistically available;
+- at least two connected learning cycles per participant where feasible;
+- aim for 10+ completed adaptive cycles total;
+- report actual participation and completion counts honestly.
+
+Collect:
+
+- baseline assessment observations;
+- adaptation shown;
+- targeted reassessment observations;
+- adaptation relevance/usefulness;
+- whether the learner understood why ARIA adapted;
+- incorrect/confusing adaptations;
+- learner corrections;
 - qualitative feedback;
-- observed failure cases;
-- whether learners would choose to continue the adapted flow.
+- willingness to continue the adaptive flow.
 
-## Gate B constraints
+If fewer than five usable participants are available, report Gate B as a pilot and state the limitation.
 
-Gate B does **not** require:
+Gate B does not require statistical significance, a control group or causal proof of learning improvement.
 
-- statistical significance;
-- a large randomized sample;
-- a formal control group;
-- proof that ARIA caused the learner's improvement;
-- publication-grade educational research.
-
-A learner getting a later question correct after earlier mistakes is useful evidence, but by itself does not prove ARIA caused the improvement.
-
-## Gate B reporting rule
-
-Report observations honestly as directional signals.
-
-A defensible conclusion is:
+Defensible conclusion:
 
 > **The adaptive pipeline was rigorously validated through controlled engineering scenarios. Small-scale real-user testing then provided directional before/after evidence and qualitative feedback, without claiming statistically established causal improvement.**
 
@@ -330,38 +324,34 @@ A defensible conclusion is:
 
 # 12. R0 Success Metrics
 
-R0 metrics should be divided by what they actually measure.
-
-## Engineering metrics
-
-Examples:
+## Engineering
 
 - critical Gate A scenario pass rate;
-- valid structured-evaluation rate;
+- deterministic evaluation correctness on controlled fixtures;
 - valid evidence-creation rate;
-- correct learner-state transition rate on controlled fixtures;
-- correct adaptation-selection rate on controlled fixtures;
-- cross-context contamination incidents;
+- correct learner-state transition rate on fixtures;
+- correct adaptation-selection rate on fixtures;
+- cross-user/context contamination incidents;
 - unrecovered adaptive-workflow failures;
-- duplicate consequential-state creation under retry tests.
+- duplicate consequential-state creation under retries;
+- correction/recomputation correctness.
 
-## Product/user metrics
+## Product / user signal
 
-Examples suitable for small-scale directional reporting:
-
-- number of users completing at least two learning cycles;
-- proportion of adaptations users judge relevant/useful;
-- proportion of adaptations users judge incorrect/confusing;
+- number of participants completing at least two cycles;
+- total completed adaptive cycles;
+- relevant/useful adaptation judgments;
+- incorrect/confusing adaptation judgments;
 - before/after assessment observations;
-- qualitative themes from learner feedback;
-- number/type of learner corrections;
-- whether users choose to continue after the first adapted cycle.
+- qualitative themes;
+- learner corrections;
+- willingness to continue.
 
-These should not be presented as population-level causal learning-effect estimates.
+These are directional R0 measures, not population-level causal learning-effect estimates.
 
 ---
 
-# 13. R0 Explicitly Deferred Acceptance Areas
+# 13. Explicitly Deferred R0 Acceptance Areas
 
 R0 completion is not blocked by acceptance criteria for:
 
@@ -369,74 +359,66 @@ R0 completion is not blocked by acceptance criteria for:
 - Audio;
 - Planner;
 - notifications;
-- full Roadmaps;
-- roadmap adaptation;
+- full Roadmaps/roadmap adaptation;
 - sophisticated Progress;
 - mature Revision/spaced repetition;
-- confirmed misconception detection;
+- confirmed/full misconception detection;
 - external learning integrations;
 - production coding sandbox;
 - advanced multi-agent orchestration;
 - every assessment type;
 - every resource type;
+- multiple simultaneous goals;
 - broad domain generalization.
-
-Those requirements remain available for later release acceptance.
 
 ---
 
 # 14. Later-Release Acceptance Direction
 
 ## R1 — Learning-path adaptation
-
-Acceptance should test whether evidence can lead to explainable, learner-reviewable changes to a structured learning path.
+Test explainable, learner-reviewable evidence-driven changes to a structured learning path.
 
 ## R2 — Longitudinal learning
-
-Acceptance should test evidence accumulation over time, revision prioritization, confidence handling, progress, and conservative misconception hypotheses.
+Test evidence accumulation, revision prioritization, confidence, progress, richer learner state and conservative misconception hypotheses.
 
 ## R3 — Learning coordination
-
-Acceptance should test planning, missed-work recovery, deadlines, revision/new-learning prioritization, reminders, and multiple-goal coordination where supported.
+Test planning, missed-work recovery, deadlines, revision/new-learning prioritization, reminders and multi-goal coordination.
 
 ## R4 — Learning interfaces
-
-Acceptance should test Notes, Audio, richer resources/search, and whether these interfaces preserve shared learner context.
+Test Notes, Audio, richer resources/search and preservation of shared learner context.
 
 ## R5 — Cross-system orchestration
-
-Acceptance should test bounded automation, event reliability, human-in-the-loop controls, auditability, and advanced integrations/orchestration.
+Test bounded automation, event/workflow reliability, human controls, auditability and justified integrations/agentic orchestration.
 
 ---
 
-# 15. Open Questions for R0 Finalization
+# 15. R0 Decision Closure
 
-The following should be resolved before R0 implementation is considered specification-complete:
+The eight previously open R0 decisions are resolved in `R0-DECISIONS.md`:
 
-1. Which concrete learning context(s) will be used for Gate A fixtures and Gate B user testing?
-2. Which resource type(s) are required for those contexts?
-3. Which assessment format(s) give reliable evidence with manageable evaluation complexity?
-4. What exact conservative learner-state representation will R0 use?
-5. What adaptation actions are allowed in R0?
-6. What evidence threshold is sufficient to trigger each adaptation?
-7. What constitutes a critical Gate A failure?
-8. How many real target users/sessions are realistically available for Gate B reporting?
+1. validation context — DBMS / Transactions, Concurrency, Schedules, Serializability;
+2. resources — PDF + pasted text;
+3. required assessment — MCQ; short answer optional;
+4. learner state — `UNTESTED`, `DEVELOPING`, `NEEDS_REVIEW`, `SUPPORTED`;
+5. adaptation actions — bounded Study adaptations defined above;
+6. evidence thresholds — conservative two-aligned-evidence default for strong state conclusions;
+7. Gate A critical failures — explicitly defined;
+8. Gate B — 5–10 target learners where feasible, two cycles each, 10+ total adaptive cycles target.
 
-These questions should be answered to make R0 executable; they should not expand into requirements to solve every domain or educational research question.
+These are R0 implementation/validation choices, not permanent limits on ARIA's complete vision.
 
 ---
 
 # 16. PRD Closure Status
 
-The earlier PRD version treated the first product release as a broad feature loop and separated a foundation-only R0 from adaptive intelligence. The reviewed Phase 0 vision changes that release model.
+The Step 1–8 consistency audit is complete and the R0 product decisions are resolved.
 
-The PRD is therefore **not yet frozen**.
+The remaining mechanical closure work is:
 
-Before canonical `PRD.md` is produced:
+- final requirement traceability check;
+- consolidate the reviewed Phase 1 specification into canonical `PRD.md`;
+- mark Phase 1 frozen.
 
-- remaining Phase 1 documents must be checked for assumptions that imply universal R0 domain support;
-- full-vision requirements must be clearly distinguishable from R0 implementation requirements;
-- R0 open questions above must be resolved;
-- requirement traceability must be checked against the revised release boundaries.
+No unresolved product-scope question currently blocks that closure.
 
-Phase 1 remains **IN PROGRESS** until that consistency pass and final PRD consolidation are complete.
+**Step 8: COMPLETE.**
