@@ -4,70 +4,82 @@
 
 **Product:** ARIA — Your AI Learning Operating System  
 **Phase:** Phase 1 — Product Requirements Document  
-**Status:** Step 5 — Complete  
-**Primary sources:** `VISION.md`, Steps 1–4 of the Phase 1 PRD
+**Status:** Reviewed and release-classified  
+**Primary sources:** `VISION.md`, Steps 1–4 and 7–8
 
 ---
 
 # 1. Purpose
 
-This document defines ARIA's intelligence requirements before choosing any particular LLM provider, agent framework, vector database, memory library, orchestration framework, or model architecture.
+This document defines ARIA's intelligence requirements without choosing an LLM provider, agent framework, vector database, memory library, orchestration framework, or final learner-model algorithm.
 
-It specifies how ARIA should reason about:
-
-- AI-generated learning interactions;
-- context;
-- tools;
-- memory;
-- evidence;
-- learner state;
-- mastery and weakness;
-- unknown/untested knowledge;
-- misconceptions;
-- prerequisite gaps;
-- confidence and uncertainty;
-- validation;
-- corrections;
-- failures.
-
-The central principle is:
-
-> **ARIA should know the difference between remembering something about the learner and having evidence that the learner understands something.**
-
----
-
-# 2. Intelligence Model
-
-ARIA's intelligence should conceptually separate several layers.
+For R0, the intelligence problem is deliberately narrow:
 
 ```text
-                    LEARNER
-                       │
-       ┌───────────────┼────────────────┐
-       │               │                │
-    Context          Memory          Evidence
-       │               │                │
-       │               │                ↓
-       │               │          Learner Model
-       │               │                │
-       └───────────────┼────────────────┘
-                       ↓
-                AI Reasoning Layer
-                       ↓
-      ┌────────────────┼─────────────────┐
-      │                │                 │
-    Study          Recommendations    Adaptation
-      │                │                 │
-      └────────────────┼─────────────────┘
-                       ↓
-                Learning Actions
+reliable learning observation
+        ↓
+structured evidence
+        ↓
+basic evidence-backed learner state
+        ↓
+confidence-aware adaptation decision
+        ↓
+adapted Study
+        ↓
+reassessment
+        ↓
+new evidence
 ```
 
-These layers may interact, but they must not be treated as interchangeable.
+The central principle remains:
+
+> **ARIA must know the difference between remembering something about a learner and having evidence that the learner understands something.**
+
+R0 does not need a complete lifelong learner model, autonomous multi-agent tutor, full misconception engine, long-term memory system, prerequisite graph, or mastery-science platform to test this hypothesis.
 
 ---
 
-# 3. Requirement Categories
+# 2. Release Labels
+
+- **R0 MUST** — required to close and validate the first adaptive-learning loop.
+- **R0 SHOULD** — useful for a credible R0 but may be simplified.
+- **R1+** — learning-path/Roadmap intelligence.
+- **R2+** — longitudinal Learner Model, Revision, forgetting, misconception/prerequisite reasoning.
+- **R3+** — multi-goal coordination and planning intelligence.
+- **R4+** — richer interfaces/modalities.
+- **R5+** — mature orchestration/integrations/agentic intelligence.
+- **LONG-TERM MUST** — invariant whose implementation release may vary.
+
+---
+
+# 3. Intelligence Layers
+
+ARIA conceptually separates:
+
+```text
+Current Context ───────────────┐
+                               │
+Persistent Memory (later) ─────┼──→ AI / deterministic reasoning
+                               │              │
+Structured Evidence ───────────┘              │
+       │                                      │
+       ↓                                      │
+Basic Learner State (R0) ─────────────────────┘
+                                              ↓
+                                      Learning Action
+```
+
+These are not interchangeable:
+
+- **Context** = what is relevant now.
+- **Memory** = durable useful information about the learner/environment.
+- **Evidence** = observations of learning performance.
+- **Learner State** = conclusions derived from evidence.
+- **Adaptation** = action chosen using context + learner state + product rules.
+
+---
+
+# 4. Requirement Categories
 
 ```text
 AI-BEH-*      General AI behaviour
@@ -76,576 +88,416 @@ AI-TOOL-*     Tool use
 AI-MEM-*      Memory
 AI-EVD-*      Evidence
 AI-LM-*       Learner Model
-AI-MAST-*     Mastery / weakness / unknown
+AI-STATE-*    R0 concept state
 AI-MIS-*      Misconceptions
 AI-PREQ-*     Prerequisite gaps
 AI-CONF-*     Confidence / uncertainty
+AI-ADAPT-*    Adaptation reasoning
 AI-VAL-*      Validation
-AI-CORR-*     User correction
-AI-FAIL-*     AI failure behaviour
-AI-AGENT-*    Agent architecture boundaries
+AI-CORR-*     Correction
+AI-FAIL-*     Failure behaviour
+AI-AGENT-*    Agent boundaries
 ```
 
 ---
 
-# 4. General AI Behaviour
+# 5. General AI Behaviour
 
-## AI-BEH-001 — Learning-purpose alignment
+## AI-BEH-001 — Learning-purpose alignment — R0 MUST
+AI behaviour shall serve the active learning context rather than optimize for conversation alone.
 
-AI behaviour shall prioritize helping the learner make meaningful progress toward the active learning goal/context.
+## AI-BEH-002 — Context-sensitive output — R0 MUST
+ARIA shall use relevant current context without injecting unrelated history.
 
-## AI-BEH-002 — Context-sensitive responses
+## AI-BEH-003 — No false certainty — R0 MUST
+Uncertain conclusions shall not be presented as established learner facts.
 
-AI responses should use relevant current context without unnecessarily injecting unrelated historical information.
+## AI-BEH-004 — Generation is not knowledge state — R0 MUST
+Explaining a concept does not prove learner understanding.
 
-## AI-BEH-003 — No false certainty
+## AI-BEH-005 — Exposure is not mastery — R0 MUST
+Reading, viewing or discussing material does not itself establish mastery.
 
-ARIA shall not present uncertain AI conclusions as established facts.
+## AI-BEH-006 — Product rules outrank model improvisation — R0 MUST
+Authorization, schemas, state-transition rules, evidence rules and learner control outrank free-form model decisions.
 
-## AI-BEH-004 — Distinguish generation from knowledge state
+## AI-BEH-007 — Explicit learner instruction precedence — R0 MUST
+Current explicit learner instructions normally override conflicting inferred preferences/assumptions.
 
-The fact that ARIA explained a concept to the learner shall not be interpreted as evidence that the learner understood it.
+## AI-BEH-008 — Appropriate teaching action — R0 MUST
+Within supported R0 capabilities, ARIA should choose among explanation, example, hint, diagnostic question and targeted practice based on the adaptation need rather than always generating the same response type.
 
-## AI-BEH-005 — Distinguish exposure from mastery
-
-Reading, viewing, listening to, or discussing material shall not automatically imply mastery.
-
-## AI-BEH-006 — Product rules outrank model improvisation
-
-AI-generated behaviour shall remain constrained by explicit product rules, learner permissions, context boundaries, and approval requirements.
-
-## AI-BEH-007 — Learner instruction precedence
-
-Current explicit learner instructions shall generally override conflicting inferred preferences or AI assumptions.
-
-## AI-BEH-008 — Appropriate assistance
-
-ARIA should be capable of choosing among explanation, hinting, questioning, retrieval, practice, feedback, or recommendation rather than always answering in the same mode.
-
-## AI-BEH-009 — Avoid unnecessary complexity
-
-ARIA should match explanation complexity to the learner's request and demonstrated context rather than defaulting to advanced or overly verbose language.
-
-## AI-BEH-010 — Avoid empty encouragement
-
-ARIA should prioritize specific, evidence-based learning feedback over generic praise or motivational filler.
-
-## AI-BEH-011 — Challenge incorrect assumptions
-
-ARIA should respectfully correct learner misconceptions or incorrect assumptions rather than agreeing merely to maintain conversational flow.
-
-## AI-BEH-012 — State limitations
-
-When ARIA lacks sufficient information, evidence, or tool access, it should communicate the limitation rather than inventing missing state.
+## AI-BEH-009 — Appropriate complexity — R0 SHOULD
+## AI-BEH-010 — Specific feedback over empty praise — R0 SHOULD
+## AI-BEH-011 — Correct incorrect assumptions — R0 MUST
+## AI-BEH-012 — State limitations — R0 MUST
+ARIA shall not invent missing information, evidence or tool results.
 
 ---
 
-# 5. Context Management
+# 6. R0 Context Management
 
-## AI-CTX-001 — Working context
-
-ARIA shall maintain the context required for the current learning activity.
-
-This may include:
+## AI-CTX-001 — Working context — R0 MUST
+R0 shall maintain only the context needed for its current loop, potentially including:
 
 ```text
-active goal
-active topic
-current task
-selected resources
-recent conversation
+active validation goal/context
+active topic/concept
+selected resource(s)
+current Study activity
 assessment specification
-relevant learner-state signals
-relevant preferences
-time constraints
+current attempt
+relevant evidence
+relevant basic learner state
+current adaptation
 ```
 
-## AI-CTX-002 — Relevant-context retrieval
+## AI-CTX-002 — Relevant retrieval — R0 SHOULD
+Only relevant prior R0 context/evidence should be retrieved for a task.
 
-ARIA should retrieve relevant historical context when needed rather than injecting the learner's entire history into every interaction.
+## AI-CTX-003 — Scope — R0 MUST
+Context-specific information shall not silently become global learner information.
 
-## AI-CTX-003 — Context scope
+## AI-CTX-004 — Temporary context — R0 MUST
+Temporary instructions shall remain temporary unless explicitly persisted later.
 
-Context-specific information shall not automatically be treated as global learner information.
+## AI-CTX-005 — Explicit correction — R0 MUST
+Subsequent reasoning shall use corrected context.
 
-## AI-CTX-004 — Temporary context
+## AI-CTX-006 — Provenance — R0 MUST WHERE CONSEQUENTIAL
+ARIA should distinguish explicitly supplied, inherited/retrieved and inferred context.
 
-ARIA shall support temporary constraints that expire after the relevant activity.
+## AI-CTX-007 — Conflict — R0 MUST
+Current explicit information normally outranks conflicting historical/inferred information.
 
-## AI-CTX-005 — Explicit context correction
-
-When the learner corrects the current context, subsequent reasoning shall use the correction.
-
-## AI-CTX-006 — Context provenance
-
-Where consequential, ARIA should distinguish context that was explicitly supplied, retrieved, inherited, or inferred.
-
-## AI-CTX-007 — Context conflict
-
-When retrieved historical context conflicts with the learner's current explicit statement, current explicit information shall normally take precedence.
-
-## AI-CTX-008 — Context minimization
-
-ARIA should use only context relevant to the task where practical, improving privacy, cost, latency, and reasoning reliability.
+## AI-CTX-008 — Context minimization — R0 SHOULD
+Use only task-relevant context where practical for privacy, latency, cost and reliability.
 
 ---
 
-# 6. Tool Use
+# 7. Tool Use
 
-ARIA may need tools for retrieval, search, scheduling, document processing, assessment execution, code execution, notifications, integrations, and other deterministic actions.
+## AI-TOOL-001 — Tool necessity — R0 MUST
+Use deterministic tools/services when information or execution should not be fabricated by an LLM.
 
-## AI-TOOL-001 — Tool necessity
+## AI-TOOL-002 — Authorization — R0 MUST
+AI components may invoke only actions permitted by the workflow and learner permissions.
 
-ARIA should use a tool when the task requires information or an action that should not be fabricated by the language model.
+## AI-TOOL-003 — Input validation — R0 MUST
+Consequential tool inputs shall be schema/constraint validated.
 
-## AI-TOOL-002 — Tool authorization
+## AI-TOOL-004 — Output grounding — R0 MUST
+Authoritative tool results shall ground downstream reasoning.
 
-AI components shall only invoke tools/actions permitted for the learner and current workflow.
+## AI-TOOL-005 — Failure distinction — R0 MUST
+## AI-TOOL-006 — No fabricated execution — R0 MUST
+## AI-TOOL-007 — Least authority — LONG-TERM MUST
+## AI-TOOL-008 — High-impact confirmation — LONG-TERM MUST
 
-## AI-TOOL-003 — Tool input validation
-
-Consequential tool calls should use validated inputs rather than unverified free-form model output.
-
-## AI-TOOL-004 — Tool output grounding
-
-When a tool provides authoritative task data, ARIA should ground downstream reasoning in the returned result rather than silently replacing it with model assumptions.
-
-## AI-TOOL-005 — Tool failure
-
-Tool failure shall be distinguishable from successful execution.
-
-## AI-TOOL-006 — No fabricated execution
-
-ARIA shall never claim an external action succeeded when the relevant tool did not confirm success.
-
-## AI-TOOL-007 — Least authority
-
-AI components should receive only the tool permissions necessary for their responsibilities.
-
-## AI-TOOL-008 — High-impact confirmation
-
-High-impact tool actions should respect confirmation/approval requirements defined by the product.
+R0 tool needs should remain minimal: resource processing/retrieval, assessment execution/evaluation where applicable, and deterministic validation/state operations.
 
 ---
 
-# 7. Memory Model
+# 8. Memory — Explicitly Not Required for the Core R0 Hypothesis
 
-Memory represents useful persistent information about the learner and their learning environment.
+A sophisticated persistent conversational memory system is **not required** to prove R0 adaptive learning.
 
-Memory is **not** the same as the Learner Model.
+R0 may persist ordinary product state required for continuity (account, context, resources, attempts, evidence, learner state). That persistence must not be confused with a generalized AI memory subsystem.
+
+## AI-MEM-001 — Memory is not Learner Model — LONG-TERM MUST
+Memory may eventually store preferences, useful facts, prior decisions and recurring constraints; it shall not create mastery claims by itself.
+
+## AI-MEM-002 — Explicit vs inferred — R2+
+## AI-MEM-003 — Scoped memory — R2+
+## AI-MEM-004 — Temporary exclusion — R2+
+## AI-MEM-005 — Selective persistence — R2+
+## AI-MEM-006 — Relevant retrieval — R2+
+## AI-MEM-007 — Correction — R2+
+## AI-MEM-008 — Deletion/control — R2+
+## AI-MEM-009 — Uncertainty — R2+
+## AI-MEM-010 — Provenance — R2+
+
+Later memory may influence **how ARIA interacts**; evidence-backed learner state determines **what ARIA has grounds to believe about learning performance**.
+
+---
+
+# 9. R0 Evidence Model
+
+Evidence is an observation about learner performance under known conditions. It is not merely activity telemetry.
+
+## AI-EVD-001 — Structured evidence — R0 MUST
+Supported R0 assessment/evaluation observations shall become structured evidence.
+
+## AI-EVD-002 — Provenance — R0 MUST
+Each evidence record shall link to the source attempt/response/evaluation.
+
+## AI-EVD-003 — Concept association — R0 MUST
+Evidence shall identify the concept/skill/learning objective it is intended to measure.
+
+## AI-EVD-004 — Context association — R0 MUST
+Evidence shall preserve the relevant validation/goal context.
+
+## AI-EVD-005 — Timestamp/order — R0 MUST
+Evidence shall retain when it occurred and enough ordering information for before/after cycles.
+
+## AI-EVD-006 — Evidence type — R0 MUST
+ARIA shall distinguish supported evidence forms rather than treating all observations identically.
+
+## AI-EVD-007 — Observed outcome — R0 MUST
+Evidence records what happened, not merely that an activity was opened/completed.
+
+## AI-EVD-008 — Reliability/strength metadata — R0 MUST
+Evidence shall support factors that affect how strongly it should influence state.
+
+## AI-EVD-009 — Conditions — R0 MUST WHERE APPLICABLE
+Relevant difficulty, assistance/hints, evaluation confidence and comparable conditions should be preserved.
+
+## AI-EVD-010 — Independent attempts — R0 MUST
+Independent attempts shall be distinguishable from repeated exposure to the same answer/problem.
+
+## AI-EVD-011 — Assisted success — R0 MUST WHERE SUPPORTED
+A correct answer after answer-revealing assistance shall not automatically equal an independent correct answer.
+
+## AI-EVD-012 — Negative evidence — R0 MUST
+Incorrect/incomplete performance may indicate difficulty but does not by itself prove a misconception.
+
+## AI-EVD-013 — Historical preservation — R0 MUST
+New evidence shall not overwrite prior attempts needed for validation.
+
+## AI-EVD-014 — Correctability — R0 MUST
+Evidence derived from an incorrect evaluation shall be revisable/invalidatable.
+
+## AI-EVD-015 — Evidence validity — R0 MUST
+Invalid, failed or unevaluated attempts shall not silently become learner-performance evidence.
+
+---
+
+# 10. What R0 Learner State Actually Needs
+
+R0 should **not** begin with a rich seven-state mastery ontology simply because the long-term product may need one.
+
+The minimum state needed to test adaptation is concept-level, evidence-linked and uncertainty-aware.
+
+A valid implementation may use labels, probabilities, scores or another representation, but it must semantically distinguish at least:
 
 ```text
-Memory
-│
-├── Explicit learner preferences
-├── Persistent interaction preferences
-├── Useful learner facts
-├── Goal/context facts
-├── Prior decisions
-├── Relevant recurring constraints
-└── Other durable context
+INSUFFICIENT_EVIDENCE
+        │
+        ├── evidence suggests DIFFICULTY
+        │
+        └── evidence suggests COMPETENCE
 ```
 
-## AI-MEM-001 — Persistent useful context
+Optional neutral/mixed representation may be used where useful.
 
-ARIA shall be capable of retaining useful information across sessions where appropriate.
+This is deliberately **not** equivalent to permanent `WEAK`, `STRONG`, or `MASTERED` declarations.
 
-## AI-MEM-002 — Explicit vs inferred memory
+## AI-STATE-001 — Insufficient evidence — R0 MUST
+ARIA shall distinguish lack of evidence from poor performance.
 
-ARIA should distinguish learner-provided memory from inferred memory where relevant.
+## AI-STATE-002 — Difficulty signal — R0 MUST
+ARIA shall be able to represent that current evidence supports targeted help/practice.
 
-## AI-MEM-003 — Memory scope
+## AI-STATE-003 — Competence signal — R0 MUST
+ARIA shall be able to represent that current evidence supports reducing unnecessary remediation or selecting a more appropriate next action.
 
-Memory should support scopes such as global learner, goal-specific, or context-specific where necessary.
+## AI-STATE-004 — Uncertainty — R0 MUST
+Each consequential state shall support confidence/uncertainty.
 
-## AI-MEM-004 — Temporary information exclusion
+## AI-STATE-005 — Evidence links — R0 MUST
+State shall link to supporting evidence.
 
-Temporary instructions shall not automatically become persistent memory.
+## AI-STATE-006 — Revisability — R0 MUST
+State shall change when new/corrected evidence warrants it.
 
-Example:
+## AI-STATE-007 — Concept granularity — R0 MUST
+State shall exist at a useful concept/skill level rather than only one overall learner score.
 
-> "Explain this quickly because I have five minutes."
-
-shall not automatically become:
-
-> "Learner always wants short explanations."
-
-## AI-MEM-005 — Memory usefulness
-
-ARIA should avoid storing every conversational detail as durable memory merely because it appeared in a chat.
-
-## AI-MEM-006 — Memory retrieval
-
-Relevant memory should be retrievable when useful to the current task.
-
-## AI-MEM-007 — Memory correction
-
-Learners shall eventually be able to correct important persistent memory.
-
-## AI-MEM-008 — Memory deletion
-
-Learners shall eventually be able to remove supported persistent memory subject to required data rules.
-
-## AI-MEM-009 — Memory uncertainty
-
-Inferred memory should not be treated with the same certainty as explicit learner-provided facts.
-
-## AI-MEM-010 — Memory provenance
-
-Important inferred memory should retain enough provenance to support correction or explanation where appropriate.
+## AI-STATE-008 — No permanent mastery inference — R0 MUST
+R0 shall not claim durable mastery from the evidence needed merely to run a short adaptive validation cycle.
 
 ---
 
-# 8. Evidence Model
+# 11. Rich Learner Model — R2+
 
-Evidence represents observations about learner performance or understanding.
-
-Examples:
+The long-term Learner Model may include:
 
 ```text
-Assessment answer
-Teach-back response
-Retrieval attempt
-Problem-solving attempt
-Revision retest
-Coding solution result
-Viva response
+concept state
+confidence
+supporting evidence
+recency
+change history
+mastery/review state
+possible misconceptions
+prerequisite gaps
+revision state
+cross-session trends
 ```
 
-## AI-EVD-001 — Evidence records
+Preserved requirements for R2+:
 
-ARIA shall store supported learning-performance observations as structured evidence.
-
-## AI-EVD-002 — Evidence provenance
-
-Evidence shall retain the activity that produced it.
-
-## AI-EVD-003 — Concept association
-
-Evidence should be associated with the concept, skill, topic, or learning objective it measures.
-
-## AI-EVD-004 — Goal/context association
-
-Evidence shall retain relevant goal/context association where necessary.
-
-## AI-EVD-005 — Timestamp
-
-Evidence shall retain when it was produced.
-
-## AI-EVD-006 — Evidence type
-
-ARIA shall distinguish different evidence types.
-
-## AI-EVD-007 — Outcome
-
-Evidence should capture the observed outcome, not merely that an activity occurred.
-
-## AI-EVD-008 — Strength/reliability
-
-Evidence should support a strength or reliability representation.
-
-## AI-EVD-009 — Difficulty/context
-
-Where relevant, evidence interpretation should account for difficulty, assistance, hints, time constraints, or other conditions affecting its strength.
-
-## AI-EVD-010 — Independent attempts
-
-Repeated independent successful attempts should generally provide stronger evidence than repeated exposure to the same answer.
-
-## AI-EVD-011 — Assisted success
-
-A correct response after extensive hints should not necessarily carry the same evidence strength as an independent correct response.
-
-## AI-EVD-012 — Negative evidence
-
-Incorrect or incomplete responses may provide evidence of weakness but shall not automatically prove a misconception.
-
-## AI-EVD-013 — Evidence retention
-
-ARIA should preserve sufficient historical evidence to reason about trends and changes over time.
-
-## AI-EVD-014 — Corrected evidence
-
-Evidence derived from an incorrect evaluation shall be revisable if the evaluation is corrected.
+- evidence-backed state rather than conversation memory;
+- concept/skill granularity;
+- confidence and provenance;
+- contradictory evidence handling;
+- recency and forgetting;
+- transferable state across goals only when concept equivalence is justified;
+- no unsupported psychological/personality diagnosis;
+- stronger thresholds for durable mastery than for short-term competence signals;
+- review/decay when old evidence no longer supports a current claim.
 
 ---
 
-# 9. Learner Model
+# 12. Misconception Detection — R2+ by Default
 
-The Learner Model is ARIA's evidence-backed representation of the learner's current learning state.
+A misconception is a systematic incorrect mental model, not simply a wrong answer.
+
+Full misconception detection is **not required for R0 completion**.
+
+Later requirements remain:
+
+- candidate/suspected misconception state;
+- single-error protection;
+- repeated-pattern evidence;
+- targeted diagnostic questions;
+- suspected vs sufficiently supported distinction;
+- targeted remediation;
+- retest before resolution;
+- uncertainty-aware learner-facing language;
+- resolution history.
+
+R0 may use a diagnostic question because a learner shows difficulty, but it should not market that as a mature misconception-detection engine.
+
+---
+
+# 13. Prerequisite-Gap Reasoning — R2+ by Default
+
+The mature product should distinguish difficulty in concept B from difficulty caused by missing prerequisite A.
+
+Later requirements remain:
+
+- dependency awareness;
+- prerequisite-gap hypotheses;
+- diagnostic validation;
+- no automatic certainty from a dependency edge;
+- remediation recommendation;
+- Roadmap impact under R1/R2 rules;
+- dependent-concept retesting.
+
+R0 may target a known prerequisite as a bounded Study adaptation if its validation content supplies that relationship, but generalized prerequisite inference is not an R0 requirement.
+
+---
+
+# 14. Confidence & Uncertainty
+
+Confidence is required in R0, but R0 does **not** need fake scientific precision.
+
+## AI-CONF-001 — Representation — R0 MUST
+Consequential learner-state conclusions shall represent uncertainty/confidence.
+
+## AI-CONF-002 — Evidence confidence, not LLM confidence — R0 MUST
+Confidence shall derive from evidence quality/consistency and evaluation reliability, not how certain model prose sounds.
+
+## AI-CONF-003 — Quantity — R0 MUST
+Multiple relevant independent observations may strengthen a conclusion.
+
+## AI-CONF-004 — Quality — R0 MUST
+Higher-quality evidence may contribute more strongly than weak evidence.
+
+## AI-CONF-005 — Contradiction — R0 MUST
+Contradictory evidence shall reduce certainty or motivate diagnostic/reassessment behaviour.
+
+## AI-CONF-006 — Assistance level — R0 MUST WHERE APPLICABLE
+Highly assisted performance shall not create unsupported independent-competence confidence.
+
+## AI-CONF-007 — Action threshold — R0 MUST
+Higher-impact conclusions/actions require stronger support than low-risk diagnostic actions.
+
+## AI-CONF-008 — Learner-facing uncertainty — R0 SHOULD
+When uncertainty materially affects an adaptation, ARIA should communicate it understandably.
+
+## AI-CONF-009 — Recency/forgetting — R2+
+Longitudinal decay/forgetting models are later scope.
+
+---
+
+# 15. Evidence Weighting — Product Behaviour, Not Final Formula
+
+R0 requires the *behaviour* of weighting evidence, not a research-grade knowledge-tracing algorithm.
+
+A future implementation might consider:
 
 ```text
-Learner Model
-│
-├── Concept state
-├── Confidence
-├── Supporting evidence
-├── Recency
-├── Possible misconceptions
-├── Prerequisite gaps
-├── Revision state
-└── Change history
-```
-
-## AI-LM-001 — Evidence-backed state
-
-Learner Model conclusions shall be derived from learning evidence rather than conversation memory alone.
-
-## AI-LM-002 — Concept-level representation
-
-ARIA should represent learner state at a useful concept/skill granularity rather than only one global score.
-
-## AI-LM-003 — State uncertainty
-
-Learner Model entries shall support uncertainty/confidence.
-
-## AI-LM-004 — Evidence links
-
-Important learner-state conclusions should retain links to supporting evidence.
-
-## AI-LM-005 — State change over time
-
-Learner state shall be capable of changing as new evidence arrives.
-
-## AI-LM-006 — Contradictory evidence
-
-Conflicting evidence should influence confidence rather than being silently discarded.
-
-## AI-LM-007 — Recency
-
-ARIA should consider evidence recency where relevant.
-
-## AI-LM-008 — Forgetting
-
-Strong historical performance shall not necessarily imply permanent mastery indefinitely.
-
-## AI-LM-009 — Goal independence
-
-Learner state may be reused across goals only when the underlying concept/skill is genuinely transferable and provenance remains clear.
-
-## AI-LM-010 — No personality diagnosis
-
-The Learner Model shall focus on learning-relevant state and shall not make unsupported psychological or personality diagnoses.
-
----
-
-# 10. Concept-State Model
-
-ARIA should support richer states than simply `known / unknown`.
-
-A conceptual state model may include:
-
-```text
-UNTESTED
-    ↓
-EXPOSED
-    ↓
-DEVELOPING
-   ↙   ↘
-WEAK   STRONG
-   ↘   ↙
-REQUIRES_REVIEW
-    ↓
-MASTERED (high-confidence, evidence-backed)
-```
-
-Possible misconceptions and prerequisite gaps should remain separate flags/structures rather than being forced into the same linear scale.
-
-Exact state names may change during architecture/design.
-
-## AI-MAST-001 — Untested
-
-ARIA shall distinguish insufficient evidence from poor performance.
-
-## AI-MAST-002 — Developing
-
-ARIA should support intermediate states when evidence is incomplete or mixed.
-
-## AI-MAST-003 — Weak
-
-Weak state should require meaningful evidence of difficulty, not merely lack of activity.
-
-## AI-MAST-004 — Strong
-
-Strong state should reflect repeated or sufficiently reliable evidence of understanding/performance.
-
-## AI-MAST-005 — Mastery threshold
-
-Mastery should require a stronger evidence threshold than a single successful attempt.
-
-## AI-MAST-006 — Mastery decay/review
-
-Mastery may transition to a review-needed state when evidence becomes stale or later performance contradicts it.
-
-## AI-MAST-007 — Explain state
-
-Where useful, the learner should be able to understand why ARIA considers a concept weak, strong, untested, or due for review.
-
----
-
-# 11. Misconception Detection
-
-A misconception is not simply an incorrect answer. It is a potentially systematic incorrect mental model or reasoning pattern.
-
-## AI-MIS-001 — Candidate misconception
-
-ARIA may create a possible-misconception hypothesis when evidence suggests a repeated or structured misunderstanding.
-
-## AI-MIS-002 — Single-error protection
-
-A single incorrect answer shall not normally be sufficient to confirm a misconception.
-
-## AI-MIS-003 — Pattern requirement
-
-Misconception confidence should increase when similar reasoning errors recur across relevant independent evidence.
-
-## AI-MIS-004 — Diagnostic questioning
-
-ARIA should be capable of asking targeted diagnostic questions to distinguish a misconception from a careless mistake or missing prerequisite.
-
-## AI-MIS-005 — Possible vs confirmed
-
-ARIA shall distinguish a suspected misconception from a sufficiently supported misconception.
-
-## AI-MIS-006 — Remediation
-
-A supported misconception may trigger targeted explanation, counterexample, guided reasoning, practice, or revision.
-
-## AI-MIS-007 — Retest
-
-After remediation, ARIA should seek new evidence before considering the misconception resolved.
-
-## AI-MIS-008 — Learner visibility
-
-Misconception-related learner-facing language should avoid presenting uncertain hypotheses as unquestionable facts.
-
-## AI-MIS-009 — Resolution history
-
-ARIA should retain enough history to know that a misconception was detected, addressed, and later retested where useful.
-
----
-
-# 12. Prerequisite Gap Detection
-
-A learner may struggle with topic B because concept A is missing.
-
-```text
-Prerequisite A
-      ↓
-   Topic B
-      ↓
-Observed difficulty
-```
-
-ARIA should attempt to distinguish "B is difficult" from "A is missing, causing B to fail."
-
-## AI-PREQ-001 — Dependency awareness
-
-ARIA should support concept prerequisite/dependency relationships where available.
-
-## AI-PREQ-002 — Gap hypothesis
-
-ARIA may hypothesize a prerequisite gap when learner errors are consistent with missing prerequisite knowledge.
-
-## AI-PREQ-003 — Diagnostic validation
-
-ARIA should validate important prerequisite-gap hypotheses through existing evidence or targeted diagnostic activity.
-
-## AI-PREQ-004 — No automatic certainty
-
-A prerequisite relationship alone shall not prove the learner lacks the prerequisite.
-
-## AI-PREQ-005 — Remediation recommendation
-
-A sufficiently supported prerequisite gap may trigger a recommendation to review the prerequisite before continuing dependent material.
-
-## AI-PREQ-006 — Roadmap impact
-
-Significant prerequisite gaps may trigger roadmap adaptation proposals according to Step 4 approval rules.
-
-## AI-PREQ-007 — Re-evaluation
-
-After prerequisite remediation, ARIA should re-evaluate performance on the dependent concept.
-
----
-
-# 13. Confidence & Uncertainty
-
-## AI-CONF-001 — Confidence representation
-
-Important AI-derived learner conclusions shall support a confidence/uncertainty representation.
-
-## AI-CONF-002 — Confidence is not model swagger
-
-Confidence shall be based on available evidence quality and consistency, not merely how certain an LLM sounds.
-
-## AI-CONF-003 — Evidence quantity
-
-Multiple relevant independent observations may increase confidence.
-
-## AI-CONF-004 — Evidence quality
-
-Higher-quality evidence should contribute more strongly than weak evidence.
-
-## AI-CONF-005 — Contradiction
-
-Contradictory evidence should reduce or complicate confidence.
-
-## AI-CONF-006 — Recency
-
-Old evidence may carry less weight for current-state claims where forgetting is relevant.
-
-## AI-CONF-007 — Assistance level
-
-Highly assisted responses may carry lower confidence for independent mastery claims.
-
-## AI-CONF-008 — Confidence thresholds
-
-Consequential actions shall require stronger confidence than low-risk recommendations.
-
-## AI-CONF-009 — Learner-facing uncertainty
-
-ARIA should communicate uncertainty in understandable language when it materially affects a recommendation or conclusion.
-
----
-
-# 14. Example Evidence Weighting Model
-
-The final mathematical model is an architecture/research decision, but the PRD requires the following conceptual behaviour.
-
-```text
-Evidence Strength ≈
-    task reliability
-  × difficulty relevance
+Evidence influence ≈
+    evaluation reliability
+  × relevance to concept
   × independence
-  × recency factor
+  × difficulty relevance
   × assistance factor
-  × evaluation confidence
 ```
+
+R2+ may add recency/forgetting and richer longitudinal factors.
 
 Examples:
 
 ```text
-Independent correct answer on a difficult unseen problem
-→ relatively strong evidence
+Independent correct answer on a relevant unseen problem
+→ stronger competence evidence
 
-Correct answer after answer-revealing hints
-→ weaker mastery evidence
+Correct after answer-revealing hint
+→ weaker independent-competence evidence
 
-Reading a note
-→ exposure evidence, not mastery evidence
+Reading an explanation
+→ exposure/context, not mastery evidence
 
-Repeated same conceptual error across independent questions
-→ stronger misconception signal
+One wrong answer
+→ difficulty signal at most; not confirmed misconception
 ```
 
-ARIA shall not expose a fake precision score to learners merely because an internal model uses numeric values.
+ARIA shall not show learners fake precision merely because internal implementation uses numeric values.
 
 ---
 
-# 15. Generate → Validate → Fix
+# 16. R0 Adaptation Reasoning
 
-For important structured AI outputs, ARIA should not rely solely on one unconstrained generation pass.
+## AI-ADAPT-001 — Evidence/state grounded — R0 MUST
+An adapted Study action shall be selected using relevant current learner state and its evidence.
+
+## AI-ADAPT-002 — Real causal software trace — R0 MUST
+ARIA shall preserve enough decision metadata to demonstrate that the recorded learner-state signal actually influenced the selected adaptation.
+
+## AI-ADAPT-003 — Supported action set — R0 MUST
+R0 adaptation shall choose from supported bounded actions such as:
+
+```text
+simpler/deeper explanation
+worked example
+additional scaffold
+hint-first practice
+targeted concept practice
+diagnostic question
+known prerequisite refresh
+reduced redundant remediation when evidence supports competence
+```
+
+## AI-ADAPT-004 — Material difference — R0 MUST
+When adaptation is triggered, the resulting Study action shall not be merely a cosmetically reworded generic response if the evidence calls for a substantive change.
+
+## AI-ADAPT-005 — Uncertainty behaviour — R0 MUST
+Uncertain state should favour diagnostic or low-risk adaptation rather than strong unsupported conclusions.
+
+## AI-ADAPT-006 — Explanation — R0 MUST
+ARIA shall be capable of producing a learner/tester-readable reason grounded in the actual decision factors.
+
+## AI-ADAPT-007 — No causal learning overclaim — R0 MUST
+ARIA may record that evidence caused a software adaptation decision. It shall not infer from a subsequent improvement alone that the adaptation caused human learning improvement.
+
+---
+
+# 17. Generate → Validate → Fix
+
+Important structured AI outputs shall not be trusted solely because generation succeeded.
 
 ```text
 Generate
@@ -656,412 +508,347 @@ Valid? ── Yes → Use
    │
    No
    ↓
-Repair / Regenerate
+Repair / regenerate
    ↓
 Validate again
+   ↓
+bounded stop
 ```
 
-## AI-VAL-001 — Structured output validation
+## AI-VAL-001 — Schema validation — R0 MUST
+Consequential structured AI output shall satisfy required schema/constraints before downstream use.
 
-AI-generated structured data shall be validated against the required schema/constraints before downstream use.
+## AI-VAL-002 — Assessment validation — R0 MUST
+Generated assessments shall be checked against the learner-selected/supported specification where applicable, including relevant question count/format, answer/rubric availability, topic/source relevance and scoring consistency.
 
-## AI-VAL-002 — Assessment validation
+## AI-VAL-003 — Evidence extraction validation — R0 MUST
+AI-derived evidence shall be validated sufficiently for the impact it may have on learner state.
 
-Generated assessments should be checked for specification compliance before delivery.
+## AI-VAL-004 — Adaptation validation — R0 MUST
+An adaptation shall be checked for context relevance, supported action type and traceable reason before it becomes the R0 next Study action.
 
-Potential checks include:
+## AI-VAL-005 — Repair — R0 MUST WHERE SAFE
+## AI-VAL-006 — Bounded retry — R0 MUST
+## AI-VAL-007 — Graceful failure — R0 MUST
+Invalid structured output shall not be forwarded into consequential state after retries are exhausted.
 
-- requested question count;
-- selected formats;
-- marks consistency;
-- answer availability;
-- source/topic relevance;
-- duplicate questions;
-- invalid options;
-- impossible scoring.
-
-## AI-VAL-003 — Roadmap validation
-
-Generated roadmaps should be checked for structural validity and obvious dependency inconsistencies before becoming active.
-
-## AI-VAL-004 — Planner validation
-
-Generated plans should be checked for obvious time conflicts, deadline violations, and impossible workloads.
-
-## AI-VAL-005 — Evidence validation
-
-AI-generated evidence extraction shall be checked before it can create high-confidence learner-state changes.
-
-## AI-VAL-006 — Repair
-
-When validation fails and safe repair is possible, ARIA should repair/regenerate the invalid portion rather than accepting malformed output.
-
-## AI-VAL-007 — Retry limit
-
-Validation-repair loops shall have bounded retry limits.
-
-## AI-VAL-008 — Graceful failure
-
-If valid output cannot be produced after bounded attempts, ARIA shall fail safely rather than forwarding invalid data downstream.
+## AI-VAL-008 — Roadmap validation — R1+
+## AI-VAL-009 — Planner validation — R3+
 
 ---
 
-# 16. Task Decomposition
+# 18. Task Decomposition
 
-## AI-BEH-013 — Decompose complex tasks
-
-ARIA should decompose complex learning/product tasks into bounded subtasks when doing so improves reliability.
+## AI-BEH-013 — Decompose when useful — R0 SHOULD
+Complex R0 tasks may be separated into bounded stages when doing so improves reliability.
 
 Example:
 
 ```text
-"Create my exam"
-       ↓
-Interpret specification
-       ↓
-Retrieve relevant source material
-       ↓
-Generate questions
-       ↓
-Generate/verify answer keys or rubrics
-       ↓
-Validate specification compliance
-       ↓
-Render assessment
+Create assessment
+      ↓
+interpret specification
+      ↓
+retrieve relevant source/context
+      ↓
+generate questions
+      ↓
+generate/verify answers or rubric
+      ↓
+validate
+      ↓
+deliver
 ```
 
-## AI-BEH-014 — Do not over-decompose
+## AI-BEH-014 — Do not over-decompose — R0 MUST
+Simple deterministic actions shall not become unnecessary agent workflows.
 
-Simple deterministic actions should not be converted into unnecessary multi-agent workflows.
-
-## AI-BEH-015 — Clear responsibility
-
-Each decomposed AI responsibility should have clear inputs, outputs, permissions, and failure behaviour.
+## AI-BEH-015 — Clear responsibility — LONG-TERM MUST
+AI responsibilities shall have explicit inputs, outputs, permissions and failure behaviour.
 
 ---
 
-# 17. Agent Architecture Boundaries
+# 19. Agent Architecture Boundaries
 
-This PRD intentionally does **not** decide how many agents ARIA will have.
+R0 does not require multiple agents. The PRD intentionally does not decide agent count.
 
-## AI-AGENT-001 — Agents are implementation choices
+## AI-AGENT-001 — Agents are implementation choices — R0 MUST
+A feature does not automatically imply a dedicated agent.
 
-A product feature shall not automatically imply a dedicated AI agent.
+## AI-AGENT-002 — Deterministic-first — R0 MUST
+Rules, authorization, schema validation, calculations and deterministic state transitions should use deterministic code where probabilistic reasoning adds no value.
 
-## AI-AGENT-002 — Deterministic-first
+## AI-AGENT-003 — Specialized reasoning when justified — LONG-TERM
+## AI-AGENT-004 — Orchestrator authority limits — LONG-TERM MUST
+## AI-AGENT-005 — Controlled shared-state updates — R0 MUST
+No AI component may independently overwrite consequential learner state outside the controlled update mechanism.
 
-Deterministic code should be used for rules, validation, authorization, calculations, state transitions, and other tasks where probabilistic reasoning is unnecessary.
-
-## AI-AGENT-003 — Specialized reasoning where useful
-
-Specialized AI components may be used where distinct prompts, tools, context, validation, or permissions improve reliability.
-
-## AI-AGENT-004 — Orchestrator authority limits
-
-An orchestrator shall not bypass product approval, authorization, or validation boundaries.
-
-## AI-AGENT-005 — Shared state discipline
-
-Multiple AI components shall not independently overwrite learner state without controlled state-update mechanisms.
-
-## AI-AGENT-006 — Communication contracts
-
-Where multiple AI components communicate, outputs should use explicit contracts/structured schemas for consequential data.
-
-## AI-AGENT-007 — No autonomous infinite loops
-
-Agentic workflows shall have bounded iteration, tool-use, and retry limits.
-
-## AI-AGENT-008 — Observability
-
-Consequential agentic workflows should produce enough trace information for debugging and evaluation without requiring exposure of private internal reasoning to the learner.
+## AI-AGENT-006 — Structured communication — R0 MUST WHERE MULTIPLE COMPONENTS EXIST
+## AI-AGENT-007 — Bounded loops — R0 MUST
+## AI-AGENT-008 — Observability — R0 MUST
+Consequential workflows shall expose enough trace information for debugging/Gate A without exposing private internal chain-of-thought.
 
 ---
 
-# 18. User Correction
+# 20. Correction
 
-## AI-CORR-001 — Correct memory
+## AI-CORR-001 — Context correction — R0 MUST
+## AI-CORR-002 — Evaluation correction/review — R0 MUST
+## AI-CORR-003 — Learner-state challenge — R0 MUST
+A learner/tester may challenge an inaccurate state conclusion. A self-assertion need not overwrite strong contrary evidence; ARIA may instead recompute or reassess.
 
-Learners shall be able to correct important persistent information about themselves.
+## AI-CORR-004 — Downstream recomputation — R0 MUST
+Corrected source evaluation/evidence shall allow dependent state/adaptation to be revised or invalidated.
 
-## AI-CORR-002 — Correct learner state
+## AI-CORR-005 — Audit history — R0 MUST
+Enough history shall remain to understand why derived state changed.
 
-Where appropriate, learners should be able to challenge an inaccurate learner-state conclusion.
-
-A learner assertion alone need not automatically overwrite strong contrary performance evidence; instead, it should trigger review/reassessment where appropriate.
-
-## AI-CORR-003 — Correct context
-
-Learners shall be able to correct goal/topic/context association.
-
-## AI-CORR-004 — Correct evaluation
-
-Incorrect AI evaluation shall have a correction/review path.
-
-## AI-CORR-005 — Downstream correction
-
-When source evidence or evaluation is corrected, dependent derived state should be capable of recomputation.
-
-## AI-CORR-006 — Preserve audit history
-
-Corrections should preserve sufficient history to understand why derived state changed.
+## AI-CORR-006 — Persistent-memory correction — R2+
 
 ---
 
-# 19. AI Failure Behaviour
+# 21. AI Failure Behaviour
 
-## AI-FAIL-001 — No silent fabrication
+## AI-FAIL-001 — No silent fabrication — R0 MUST
+## AI-FAIL-002 — Preserve valid partial completion — R0 MUST
+## AI-FAIL-003 — Distinguish reasoning/tool failure — R0 MUST WHERE USEFUL
+## AI-FAIL-004 — Bounded retry — R0 MUST
+## AI-FAIL-005 — Invalid output cannot become consequential state — R0 MUST
+## AI-FAIL-006 — Reliable fallback — R0 SHOULD
+Where practical, provide a lower-intelligence reliable path instead of making unaffected functionality unusable.
 
-When required information is unavailable, ARIA shall not fabricate it to complete a workflow.
+## AI-FAIL-007 — Preserve learner work — R0 MUST
+AI failure shall not discard submitted answers, uploaded resources or completed valid work.
 
-## AI-FAIL-002 — Partial completion
-
-If one AI subtask fails, successful independent work should be preserved where possible.
-
-## AI-FAIL-003 — Tool failure distinction
-
-ARIA shall distinguish AI reasoning failure from external tool/service failure where useful.
-
-## AI-FAIL-004 — Model timeout/retry
-
-Transient model failures may be retried within bounded limits.
-
-## AI-FAIL-005 — Invalid structured output
-
-Invalid model output shall not be written directly into consequential product state without validation.
-
-## AI-FAIL-006 — Fallback behaviour
-
-Where practical, ARIA should provide a lower-intelligence but reliable fallback rather than making the entire product unusable.
-
-Example:
-
-If personalized recommendation generation fails, the learner can still access their roadmap and planned work.
-
-## AI-FAIL-007 — Preserve learner work
-
-AI failure shall not discard learner-created notes, submitted answers, uploaded resources, or completed work.
-
-## AI-FAIL-008 — Avoid repeated harmful retry
-
-ARIA shall not endlessly retry a failing AI/tool workflow.
-
-## AI-FAIL-009 — Explain actionable failure
-
-Where learner action can resolve the problem, ARIA should explain the next useful action.
+## AI-FAIL-008 — No endless retry — R0 MUST
+## AI-FAIL-009 — Actionable failure explanation — R0 SHOULD
+## AI-FAIL-010 — Failed evaluation is not negative evidence — R0 MUST
 
 ---
 
-# 20. Memory vs Learner Model — Explicit Separation
+# 22. Memory vs Learner State — Explicit Separation
 
-This distinction is mandatory.
-
-| Memory | Learner Model |
+| Memory / learner-provided context | Evidence-backed learner state |
 |---|---|
-| "Prefers examples before formulas" | "Weak evidence on Bayes' theorem" |
-| "Preparing for GATE" | "Strong on process scheduling" |
-| "Usually studies in the evening" | "Serializability requires review" |
-| "Wants hints before solutions" | "Possible misconception about deadlock prevention" |
-| "Uses concise revision before exams" | "Prerequisite gap suspected in normalization" |
+| "I prefer examples before formulas" | "Current evidence suggests difficulty with Bayes' theorem" |
+| "I'm preparing for GATE" | "Current attempts support competence on process scheduling" |
+| "I think I'm good at DBMS" | "Evidence is insufficient to conclude competence across DBMS" |
+| "Give me hints before solutions" | "Independent performance on this concept is not yet established" |
 
-Memory may help determine **how ARIA interacts**.
+Memory/context can influence **how ARIA interacts**.
 
-The Learner Model helps determine **what the learner appears to know and what learning action may be useful next**.
+Learner state influences **what ARIA has evidence to believe about performance and which bounded learning action may be useful next**.
 
-Neither should silently replace the other.
+Neither silently substitutes for the other.
 
 ---
 
-# 21. Example — One Wrong Answer
+# 23. Example — One Wrong Answer
 
 ```text
-Question: incorrect
+Question answered incorrectly
         ↓
-Evidence recorded
+Was evaluation valid/reliable?
         ↓
-Was it independent?
-Was the question valid?
-Was evaluation reliable?
-Is there previous evidence?
-Was this a careless error?
+Valid difficulty evidence recorded
         ↓
-Insufficient pattern
+What concept did it measure?
+Was assistance involved?
+Is there other evidence?
         ↓
-Do NOT declare misconception
+Basic learner state updated conservatively
         ↓
-Potentially ask another diagnostic question
+Do NOT declare mastery failure or misconception
+        ↓
+Possible low-risk adaptation:
+explanation / example / diagnostic question
 ```
 
-This protects ARIA from overreacting to noise.
+R0 must be useful without pretending one observation reveals the learner's entire mental model.
 
 ---
 
-# 22. Example — Repeated Misconception
+# 24. Example — Evidence-Grounded Adaptation
 
 ```text
-Attempt 1:
-Learner uses the same incorrect reasoning
+Attempt A:
+learner misses two independent
+serializability questions
         ↓
-Attempt 2:
-Different question, same reasoning error
+Evaluation valid
         ↓
-Teach-back:
-Learner explicitly states incorrect mental model
+Evidence linked to
+"conflict serializability"
         ↓
-Evidence converges
+Basic state:
+evidence suggests difficulty
+(confidence: sufficient for low-risk adaptation)
         ↓
-Possible misconception confidence rises
+ARIA chooses:
+worked serializability example
++ targeted practice
         ↓
-ARIA provides targeted remediation
+Decision record says WHY:
+selected because of attempt A evidence
         ↓
-New diagnostic questions
+Attempt B tests serializability again
         ↓
-Evidence improves
+new evidence stored independently
         ↓
-Misconception marked resolved / confidence reduced
+state reconsidered
 ```
+
+This is the core R0 intelligence thesis.
 
 ---
 
-# 23. Example — Memory Without Evidence
+# 25. Example — Learner Claim Without Evidence
 
 Learner says:
 
 > "I'm really good at DBMS."
 
-ARIA may remember that the learner considers themselves confident in DBMS.
-
-It should **not** immediately mark every DBMS concept as mastered.
-
-Later assessments may independently produce learner-model evidence.
+ARIA may use that statement as learner-provided context. It shall **not** mark DBMS concepts as mastered. Performance evidence remains separate.
 
 ---
 
-# 24. Example — Evidence Without Memory
-
-A learner completes several strong SQL assessments but never says:
-
-> "I'm good at SQL."
-
-ARIA may still develop a high-confidence learner-model state for the assessed SQL concepts because performance evidence exists.
-
-The learner did not need to explicitly state the fact for the Learner Model to update.
-
----
-
-# 25. Example — Prerequisite Gap
+# 26. Example — Contradictory Evidence
 
 ```text
-Learner repeatedly struggles with JOIN query reasoning
-                 ↓
-ARIA notices errors depend on weak relational-key understanding
-                 ↓
-Existing evidence on keys is insufficient
-                 ↓
-ARIA asks targeted prerequisite questions
-                 ↓
-Key-concept weakness confirmed with sufficient evidence
-                 ↓
-Recommendation:
-Review keys before advanced JOIN practice
-                 ↓
-Roadmap adaptation check if impact is significant
+Attempt A → difficulty
+Attempt B → strong independent result
+Attempt C → mixed result
+        ↓
+Do not discard inconvenient evidence
+        ↓
+confidence remains mixed/uncertain
+        ↓
+prefer targeted diagnostic/reassessment
+rather than a strong permanent label
 ```
 
 ---
 
-# 26. Example — Explainable Adaptation
+# 27. Example — Incorrect Evaluation
 
-Bad:
+```text
+AI evaluator marks correct answer wrong
+        ↓
+negative evidence created
+        ↓
+learner/test detects evaluation error
+        ↓
+evaluation corrected
+        ↓
+dependent evidence revised/invalidated
+        ↓
+basic learner state recomputed
+        ↓
+stale adaptation invalidated/recomputed
+```
 
-> "ARIA changed your roadmap because AI thinks this is better."
-
-Required behaviour:
-
-> "ARIA is suggesting one prerequisite session on normalization because your last two independent attempts showed difficulty identifying functional dependencies, which the next roadmap topic depends on."
-
-The learner can inspect, accept, modify, or reject the consequential change according to Step 4.
+ARIA's intelligence must be correctable all the way downstream.
 
 ---
 
-# 27. Intelligence Safety Rules
+# 28. Gate A Intelligence Validation Requirements
 
-ARIA's intelligence layer shall preserve these invariants:
+R0 is not complete merely because an LLM can generate explanations and quizzes.
+
+Gate A shall include controlled scenarios demonstrating at least:
+
+1. **difficulty path** — valid negative evidence changes learner state and produces a relevant bounded adaptation;
+2. **competence path** — sufficiently strong evidence does not trigger unnecessary remediation;
+3. **insufficient-evidence path** — absence of evidence does not become weakness;
+4. **contradictory-evidence path** — conflicting observations reduce certainty/trigger further testing;
+5. **correction path** — corrected evaluation changes dependent evidence/state/adaptation;
+6. **retry/idempotency path** — repeated processing does not duplicate consequential evidence/state;
+7. **failure path** — AI/tool failure does not fabricate evidence or destroy learner work;
+8. **traceability path** — the tester can show which evidence caused which state and which adaptation;
+9. **second-cycle path** — reassessment creates new evidence and the state is reconsidered.
+
+These scenarios test engineering behaviour. They do not establish causal human-learning efficacy.
+
+---
+
+# 29. Intelligence Safety Invariants
 
 1. **Memory is not mastery.**
 2. **Exposure is not understanding.**
 3. **One error is not automatically a misconception.**
-4. **One success is not automatically mastery.**
+4. **One success is not durable mastery.**
 5. **No evidence is not weakness.**
-6. **Model confidence is not evidence confidence.**
-7. **AI output is not valid merely because it is well-written.**
-8. **Important structured outputs require validation.**
+6. **LLM confidence is not evidence confidence.**
+7. **AI output is not valid merely because it is fluent.**
+8. **Consequential structured output is validated.**
 9. **Uncertain upstream conclusions remain uncertain downstream.**
-10. **User correction must be possible.**
-11. **Consequential adaptations remain bounded by Step 4 approval rules.**
-12. **Deterministic logic should not be replaced by an agent without reason.**
-13. **Agent/tool loops must be bounded.**
-14. **Learner work survives AI failures.**
-15. **ARIA should be useful even when its most advanced intelligence is unavailable.**
+10. **Evidence remains separate from derived learner state.**
+11. **Learner state remains separate from conversational memory/context.**
+12. **R0 adaptation is bounded and evidence-grounded.**
+13. **Correction propagates through dependent derived state.**
+14. **Deterministic logic is not replaced by agents without reason.**
+15. **AI/tool loops are bounded.**
+16. **Learner work survives AI failures.**
+17. **A software adaptation trace is not proof of causal learning improvement.**
+18. **R0 does not claim a richer intelligence capability than it actually validates.**
 
 ---
 
-# 28. Step 5 Decisions
+# 30. Step 5 Decisions
 
-Step 5 establishes the core intelligence philosophy for ARIA:
+The R0 intelligence stack is now deliberately small:
 
 ```text
-Conversation Context
-       +
-Persistent Memory
-       +
-Structured Learning Evidence
-       ↓
-Evidence-backed Learner Model
-       ↓
-Confidence-aware reasoning
-       ↓
-Recommendations / Revision / Adaptation
-       ↓
-Validation + learner control
+Current learning context
+        +
+Structured performance evidence
+        ↓
+Basic concept-level learner state
+        +
+Uncertainty
+        ↓
+Bounded adaptation decision
+        ↓
+Adapted Study
+        ↓
+Reassessment
+        ↓
+New evidence / state reconsideration
 ```
 
-ARIA is therefore not intended to become a chatbot that simply remembers everything the learner says.
+The following remain part of ARIA's vision but are not required to prove R0:
 
-Its differentiating intelligence should come from connecting **what the learner is trying to achieve**, **what they have done**, **what evidence suggests they understand**, **what may be missing**, and **what action makes sense next**.
+```text
+rich persistent conversational memory
+full mastery ontology
+longitudinal forgetting model
+mature misconception detection
+mature prerequisite-gap inference
+revision intelligence
+roadmap adaptation intelligence
+planner intelligence
+multi-goal coordination
+large autonomous agent architecture
+```
+
+This preserves the long-term Learning OS while preventing R0 from becoming an AI research programme before its smallest adaptive hypothesis is tested.
 
 ---
 
-# 29. Step 5 Completion
+# 31. Step 5 Completion
 
-**Step 5 — AI, Learner Model, Memory & Evidence Requirements is complete.**
+**Step 5 — AI, Learner Model, Memory & Evidence Requirements has been audited and realigned.**
+
+The key correction is not removing ARIA's intelligence ambitions. It is separating:
+
+> **the minimum intelligence needed to prove evidence-driven adaptation now**
+
+from:
+
+> **the richer intelligence ARIA can earn through later validated releases.**
 
 Next:
 
-# Step 6 — Non-Functional, Privacy, Security, Reliability & Accessibility Requirements
+# Step 6 — Non-Functional, Privacy, Security, Reliability & Accessibility Requirements Audit
 
-Step 6 will define requirements for:
-
-```text
-performance
-availability
-scalability
-latency
-privacy
-security
-authorization
-data retention
-AI/data boundaries
-resource security
-reliability
-observability
-backup/recovery
-accessibility
-responsive behaviour
-browser/device support
-cost-awareness
-rate limits
-abuse protection
-```
-
-After Step 6, the PRD can move toward acceptance criteria, prioritization, MVP sequencing, and the transition from product requirements into system architecture.
+Step 6 will identify which reliability/security/privacy/performance requirements are true R0 blockers, which need measurable thresholds now, and which scalability/production requirements should remain later-release targets rather than making a solo-capstone R0 pretend to be an internet-scale production platform.
