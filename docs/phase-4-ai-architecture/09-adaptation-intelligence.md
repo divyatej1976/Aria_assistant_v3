@@ -49,6 +49,29 @@ New Evidence
       ↺
 ```
 
+### Decision Logic Shape (Illustrative)
+
+```text
+Validated Evidence (per concept)
+      ↓
+Evidence Aggregation
+      ↓
+Mastery / Confidence Estimate
+      ↓
+Compare Against Adaptation Thresholds
+      ↓
+Decision Policy
+ (reinforce / progress / re-explain differently)
+      ↓
+Recommendation + Explanation
+```
+
+This shows the structural shape of how evidence becomes a decision — not the
+scoring formula or threshold values themselves, which remain implementation
+decisions (see Out of Scope). The key architectural commitment is that a
+decision policy step exists between raw evidence and any recommendation,
+so adaptation is never a direct AI-output-to-recommendation shortcut.
+
 ---
 
 # Recommendation Types

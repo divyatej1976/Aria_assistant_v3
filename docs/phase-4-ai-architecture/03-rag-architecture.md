@@ -65,6 +65,27 @@ Generate vector representations for efficient semantic retrieval. Embedding prov
 ## Retrieval & Re-ranking
 Retrieve the most relevant chunks, then re-rank them before constructing the final AI context.
 
+### Retrieval Funnel (Illustrative Shape)
+
+```text
+Vector Index
+      ↓
+Similarity Search
+      ↓
+Candidate Chunks (broad recall)
+      ↓
+Re-ranking
+ (relevance + recency + source quality)
+      ↓
+Selected Chunks (final context)
+      ↓
+Context Assembly
+```
+
+This shows the structural shape of retrieval narrowing from broad recall to a
+small, high-quality context set. Exact candidate/selection counts, ranking
+signals, and scoring formulas are implementation decisions — see Out of Scope.
+
 ## Grounded Response
 Responses should be based on retrieved content and include citations whenever applicable.
 
