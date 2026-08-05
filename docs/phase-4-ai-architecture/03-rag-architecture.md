@@ -80,6 +80,25 @@ Responses should be based on retrieved content and include citations whenever ap
 
 ---
 
+
+# Out of Scope
+
+This document intentionally defines the logical Retrieval-Augmented Generation (RAG) architecture only.
+
+It does **not** define:
+
+- The specific vector database implementation (e.g., Pinecone, Qdrant, Chroma, FAISS).
+- The embedding model or embedding provider.
+- Database schema design for storing vectors or metadata.
+- Infrastructure deployment architecture.
+- Retrieval performance optimization techniques.
+- Chunk-size tuning or embedding hyperparameters.
+- Prompt wording or prompt engineering details.
+
+These concerns belong to later Architecture or Implementation phases.
+
+The purpose of this document is to define **how retrieval integrates with ARIA's learning architecture**, not how individual technologies are configured.
+
 # Acceptance Criteria
 
 - Complete RAG pipeline defined.

@@ -72,6 +72,24 @@ Adaptation Engine
 
 ---
 
+
+# Out of Scope
+
+This document defines the logical learner model.
+
+It intentionally does **not** define:
+
+- Physical persistence of learner state.
+- Database structures.
+- Long-term memory implementation.
+- Statistical mastery algorithms.
+- Machine learning model implementation.
+- Storage technologies.
+
+These concerns are deferred to Memory Architecture, Database Architecture and later implementation phases.
+
+This document defines **what the learner model represents**, not how it is stored or computed internally.
+
 # Acceptance Criteria
 
 - Learner model responsibilities are defined.

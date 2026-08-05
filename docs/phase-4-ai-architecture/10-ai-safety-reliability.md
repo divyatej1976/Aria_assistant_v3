@@ -71,6 +71,24 @@ Accepted Response
 
 ---
 
+
+# Out of Scope
+
+This document defines AI-specific safety and reliability principles.
+
+It intentionally does **not** define:
+
+- Infrastructure security.
+- Authentication or authorization.
+- Network security.
+- Compliance frameworks.
+- Operational monitoring infrastructure.
+- Cloud deployment security.
+
+These responsibilities belong to System Architecture and Infrastructure Architecture.
+
+This document focuses solely on ensuring that AI behaviour remains trustworthy, explainable and reliable.
+
 # Acceptance Criteria
 
 - AI risks are documented.

@@ -75,6 +75,24 @@ Observability data should guide:
 
 ---
 
+
+# Out of Scope
+
+This document defines what aspects of AI behaviour should be observable.
+
+It intentionally does **not** define:
+
+- Monitoring platform selection.
+- Log storage infrastructure.
+- Dashboard implementation.
+- Alerting configuration.
+- Production operations procedures.
+- Cloud monitoring services.
+
+These concerns belong to Infrastructure and Operations Architecture.
+
+This document defines **what should be measured**, not how observability systems are implemented.
+
 # Acceptance Criteria
 
 - AI monitoring strategy documented.

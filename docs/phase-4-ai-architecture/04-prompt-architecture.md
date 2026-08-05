@@ -62,6 +62,22 @@ Prompt changes should be version-controlled, reviewed and evaluated before repla
 
 ---
 
+
+# Out of Scope
+
+This document defines the architectural governance of prompts.
+
+It intentionally does **not** define:
+
+- Individual prompt wording.
+- Prompt implementation inside application code.
+- Model-specific prompt optimization.
+- Prompt evaluation methodology.
+- A/B testing strategy.
+- LLM provider selection.
+
+Prompt Architecture defines **how prompts are organized, versioned and governed**, while implementation details are handled during development.
+
 # Acceptance Criteria
 
 - Prompt architecture is standardized.

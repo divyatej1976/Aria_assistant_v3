@@ -74,6 +74,24 @@ Recommendations should align with learner-selected goals and preferences.
 
 ---
 
+
+# Out of Scope
+
+This document defines the architectural responsibilities of Adaptation Intelligence.
+
+It intentionally does **not** define:
+
+- Recommendation algorithms.
+- Reinforcement learning techniques.
+- Scheduling heuristics.
+- Long-term roadmap generation.
+- Planner functionality.
+- Future multi-agent coordination.
+
+These concerns belong to implementation or future releases.
+
+This document defines **what Adaptation Intelligence must accomplish**, not the specific algorithms used to achieve it.
+
 # Acceptance Criteria
 
 - Adaptation workflow documented.

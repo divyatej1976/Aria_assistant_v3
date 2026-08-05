@@ -75,6 +75,24 @@ Each evidence item should include:
 
 ---
 
+
+# Out of Scope
+
+This document defines the logical lifecycle of learning evidence.
+
+It intentionally does **not** define:
+
+- Database schema for evidence storage.
+- Persistence mechanisms.
+- Storage technologies.
+- Memory lifecycle policies.
+- Learner-state computation algorithms.
+- Analytics dashboards.
+
+Persistence responsibilities belong to **Phase 5 (Memory Architecture)** and **later Database Architecture**.
+
+This document only defines how evidence flows through the adaptive learning system.
+
 # Acceptance Criteria
 
 - Evidence lifecycle documented.
