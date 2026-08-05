@@ -36,6 +36,16 @@ Any future architectural changes should be introduced through an Architectural D
 
 ---
 
+# Boundary with Phase 5 — Memory Architecture
+
+Phase 4 defines the logical AI responsibilities and information flow, including Evidence, Learner State, Adaptation and AI decision-making.
+
+Phase 5 will define how these logical structures are persisted, retrieved, versioned, retained and managed across sessions.
+
+Phase 4 intentionally does not prescribe storage technologies, persistence mechanisms, indexing strategies or memory lifecycle policies. Those concerns belong exclusively to Memory Architecture.
+
+---
+
 # Known Future Work
 
 Deferred to later phases:
