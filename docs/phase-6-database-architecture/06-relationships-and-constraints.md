@@ -37,6 +37,15 @@ One assessment may generate multiple evidence records.
 ## Learner → Evidence
 A learner owns many evidence records.
 
+## Learner → learner_concept_state
+One learner has many computed concept states.
+
+## Concept → learner_concept_state
+One concept has many learner states.
+
+## Evidence → learner_concept_state
+Multiple pieces of validated evidence update a single learner's state for a specific concept.
+
 ## Resource → ResourceChunk
 One resource produces many chunks.
 
