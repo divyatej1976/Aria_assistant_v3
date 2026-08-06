@@ -55,6 +55,25 @@ Agents do not own:
 
 ---
 
+# R0 Implementation Guidance
+
+The agent roles defined in this document represent **logical architectural
+responsibilities**, not mandatory runtime processes.
+
+For the initial R0 implementation, ARIA is expected to use the smallest
+practical number of runtime orchestrators while preserving the responsibility
+boundaries defined here.
+
+For example, multiple logical responsibilities may be implemented within a
+single orchestration graph or workflow if doing so maintains architectural
+clarity and does not violate separation of concerns.
+
+Separate runtime agents should be introduced only when justified by clear
+capability, scalability, or operational requirements rather than architectural
+preference alone.
+
+---
+
 # Out of Scope
 
 This document intentionally does not define:

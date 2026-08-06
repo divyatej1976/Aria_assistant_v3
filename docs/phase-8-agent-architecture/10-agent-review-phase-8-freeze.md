@@ -43,6 +43,22 @@ Phase 9 will define how prompts are designed, structured, versioned and governed
 
 ---
 
+# R0 Runtime Clarification
+
+Phase 8 defines **logical agent responsibilities** rather than prescribing a
+specific runtime deployment model.
+
+The initial release is expected to implement these responsibilities using the
+simplest practical orchestration approach. Multiple logical agent roles may be
+executed within a single runtime orchestrator provided the architectural
+responsibilities defined in this phase remain clearly separated.
+
+Introducing independent runtime agents is considered an implementation decision
+that should be driven by demonstrated capability, scalability, or operational
+needs rather than by architectural assumptions.
+
+---
+
 # Known Future Work
 
 Deferred to later phases:
