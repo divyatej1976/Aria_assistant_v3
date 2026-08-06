@@ -30,7 +30,7 @@ This phase remains consistent with:
 - Phase 2 — UX
 - Phase 3 — System Architecture
 - Phase 4 — AI Architecture
-- Phase 5 — Memory Architecture
+- Phase 5 — Memory Architecture (Explicitly verified: `learner_concept_state` properly bridges evidence memory and persistent learner state)
 
 Future database architectural changes should be documented using Architectural Decision Records (ADRs).
 
