@@ -37,6 +37,78 @@ Supporting tables may be introduced where relationships require normalization.
 
 ---
 
+## learner_concept_state
+
+### Purpose
+
+The `learner_concept_state` table stores the current computed learning state
+for each learner–concept pair.
+
+Unlike the `evidence` table, which stores immutable observations, this table
+represents the latest derived understanding of a learner's mastery for a
+concept. It serves as the authoritative source for personalization,
+adaptation, and study planning.
+
+---
+
+### Primary Fields
+
+| Field | Description |
+|--------|-------------|
+| id | Primary Key |
+| learner_id | Foreign Key → learners.id |
+| concept_id | Foreign Key → concepts.id |
+| mastery_score | Current computed mastery level |
+| confidence_score | Confidence in the mastery estimate |
+| status | Current learning status (e.g. Not Started, Learning, Mastered) |
+| evidence_count | Number of validated evidence records contributing to this state |
+| last_evidence_at | Timestamp of the latest evidence incorporated |
+| last_updated | Timestamp of the most recent learner state computation |
+| state_version | Version identifier for the learner state computation |
+
+---
+
+### Relationships
+
+- learner_id → learners.id
+- concept_id → concepts.id
+
+Each learner may have one learner state for each concept.
+
+---
+
+### Constraints
+
+Unique Constraint
+
+(learner_id, concept_id)
+
+Indexes
+
+- learner_id
+- concept_id
+- mastery_score
+- last_updated
+
+---
+
+### Design Notes
+
+This table is intentionally a derived projection rather than a source of raw
+observations.
+
+Its values are produced by aggregating validated evidence collected during
+learning activities.
+
+Application components responsible for personalization and adaptive learning
+consume learner state from this table rather than calculating mastery directly
+from raw evidence during every request.
+
+The evidence table remains immutable and continues to act as the historical
+record supporting learner state calculations.
+
+---
+
 # Schema Strategy
 
 - Stable primary keys for all entities.

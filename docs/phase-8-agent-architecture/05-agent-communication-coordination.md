@@ -19,6 +19,38 @@ This document defines how ARIA agents communicate, coordinate work and delegate 
 
 ---
 
+# R0 Runtime Clarification
+
+The communication described throughout this document represents communication
+between **logical architectural responsibilities**, not mandatory runtime
+processes.
+
+For the initial R0 implementation, ARIA is expected to execute these logical
+responsibilities using the smallest practical number of runtime orchestrators
+while preserving the architectural separation of concerns defined in Phase 8.
+
+Consequently, communication described here should be interpreted as
+coordination between logical workflow components rather than mandatory
+inter-process messaging or independent LLM agents.
+
+A single orchestration graph or workflow may implement multiple logical agent
+responsibilities provided that:
+
+- responsibility boundaries remain clear;
+- architectural contracts are preserved;
+- ownership of each capability remains unchanged.
+
+Independent runtime agents should be introduced only when justified by
+demonstrated capability requirements, scalability needs, operational
+complexity, or deployment considerations rather than architectural preference
+alone.
+
+This clarification preserves the modular monolith strategy established for the
+R0 implementation while allowing future evolution toward distributed
+multi-agent deployments without requiring architectural redesign.
+
+---
+
 # Coordination Principles
 
 - Delegate tasks to the most appropriate agent.

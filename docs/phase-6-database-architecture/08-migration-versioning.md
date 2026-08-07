@@ -73,4 +73,4 @@ This document intentionally does not define:
 
 ## Next
 
-Step 9 — Security & Reliability.
+Step 9 — Database Governance.

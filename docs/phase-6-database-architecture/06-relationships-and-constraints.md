@@ -37,14 +37,27 @@ One assessment may generate multiple evidence records.
 ## Learner → Evidence
 A learner owns many evidence records.
 
-## Learner → learner_concept_state
-One learner has many computed concept states.
+## Learner State Relationships
 
-## Concept → learner_concept_state
-One concept has many learner states.
+```
+Learner
+    │
+    ├────────────── learner_concept_state
+    │                    │
+    │                    │
+    │                Concept
+    │
+    └────────────── Evidence
+```
 
-## Evidence → learner_concept_state
-Multiple pieces of validated evidence update a single learner's state for a specific concept.
+Relationship Rules
+
+- A learner may have many learner concept states.
+- Each learner concept state belongs to exactly one learner.
+- Each learner concept state references exactly one concept.
+- A learner may have at most one learner concept state for a given concept.
+- Learner concept state is derived from validated evidence but does not replace evidence persistence.
+- Evidence remains immutable and serves as the historical foundation for learner state computation.
 
 ## Resource → ResourceChunk
 One resource produces many chunks.
