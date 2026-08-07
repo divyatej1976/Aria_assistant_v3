@@ -27,7 +27,7 @@ Phase 2 is frozen only if all five answers are yes.
 
 # 2. Frozen R0 Hypothesis
 
-> **ARIA can observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience.**
+> **ARIA can observe meaningful learning evidence, update a basic learner_concept_state, and use that state to appropriately change the learner's next study experience.**
 
 The UX implements this as:
 
@@ -44,7 +44,7 @@ Evaluation
       ↓
 Evidence
       ↓
-Basic Learner State
+Basic learner_concept_state
       ↓
 Adaptation Decision
       ↓
@@ -98,7 +98,7 @@ Resources
 Study
 Assessment
 Results / Evidence
-Basic Learner State
+Basic learner_concept_state
 Adaptation
 Targeted Reassessment
 Cycle Summary
@@ -273,7 +273,7 @@ Phase 2 consistently preserves:
 Assessment score
 = performance on one assessment
 
-Learner state
+learner_concept_state
 = conservative conclusion derived from relevant evidence
 ```
 
@@ -302,7 +302,7 @@ Concept attribution
       ↓
 Evidence
       ↓
-Learner state
+learner_concept_state
       ↓
 Adaptation rationale
 ```
@@ -361,7 +361,7 @@ Evaluation
       ↓
 Evidence
       ↓
-Learner State
+learner_concept_state
       ↓
 Pending / existing Adaptation
 ```
@@ -432,7 +432,7 @@ Examples:
 - assessment-generation failure creates no evidence;
 - uncertain submission is reconciled before another attempt is created;
 - evaluation failure creates no false negative evidence;
-- evidence failure does not pretend learner state updated;
+- evidence failure does not pretend learner_concept_state updated;
 - learner-state failure does not pretend adaptation is current;
 - adapted-Study generation failure does not erase assessment/evidence/state;
 - retry cannot duplicate consequential state.
@@ -802,7 +802,7 @@ DETERMINISTIC EVALUATION
           ↓
 STRUCTURED EVIDENCE
           ↓
-BASIC LEARNER STATE
+BASIC learner_concept_state
           ↓
 EXPLAINABLE STUDY ADAPTATION
           ↓
@@ -842,3 +842,8 @@ Recommended Phase 3 sequence:
 ```
 
 **Step 8: COMPLETE.**
+---
+
+## Next
+
+Step 9.

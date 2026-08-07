@@ -10,8 +10,7 @@ This document records the completion review for Phase 4. It verifies that the AI
 
 ---
 
-# Review Checklist
-
+# Phase Review Checklist
 - AI philosophy is clearly defined.
 - AI responsibilities and boundaries are explicit.
 - RAG architecture is complete.
@@ -23,8 +22,7 @@ This document records the completion review for Phase 4. It verifies that the AI
 
 ---
 
-# Cross-Phase Consistency
-
+# Cross-Phase Consistency Review
 This phase must remain consistent with:
 
 - Phase 0 — Vision
@@ -32,13 +30,13 @@ This phase must remain consistent with:
 - Phase 2 — UX
 - Phase 3 — System Architecture
 
-Any future architectural changes should be introduced through an Architectural Decision Record (ADR).
+Any future architectural changes should be introduced through an ADR (ADR).
 
 ---
 
 # Boundary with Phase 5 — Memory Architecture
 
-Phase 4 defines the logical AI responsibilities and information flow, including Evidence, Learner State, Adaptation and AI decision-making.
+Phase 4 defines the logical AI responsibilities and information flow, including Evidence, learner_concept_state, Adaptation and AI decision-making.
 
 Phase 5 will define how these logical structures are persisted, retrieved, versioned, retained and managed across sessions.
 
@@ -59,8 +57,7 @@ Deferred to later phases:
 
 ---
 
-# Freeze Decision
-
+# Architecture Freeze
 Phase 4 is considered complete when:
 
 - All twelve AI architecture documents exist.
@@ -75,3 +72,8 @@ Once frozen, Phase 5 (Memory Architecture) becomes the next source of architectu
 # Exit Criteria
 
 ARIA now has a complete AI architectural foundation describing how intelligence is governed, grounded, observed and safely integrated into the adaptive-learning platform. Future phases extend these capabilities without violating the principles established here.
+---
+
+## Next
+
+Phase 5 — Memory Architecture.

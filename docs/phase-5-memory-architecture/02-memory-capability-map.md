@@ -25,7 +25,7 @@ This document defines every logical memory capability within ARIA, separates R0 
 ## Learner Memory
 - Learner goals
 - Preferences
-- Current learner state
+- Current learner_concept_state
 
 ## Evidence Memory
 - Validated evidence history

@@ -28,7 +28,7 @@ Session Memory is responsible for:
 - Active learning context
 - Retrieved resources
 - Conversation context
-- Current learner state
+- Current learner_concept_state
 
 ---
 

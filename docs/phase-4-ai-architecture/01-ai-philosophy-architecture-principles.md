@@ -12,7 +12,7 @@ This document establishes the principles governing every AI capability within AR
 
 # AI Philosophy
 
-ARIA is an AI-native adaptive learning platform—not a general-purpose chatbot. AI exists to enhance learning, while deterministic systems remain the source of truth for learner state, evidence and progression.
+ARIA is an AI-native adaptive learning platform—not a general-purpose chatbot. AI exists to enhance learning, while deterministic systems remain the source of truth for learner_concept_state, evidence and progression.
 
 ---
 
@@ -39,7 +39,7 @@ AI may:
 - Recommend study directions.
 
 AI may not:
-- Modify learner state directly.
+- Modify learner_concept_state directly.
 - Invent evidence.
 - Bypass validation.
 - Override authorization.

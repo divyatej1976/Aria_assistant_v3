@@ -29,7 +29,7 @@ ARIA aims to reduce that coordination burden without automating away the intelle
 3. **Validate specific cases before generalizing abstractions.**
 4. **Avoid unnecessary domain-specific coupling, not every domain-specific implementation detail.**
 5. **Evidence precedes strong learner-state claims.**
-6. **Conversational memory and evidence-backed learner state are different systems.**
+6. **Conversational memory and evidence-backed learner_concept_state are different systems.**
 7. **One wrong answer is not a confirmed misconception.**
 8. **One correct answer is not mastery.**
 9. **Meaningful adaptation should be traceable and correctable.**
@@ -96,7 +96,7 @@ R5 — Prove mature cross-system orchestration
 ```
 
 ## R0
-Test whether evidence can change a basic learner state and whether that state appropriately changes subsequent Study.
+Test whether evidence can change a basic learner_concept_state and whether that state appropriately changes subsequent Study.
 
 ## R1
 Introduce structured Roadmap/learning-path adaptation.
@@ -117,7 +117,7 @@ Validate mature cross-system orchestration, integrations and justified agentic w
 
 # 6. R0 Hypothesis
 
-> **ARIA can observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience.**
+> **ARIA can observe meaningful learning evidence, update a basic learner_concept_state, and use that state to appropriately change the learner's next study experience.**
 
 R0 loop:
 
@@ -134,7 +134,7 @@ Goal / Learning Context
           ↓
     Basic Evidence
           ↓
- Basic Learner State
+ Basic learner_concept_state
           ↓
 Adapt Next Study Experience
           ↓
@@ -194,7 +194,7 @@ Required MCQ evaluation is deterministic. Invalid/failed evaluation creates no l
 
 Usable evaluated responses create structured concept-attributed evidence with provenance to learner, context, assessment/attempt/question and evaluation.
 
-## Basic Learner State
+## Basic learner_concept_state
 
 ```text
 UNTESTED
@@ -267,7 +267,7 @@ R0 requires:
 - configurable MCQ assessment;
 - deterministic MCQ evaluation;
 - structured concept-attributed evidence;
-- conservative basic learner state;
+- conservative basic learner_concept_state;
 - traceable Study adaptation;
 - targeted reassessment/second cycle;
 - correction propagation;
@@ -322,7 +322,7 @@ ARIA separates:
 - **Context** — relevant information for the current activity;
 - **Memory** — durable useful learner/environment information, introduced more fully later;
 - **Evidence** — observations of learning performance;
-- **Learner State** — conservative conclusions derived from evidence;
+- **learner_concept_state** — conservative conclusions derived from evidence;
 - **Adaptation** — action selected using state + context + rules/AI where justified.
 
 R0 does not require:
@@ -346,7 +346,7 @@ R0 blockers include:
 - established authentication mechanism;
 - trusted-boundary/server authorization;
 - object-level and cross-user data isolation;
-- private-by-default resources, conversations, attempts, evidence and learner state;
+- private-by-default resources, conversations, attempts, evidence and learner_concept_state;
 - secrets not committed/exposed to clients;
 - appropriate session/token security;
 - HTTPS/TLS for remote deployment;

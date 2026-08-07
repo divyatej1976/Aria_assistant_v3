@@ -10,8 +10,7 @@ This document records the completion review for Phase 5. It verifies that the Me
 
 ---
 
-# Review Checklist
-
+# Phase Review Checklist
 - Memory philosophy is clearly defined.
 - Memory capabilities are cataloged.
 - Session, Conversation, Learner and Evidence Memory responsibilities are explicit.
@@ -21,8 +20,7 @@ This document records the completion review for Phase 5. It verifies that the Me
 
 ---
 
-# Cross-Phase Consistency
-
+# Cross-Phase Consistency Review
 This phase remains consistent with:
 
 - Phase 0 — Vision
@@ -57,8 +55,7 @@ Deferred to later phases:
 
 ---
 
-# Freeze Decision
-
+# Architecture Freeze
 Phase 5 is considered complete when:
 
 - All ten memory architecture documents exist.
@@ -73,3 +70,8 @@ Once frozen, Phase 6 (Database Architecture) becomes the authoritative source fo
 # Exit Criteria
 
 ARIA now has a complete Memory Architecture describing what information is remembered, how it flows through the system, how it is governed, and how it supports long-term adaptive learning without violating the principles established in previous phases.
+---
+
+## Next
+
+Phase 6 — Database Architecture.

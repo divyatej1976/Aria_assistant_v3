@@ -10,8 +10,7 @@ This document records the completion review for Phase 7. It verifies that the AP
 
 ---
 
-# Review Checklist
-
+# Phase Review Checklist
 - API philosophy documented.
 - Capability domains identified.
 - Design standards established.
@@ -21,8 +20,7 @@ This document records the completion review for Phase 7. It verifies that the AP
 
 ---
 
-# Cross-Phase Consistency
-
+# Cross-Phase Consistency Review
 Phase 7 aligns with:
 
 - Phase 3 — System Architecture
@@ -54,8 +52,7 @@ Deferred to later phases:
 
 ---
 
-# Freeze Decision
-
+# Architecture Freeze
 Phase 7 is considered complete when:
 
 - All ten API architecture documents exist.
@@ -70,3 +67,8 @@ Once frozen, Phase 8 becomes the authoritative source for agent orchestration.
 # Exit Criteria
 
 ARIA now has a complete API Architecture describing how frontend, backend, AI services and persistence layers communicate through stable, secure and maintainable contracts.
+---
+
+## Next
+
+Phase 8 — Agent Architecture.

@@ -65,7 +65,7 @@ The release labels below are PRD-level working boundaries. They may be refined a
 
 ## Hypothesis
 
-> **ARIA can observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience.**
+> **ARIA can observe meaningful learning evidence, update a basic learner_concept_state, and use that state to appropriately change the learner's next study experience.**
 
 ## Validation context
 
@@ -86,7 +86,7 @@ Goal / Learning Context
           ↓
     Basic Evidence
           ↓
- Basic Learner State
+ Basic learner_concept_state
           ↓
 Adapt Next Study Experience
           ↓
@@ -137,7 +137,7 @@ Initial formats should be selected for reliable generation/evaluation in the cho
 - evidence retains provenance to learner/context/topic/activity;
 - one result does not automatically equal mastery or confirmed weakness.
 
-### Basic Learner State
+### Basic learner_concept_state
 
 R0 requires only enough state to support adaptation.
 
@@ -156,7 +156,7 @@ Exact state names are an implementation/design decision; the product requirement
 
 This is the defining R0 capability.
 
-ARIA must use learner state/evidence to materially change a subsequent study experience in a way that can be inspected and tested.
+ARIA must use learner_concept_state/evidence to materially change a subsequent study experience in a way that can be inspected and tested.
 
 Examples may include:
 
@@ -331,7 +331,7 @@ External integrations should connect specialist platforms rather than recreate t
 
 Before adding anything to R0, ask:
 
-> **If this feature is removed, can we still test whether ARIA's learner state changes future learning appropriately?**
+> **If this feature is removed, can we still test whether ARIA's learner_concept_state changes future learning appropriately?**
 
 If the answer is yes, default to deferring it.
 
@@ -386,3 +386,8 @@ Step 7 is complete when:
 - release completion depends on validation, not feature presence alone.
 
 **Step 7 is aligned with the reviewed Phase 0 vision.**
+---
+
+## Next
+
+Step 8 — Acceptance Criteria, Success Metrics & PRD Closure.

@@ -11,7 +11,7 @@ The project adopts the following foundational decisions:
 
 1. AI assists; deterministic systems decide.
 2. Evidence drives learner-state updates.
-3. Learner state is explainable and reproducible.
+3. learner_concept_state is explainable and reproducible.
 4. R0 validates a constrained learning domain before broader generalization.
 5. Architecture remains modular and provider-independent.
 6. Major architectural changes require new ADRs.

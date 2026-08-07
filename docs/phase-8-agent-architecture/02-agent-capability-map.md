@@ -31,7 +31,7 @@ This document identifies the major autonomous capabilities required within ARIA 
 
 ## Evidence Coordination
 - Coordinate evidence processing
-- Trigger learner state updates through business services
+- Trigger learner_concept_state updates through business services
 
 ## Conversation Coordination
 - Manage conversational workflows

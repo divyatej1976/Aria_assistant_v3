@@ -70,7 +70,7 @@ NEEDS_REVIEW
 SUPPORTED
 ```
 
-Each concept state should retain at least:
+Each learner_concept_state should retain at least:
 
 - `concept_id` / concept reference;
 - current state;
@@ -155,7 +155,7 @@ After adaptation, targeted reassessment creates new evidence. New evidence may s
 
 ### Failure/correction rule
 
-Invalid evaluation creates no learning evidence. If an evaluation/evidence record is corrected, dependent learner state and pending adaptation must be recomputed or invalidated as appropriate.
+Invalid evaluation creates no learning evidence. If an evaluation/evidence record is corrected, dependent learner_concept_state and pending adaptation must be recomputed or invalidated as appropriate.
 
 These thresholds are R0 validation defaults, not claims of educational-science mastery measurement.
 
@@ -169,7 +169,7 @@ A Gate A run fails critically if any of the following occurs in a required scena
 - evidence attributed to the wrong learner/context/concept;
 - failed/invalid evaluation recorded as valid learning evidence;
 - one isolated result incorrectly becomes confirmed mastery/misconception-level state contrary to policy;
-- expected evidence fails to update learner state according to the defined fixture/rule;
+- expected evidence fails to update learner_concept_state according to the defined fixture/rule;
 - learner-state change fails to produce the expected adaptation in a controlled fixture;
 - adaptation targets an unrelated concept/context;
 - correction does not propagate to dependent state/adaptation where required;

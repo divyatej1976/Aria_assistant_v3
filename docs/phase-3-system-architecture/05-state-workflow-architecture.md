@@ -25,7 +25,7 @@ Deterministic Evaluation
       ↓
 Evidence Creation
       ↓
-Learner State Update
+learner_concept_state Update
       ↓
 Adaptation Decision
       ↓
@@ -48,7 +48,7 @@ Additional Evidence
 | Assessment Attempt | Assessment Module |
 | Evaluation Result | Evaluation Module |
 | Evidence | Evidence Module |
-| Learner State | Learner State Module |
+| learner_concept_state | learner_concept_state Module |
 | Adaptation | Adaptation Module |
 
 Each state has exactly one authoritative owner.
@@ -58,9 +58,9 @@ Each state has exactly one authoritative owner.
 # Transition Rules
 
 - Evidence may only be created after successful deterministic evaluation.
-- Learner State may only change from validated evidence.
-- Adaptation decisions depend on current learner state.
-- Study sessions never modify learner state directly.
+- learner_concept_state may only change from validated evidence.
+- Adaptation decisions depend on current learner_concept_state.
+- Study sessions never modify learner_concept_state directly.
 - AI-generated content never bypasses workflow transitions.
 
 ---

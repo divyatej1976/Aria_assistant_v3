@@ -27,7 +27,7 @@ ARIA Application Backend (FastAPI)
    ├── Assessment
    ├── Evaluation
    ├── Evidence
-   ├── Learner State
+   ├── learner_concept_state
    └── Adaptation
    │
    ├── PostgreSQL
@@ -73,7 +73,7 @@ Evaluation
       ↓
 Evidence
       ↓
-Learner State
+learner_concept_state
       ↓
 Adaptation
       ↓

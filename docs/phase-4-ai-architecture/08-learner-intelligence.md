@@ -55,7 +55,7 @@ Validated Evidence
         ↓
 Learner Model Computation
         ↓
-Updated Learner State
+Updated learner_concept_state
         ↓
 Adaptation Engine
 ```
@@ -67,7 +67,7 @@ Adaptation Engine
 - Evidence over intuition.
 - Conservative confidence estimation.
 - Historical evidence remains immutable.
-- Learner state is reproducible.
+- learner_concept_state is reproducible.
 - Explain every learner-state change.
 
 ---
@@ -79,7 +79,7 @@ This document defines the logical learner model.
 
 It intentionally does **not** define:
 
-- Physical persistence of learner state.
+- Physical persistence of learner_concept_state.
 - Database structures.
 - Long-term memory implementation.
 - Statistical mastery algorithms.

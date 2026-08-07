@@ -600,3 +600,9 @@ The strongest identified constraints are reliability, learner agency, accurate p
 **Phase 0 — Step 2: Competitor Analysis**
 
 The next research stage will systematically evaluate direct and indirect alternatives, including general AI assistants, source-grounded learning tools, organization/planning products, revision/assessment tools, and relevant learning platforms. The objective is not to copy their feature sets, but to understand what each product solves well, where workflows remain fragmented, and where ARIA could provide differentiated value.
+
+---
+
+## Next
+
+Step 2 — Competitor Analysis.

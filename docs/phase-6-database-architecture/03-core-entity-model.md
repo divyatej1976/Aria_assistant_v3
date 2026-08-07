@@ -99,7 +99,7 @@ Evidence      learner_concept_state
 - Study Sessions contain Conversations.
 - Conversations contain Messages.
 - Assessments generate Evidence.
-- Evidence contributes to Learner State.
+- Evidence contributes to learner_concept_state.
 - Resources produce Resource Chunks.
 - Resource Chunks support Retrieval.
 

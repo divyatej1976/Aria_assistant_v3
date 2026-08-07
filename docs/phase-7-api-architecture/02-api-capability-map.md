@@ -42,7 +42,7 @@ This document identifies the major API capability domains required by ARIA. It m
 ## Evidence
 - Evidence records
 - Confidence updates
-- Learner state updates
+- learner_concept_state updates
 
 ## Resources
 - Upload

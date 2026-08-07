@@ -16,7 +16,7 @@ This document identifies every major data domain that ARIA must persist and maps
 - Learner profile
 - Preferences
 - Goals
-- Learner state
+- learner_concept_state
 
 ## Learning Domain
 - Courses

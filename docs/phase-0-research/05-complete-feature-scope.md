@@ -86,7 +86,7 @@ Platform
 
 # 3. Account, Authentication & Onboarding
 
-ARIA requires persistent accounts because learning history, goals, roadmaps, resources, assessments, notes, memory, and learner state belong to an individual learner.
+ARIA requires persistent accounts because learning history, goals, roadmaps, resources, assessments, notes, memory, and learner_concept_state belong to an individual learner.
 
 ## Authentication capabilities
 
@@ -312,7 +312,7 @@ Possible styles include:
 
 ## 8.2 Adaptive Audio
 
-ARIA can generate audio based on learner state rather than merely narrating a source.
+ARIA can generate audio based on learner_concept_state rather than merely narrating a source.
 
 Example request:
 
@@ -1052,7 +1052,7 @@ A bad conclusion could propagate:
 ```text
 Incorrect evaluation
        ↓
-Incorrect learner state
+Incorrect learner_concept_state
        ↓
 Incorrect roadmap adaptation
        ↓
@@ -1180,7 +1180,7 @@ ARIA's scope can be summarized as:
 
 > **One integrated, automated, adaptive learning environment for goal-driven learners.**
 
-The learner controls what they want to achieve and how they want to be assessed. ARIA helps coordinate the surrounding learning workflow — resources, studying, notes, audio, assessment, evaluation, revision, roadmaps, planning, progress, and recommendations — around shared learner state.
+The learner controls what they want to achieve and how they want to be assessed. ARIA helps coordinate the surrounding learning workflow — resources, studying, notes, audio, assessment, evaluation, revision, roadmaps, planning, progress, and recommendations — around shared learner_concept_state.
 
 The product is not differentiated by the existence of any one feature. Its defining behaviour is that these capabilities **work together**.
 
@@ -1202,3 +1202,8 @@ This should identify:
 - checkpoints at which ARIA becomes usable during development.
 
 The result will provide a development sequence before the final Phase 0 `VISION.md` is assembled.
+---
+
+## Next
+
+Step 6 — Build Stages Scope Sequencing.

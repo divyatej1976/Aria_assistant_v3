@@ -31,7 +31,7 @@ Where the learner currently is in the adaptive cycle.
 ## Processing state
 Whether a system operation is idle, pending, successful or failed.
 
-## Learner state
+## learner_concept_state
 ARIA's current evidence-backed concept signal:
 
 ```text
@@ -406,7 +406,7 @@ Identify question/attempt
 Create evidence record
        ↓
 Validate provenance
-       ├── invalid → do not feed learner state
+       ├── invalid → do not feed learner_concept_state
        └── valid → eligible for state reconsideration
 ```
 
@@ -672,7 +672,7 @@ A validation cycle becomes complete when:
 ```text
 Baseline/initial evidence exists
        ↓
-Learner state was reconsidered
+learner_concept_state was reconsidered
        ↓
 Adaptation/gather-more-evidence action occurred
        ↓
@@ -680,7 +680,7 @@ A later independent assessment opportunity occurred
        ↓
 New evidence was recorded
        ↓
-Learner state was reconsidered again
+learner_concept_state was reconsidered again
 ```
 
 Then:
@@ -736,7 +736,7 @@ Was original evaluation wrong?
       ↓
    invalidate/replace dependent evidence as required
       ↓
-   recompute learner state
+   recompute learner_concept_state
       ↓
    invalidate/recompute pending adaptation
       ↓
@@ -804,7 +804,7 @@ Preserve:
  attempt
  evaluation
  evidence
- learner state
+ learner_concept_state
  adaptation decision
       ↓
 Retry only failed generation stage
@@ -926,7 +926,7 @@ If answers could be lost, warn or persist before navigation.
 
 ## Opening Study during pending evaluation
 
-Allowed only if the UI does not pretend the pending attempt has already changed learner state.
+Allowed only if the UI does not pretend the pending attempt has already changed learner_concept_state.
 
 ## Starting another assessment
 
@@ -1110,3 +1110,8 @@ Next:
 # Step 4 — Study Experience & Adaptation UX
 
 Step 4 will design the learning interaction itself: Study layout and behaviour, grounding visibility, conversation structure, concept focus, how adaptation changes the experience, how ARIA explains its reasoning without overwhelming the learner, and the exact boundary between useful personalization and unjustified learner-model claims.
+---
+
+## Next
+
+Step 4 — Study Experience & Adaptation UX.

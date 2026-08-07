@@ -1011,7 +1011,7 @@ If a proposed screen exists primarily for Planner, Notes, Roadmap, Audio, advanc
 | Configure MCQ | S09 |
 | Assessment | S10 |
 | Evaluation/result | S11 |
-| Learner state | S11 |
+| learner_concept_state | S11 |
 | Adaptation explanation | S12 |
 | Adapted Study | S13 |
 | Targeted reassessment | S14 |
@@ -1056,3 +1056,8 @@ Next:
 # Step 3 — Detailed User Flows & State Transitions
 
 Step 3 will specify the actual transitions for first-time setup, resource ingestion, Study → assessment, evaluation, evidence/state update, adaptation, reassessment, correction, retry, returning-user resume and critical failure paths.
+---
+
+## Next
+
+Step 3 — Detailed User Flows & State Transitions.

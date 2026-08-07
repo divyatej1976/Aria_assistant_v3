@@ -10,8 +10,7 @@ This document records the completion review for Phase 8. It verifies that the Ag
 
 ---
 
-# Review Checklist
-
+# Phase Review Checklist
 - Agent philosophy documented.
 - Capability map established.
 - Agent roles and responsibilities defined.
@@ -21,8 +20,7 @@ This document records the completion review for Phase 8. It verifies that the Ag
 
 ---
 
-# Cross-Phase Consistency
-
+# Cross-Phase Consistency Review
 Phase 8 aligns with:
 
 - Phase 3 — System Architecture
@@ -71,8 +69,7 @@ Deferred to later phases:
 
 ---
 
-# Freeze Decision
-
+# Architecture Freeze
 Phase 8 is considered complete when:
 
 - All ten Agent Architecture documents exist.
@@ -87,3 +84,8 @@ Once frozen, Phase 9 becomes the authoritative source for prompt architecture.
 # Exit Criteria
 
 ARIA now has a complete Agent Architecture describing autonomous orchestration, coordination, safety and evolution while preserving layered architectural boundaries.
+---
+
+## Next
+
+Phase 9 — Prompt Engineering.

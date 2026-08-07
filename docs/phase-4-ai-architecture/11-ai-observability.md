@@ -105,4 +105,4 @@ This document defines **what should be measured**, not how observability systems
 
 ## Next
 
-Step 12 — AI Architecture Review & Freeze.
+Phase 5 — Memory Architecture.

@@ -28,7 +28,7 @@ Responsible for assessments, submissions and results.
 Responsible for resource upload, metadata and retrieval coordination.
 
 ## Evidence Service
-Responsible for evidence records and learner state updates.
+Responsible for evidence records and learner_concept_state updates.
 
 ---
 

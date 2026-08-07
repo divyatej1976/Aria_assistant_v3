@@ -63,8 +63,8 @@ adaptation, and study planning.
 | status | Current learning status (e.g. Not Started, Learning, Mastered) |
 | evidence_count | Number of validated evidence records contributing to this state |
 | last_evidence_at | Timestamp of the latest evidence incorporated |
-| last_updated | Timestamp of the most recent learner state computation |
-| state_version | Version identifier for the learner state computation |
+| last_updated | Timestamp of the most recent learner_concept_state computation |
+| state_version | Version identifier for the learner_concept_state computation |
 
 ---
 
@@ -73,7 +73,7 @@ adaptation, and study planning.
 - learner_id → learners.id
 - concept_id → concepts.id
 
-Each learner may have one learner state for each concept.
+Each learner may have one learner_concept_state for each concept.
 
 ---
 
@@ -101,11 +101,11 @@ Its values are produced by aggregating validated evidence collected during
 learning activities.
 
 Application components responsible for personalization and adaptive learning
-consume learner state from this table rather than calculating mastery directly
+consume learner_concept_state from this table rather than calculating mastery directly
 from raw evidence during every request.
 
 The evidence table remains immutable and continues to act as the historical
-record supporting learner state calculations.
+record supporting learner_concept_state calculations.
 
 ---
 

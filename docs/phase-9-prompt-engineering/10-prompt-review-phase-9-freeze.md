@@ -24,7 +24,7 @@ This document verifies the completeness, consistency and architectural readiness
 - Prompt context consumes learner memory without owning persistence.
 
 ## Phase 6 — Database Architecture
-- Prompt context uses persisted learner state and validated evidence.
+- Prompt context uses persisted learner_concept_state and validated evidence.
 - Prompt engineering does not directly access persistence layers.
 
 ## Phase 7 — API Architecture
@@ -69,4 +69,4 @@ Phase 9 is considered architecturally complete and ready for technology selectio
 
 ## Next
 
-Phase 10 — Technology Decision Architecture.
+Implementation.

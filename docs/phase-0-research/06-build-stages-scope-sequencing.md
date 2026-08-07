@@ -254,7 +254,7 @@ Basic personalized roadmap generation can exist before evidence-driven adaptatio
 
 **Hard dependencies:** Planner, scheduled work, deadlines/constraints, missed-session detection.
 
-**Intelligence dependencies:** Roadmap priorities, prerequisites, learner state.
+**Intelligence dependencies:** Roadmap priorities, prerequisites, learner_concept_state.
 
 ---
 
@@ -635,7 +635,7 @@ Build:
 Use:
 
 - goal/exam context;
-- learner state;
+- learner_concept_state;
 - weak concepts;
 - misconceptions;
 - revision history;
@@ -804,7 +804,7 @@ The dependency audit reveals several requirements for later phases.
 
 ### Shared domain entities must be designed carefully
 
-Goal, Topic/Concept, Resource, Evidence, Assessment, Roadmap, Plan, Revision, and Learner State become shared contracts across many systems.
+Goal, Topic/Concept, Resource, Evidence, Assessment, Roadmap, Plan, Revision, and learner_concept_state become shared contracts across many systems.
 
 ### Assessment must remain renderer-driven
 
@@ -901,3 +901,8 @@ It should capture:
 - principles that later PRD and architecture work must preserve.
 
 After `VISION.md` is finalized, **Phase 0 — Product Vision is complete**, and ARIA can move into **Phase 1 — PRD**.
+---
+
+## Next
+
+Step 7.

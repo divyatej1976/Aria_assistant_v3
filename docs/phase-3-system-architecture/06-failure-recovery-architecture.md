@@ -12,7 +12,7 @@ This document defines how ARIA responds to failures while preserving correctness
 
 # Failure Principles
 
-- Never corrupt learner state.
+- Never corrupt learner_concept_state.
 - Never create evidence from incomplete or failed workflows.
 - Prefer recovery over restart.
 - Failures should remain isolated.
@@ -62,7 +62,7 @@ Examples:
 
 # Invariants
 
-- Learner state never becomes partially updated.
+- learner_concept_state never becomes partially updated.
 - Historical evidence is immutable.
 - Adaptation decisions are reproducible from stored evidence.
 - Recovery never bypasses validation.

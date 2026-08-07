@@ -37,7 +37,7 @@ VALID ADAPTATION CONTEXT (if any)
       STUDY
 ```
 
-Learner state may influence Study only through a bounded adaptation context. Study should not independently invent strong learner conclusions from ordinary conversation.
+learner_concept_state may influence Study only through a bounded adaptation context. Study should not independently invent strong learner conclusions from ordinary conversation.
 
 ---
 
@@ -320,7 +320,7 @@ Valid evaluation
       ↓
 Valid evidence
       ↓
-Learner state reconsidered
+learner_concept_state reconsidered
       ↓
 Adaptation justified?
  ├── No → baseline Study / gather more evidence
@@ -696,7 +696,7 @@ R0 distinguishes:
 
 Used for interaction/scaffolding.
 
-Does not automatically update learner state.
+Does not automatically update learner_concept_state.
 
 ## Formal assessment/reassessment
 
@@ -965,7 +965,7 @@ A valid R0 Study experience must demonstrate that:
 | No false retrieval claims | Grounding failure behaviour |
 | Evidence/state separation | Conversation-is-not-evidence boundary |
 | Visible adaptation | Adaptation explanation pattern |
-| Conservative learner state | Learner-facing state/confidence language |
+| Conservative learner_concept_state | Learner-facing state/confidence language |
 | Allowed R0 adaptations | Types A–H |
 | Learner correction/control | Why/change/reject/challenge flows |
 | Downstream AI failure safety | Adapted-generation recovery |
@@ -1005,3 +1005,8 @@ Next:
 # Step 5 — Assessment, Results & Learner-State UX
 
 Step 5 will define the assessment experience in detail: assessment configuration, question/session behaviour, timer rules, submission, deterministic results, evidence presentation, learner-state communication, targeted reassessment, answer review and correction UX.
+---
+
+## Next
+
+Step 5 — Assessment, Results & Learner-State UX.

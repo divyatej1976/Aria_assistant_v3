@@ -16,7 +16,7 @@ Learner Memory is responsible for:
 
 - Maintaining learner goals.
 - Recording learning preferences.
-- Preserving the current learner state.
+- Preserving the current learner_concept_state.
 - Tracking long-term learning progress.
 - Supporting personalized learning experiences.
 
@@ -26,7 +26,7 @@ Learner Memory does not store temporary conversation context or raw AI outputs.
 
 # Inputs
 
-- Validated learner state
+- Validated learner_concept_state
 - Verified evidence
 - Learner preferences
 - Learner profile updates
@@ -40,7 +40,7 @@ Only validated information may update Learner Memory.
 - Current learner profile
 - Learning goals
 - Personalization context
-- Stable learner state for AI and system components
+- Stable learner_concept_state for AI and system components
 
 ---
 

@@ -33,7 +33,7 @@ ARIA is an AI-native adaptive learning platform composed of deterministic domain
 
 R0 implements only the validated adaptive-learning loop:
 
-Learning Context → Resources → Study → Assessment → Evaluation → Evidence → Learner State → Adaptation → Targeted Reassessment.
+Learning Context → Resources → Study → Assessment → Evaluation → Evidence → learner_concept_state → Adaptation → Targeted Reassessment.
 
 Roadmaps, Planner, Notes, Audio, advanced Progress and other vision features remain future releases.
 
@@ -47,7 +47,7 @@ Roadmaps, Planner, Notes, Audio, advanced Progress and other vision features rem
 - Assessment
 - Evaluation
 - Evidence
-- Learner State
+- learner_concept_state
 - Adaptation
 - Authentication integration
 - Authorization
@@ -67,7 +67,7 @@ Roadmaps, Planner, Notes, Audio, advanced Progress and other vision features rem
 
 1. Business logic belongs to ARIA.
 2. AI generates; ARIA decides.
-3. Deterministic systems own learner state.
+3. Deterministic systems own learner_concept_state.
 4. Evidence precedes adaptation.
 5. Explainability is a product feature.
 6. Insufficient evidence is a valid outcome.
@@ -89,7 +89,7 @@ AI may:
 
 AI may not:
 
-- directly modify learner state;
+- directly modify learner_concept_state;
 - invent evidence;
 - bypass authorization;
 - fabricate progress.
@@ -102,7 +102,7 @@ AI may not:
 - LLM output: untrusted until processed.
 - Database: authoritative persistence.
 - Evidence after validation: trusted.
-- Learner State: derived only from validated evidence.
+- learner_concept_state: derived only from validated evidence.
 
 ---
 

@@ -598,7 +598,7 @@ Evaluation remains valid
       ↓
 Evidence stage fails
       ↓
-Do not pretend learner state updated
+Do not pretend learner_concept_state updated
       ↓
 Retry evidence stage idempotently
 ```
@@ -637,7 +637,7 @@ If state is valid but adaptation selection fails:
 > **Your learning signal is up to date, but ARIA couldn't choose the next focused Study action right now.**  
 > `[Try again]` `[Continue normal Study]`
 
-The learner state remains valid.
+The learner_concept_state remains valid.
 
 ---
 
@@ -1028,7 +1028,7 @@ Evaluation
   ↓
 Evidence
   ↓
-Learner State
+learner_concept_state
   ↓
 Adaptation
   ↓
@@ -1075,7 +1075,7 @@ Creating multiple attempts/evidence records from repeated clicks.
 
 ### Stale success
 
-Showing an old learner state after corrected evidence without indicating recalculation.
+Showing an old learner_concept_state after corrected evidence without indicating recalculation.
 
 ### Toast-only consequential error
 
@@ -1159,3 +1159,8 @@ Next:
 # Step 7 — R0 Wireframe Specification
 
 Step 7 will turn the information architecture, Study UX, assessment UX and recovery rules into low-fidelity screen layouts for the core route-level surfaces and their most important states. This will be the final structural design pass before visual design/component-system decisions.
+---
+
+## Next
+
+Step 7 — R0 Wireframe Specification.

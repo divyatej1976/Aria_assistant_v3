@@ -43,7 +43,7 @@ Relevant Session Context
 ↓
 Relevant Conversation History
 ↓
-Relevant Learner State
+Relevant learner_concept_state
 ↓
 Relevant Evidence
 ↓

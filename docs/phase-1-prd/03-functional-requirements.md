@@ -30,7 +30,7 @@ A requirement appearing here does not automatically mean it belongs in R0.
 
 R0 elimination rule:
 
-> **If removing a feature still allows us to test whether evidence changes learner state and learner state changes future study, that feature is probably not required for R0.**
+> **If removing a feature still allows us to test whether evidence changes learner_concept_state and learner_concept_state changes future study, that feature is probably not required for R0.**
 
 ---
 
@@ -51,14 +51,14 @@ Evaluation
     ↓
 Structured Evidence
     ↓
-Basic Learner State
+Basic learner_concept_state
     ↓
 Adapted Study
     ↓
 Reassessment / Second Cycle
 ```
 
-Evidence and Learner State receive their detailed requirements in Step 5.
+Evidence and learner_concept_state receive their detailed requirements in Step 5.
 
 ---
 
@@ -251,7 +251,7 @@ The learner shall be able to choose the supported resource/context used for stud
 The learner shall be able to distinguish ready/processing/failed/unsupported states for R0 resources.
 
 ## FR-RES-013 — Failure recovery — R0 MUST
-Resource-processing failure shall not corrupt unrelated persisted learner state.
+Resource-processing failure shall not corrupt unrelated persisted learner_concept_state.
 
 ## FR-RES-014 — External specialist resources — R5+
 ARIA may later link/integrate with specialist learning platforms rather than recreating them.
@@ -439,7 +439,7 @@ Long-term requirements remain:
 - **FR-PROG-001** goal progress;
 - **FR-PROG-002** roadmap progress;
 - **FR-PROG-003** assessment history;
-- **FR-PROG-004** concept state;
+- **FR-PROG-004** learner_concept_state;
 - **FR-PROG-005** revision health;
 - **FR-PROG-006** improvement over time;
 - **FR-PROG-007** sufficiently supported misconception/gap signals;
@@ -447,7 +447,7 @@ Long-term requirements remain:
 - **FR-PROG-009** activity ≠ mastery;
 - **FR-PROG-010** uncertainty-aware readiness.
 
-The principles behind FR-PROG-008/009 apply to R0's internal learner state even though the Progress UI is deferred.
+The principles behind FR-PROG-008/009 apply to R0's internal learner_concept_state even though the Progress UI is deferred.
 
 ---
 
@@ -603,7 +603,7 @@ ARIA may integrate/link to specialist platforms rather than rebuilding them.
                        │
                     Evidence
                        │
-              Basic Learner State
+              Basic learner_concept_state
                        │
                 Adapted Study
                        │
@@ -661,7 +661,7 @@ ARIA evaluates responses
         ↓
 Structured concept evidence is stored
         ↓
-Basic learner state updates conservatively
+Basic learner_concept_state updates conservatively
         ↓
 ARIA identifies a supported next-study adaptation
         ↓
@@ -684,7 +684,7 @@ The reviewed Step 3 now preserves both truths:
 
 **ARIA's complete vision remains broad:** Goals, Home, Study, Resources, Notes, Assessment, Evaluation, Roadmaps, Planner, Revision, Progress, Recommendations, Audio, Search, Notifications, Settings and future integrations remain part of the product direction.
 
-**R0 remains narrow:** Authentication + one context + Resources + Study + Assessment + Evaluation + Evidence + Basic Learner State + Adapted Study + Reassessment.
+**R0 remains narrow:** Authentication + one context + Resources + Study + Assessment + Evaluation + Evidence + Basic learner_concept_state + Adapted Study + Reassessment.
 
 R0 does not require universal domain support, multiple simultaneous goals, full Notes, Audio, Planner, Roadmap, Progress, Revision, Search, notifications, coding infrastructure, oral assessment, or mature orchestration.
 
@@ -709,7 +709,7 @@ Evaluation
         ↓
 Evidence
         ↓
-Basic Learner State
+Basic learner_concept_state
         ↓
 Adaptation decision
         ↓
@@ -719,3 +719,8 @@ Reassessment
 ```
 
 Later Progress, Revision, Roadmap, Planner, Home, notifications and advanced orchestration should remain documented without being required to validate R0.
+---
+
+## Next
+
+Step 4 — Cross-System & Automation Requirements.

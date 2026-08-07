@@ -80,7 +80,7 @@ ARIA should automate **learning management**, not automate away **learning itsel
 
 **Your AI Learning Operating System**
 
-The term "Operating System" describes ARIA's intended role: it coordinates multiple learning activities and services around shared learner state.
+The term "Operating System" describes ARIA's intended role: it coordinates multiple learning activities and services around shared learner_concept_state.
 
 ARIA is not literally an operating system in the computer-science sense. It is product positioning for an integrated learning environment.
 
@@ -484,7 +484,7 @@ Therefore ARIA should **not** claim uniqueness because it offers:
 
 The current differentiation hypothesis is:
 
-> **ARIA combines the major parts of a learner's learning workflow inside one environment and uses shared learner state to automatically coordinate and adapt those systems over time.**
+> **ARIA combines the major parts of a learner's learning workflow inside one environment and uses shared learner_concept_state to automatically coordinate and adapt those systems over time.**
 
 A more technical expression is:
 
@@ -751,3 +751,9 @@ The next research/design task is to define precisely:
 - which user groups are deliberately outside the initial product focus.
 
 This prevents a broad product vision from turning into an undefined "app for everyone who learns."
+
+---
+
+## Next
+
+Step 4 — Target Users Use Cases.

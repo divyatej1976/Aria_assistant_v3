@@ -27,7 +27,7 @@ The complete product vision is **not** the feature list for R0.
 
 ARIA is an AI-powered learning operating system intended initially for **college students, recent graduates, and early-career learners** pursuing academic, placement, competitive-exam, certification, interview, technical/professional skill, or upskilling goals.
 
-Its long-term purpose is to connect studying, resources, assessment, evidence, learner state, revision, roadmaps, planning, progress, notes, audio, reminders, and recommendations around persistent learner context.
+Its long-term purpose is to connect studying, resources, assessment, evidence, learner_concept_state, revision, roadmaps, planning, progress, notes, audio, reminders, and recommendations around persistent learner context.
 
 The product thesis is not merely that these features exist in one interface. It is that they can increasingly **share learning state and adapt what happens next**.
 
@@ -146,7 +146,7 @@ R0 is an **experimental validation release**, not a compressed version of the en
 
 Its first product question is:
 
-> **Can ARIA observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience?**
+> **Can ARIA observe meaningful learning evidence, update a basic learner_concept_state, and use that state to appropriately change the learner's next study experience?**
 
 The minimum conceptual loop is:
 
@@ -163,7 +163,7 @@ Goal / Learning Context
           ↓
     Basic Evidence
           ↓
- Basic Learner State
+ Basic learner_concept_state
           ↓
 Adapt Next Study Experience
           ↓
@@ -172,7 +172,7 @@ Adapt Next Study Experience
 
 A proposed R0 feature should face this elimination test:
 
-> **If we remove this feature, can we still test whether ARIA's learner state changes future learning appropriately?**
+> **If we remove this feature, can we still test whether ARIA's learner_concept_state changes future learning appropriately?**
 
 If yes, it is probably not required for R0.
 
@@ -273,3 +273,8 @@ Step 1 is complete when later PRD documents can distinguish:
 - engineering validation from real-user product evidence.
 
 **Step 1 is aligned with the reviewed Phase 0 vision.**
+---
+
+## Next
+
+Step 2 — User & Learning-Context Requirements.

@@ -16,7 +16,7 @@ Assessment Intelligence should:
 
 - Generate assessments aligned with learner goals.
 - Support multiple assessment formats.
-- Adapt difficulty using learner state.
+- Adapt difficulty using learner_concept_state.
 - Produce high-quality explanations.
 - Generate fair and grounded questions.
 
@@ -41,7 +41,7 @@ The learner selects the preferred assessment format based on their preparation g
 
 - Learning Context
 - Retrieved learning resources
-- Learner State
+- learner_concept_state
 - Previous assessment evidence
 - User-selected assessment configuration
 

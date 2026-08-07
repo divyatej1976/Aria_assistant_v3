@@ -100,4 +100,4 @@ This document focuses solely on ensuring that AI behaviour remains trustworthy, 
 
 ## Next
 
-Step 11 — AI Observability.
+Phase 5 — Memory Architecture.

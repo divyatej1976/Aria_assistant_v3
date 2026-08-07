@@ -10,28 +10,26 @@ This document records the completion review for Phase 3. Its purpose is to verif
 
 ---
 
-# Review Checklist
-
+# Phase Review Checklist
 - System boundaries are explicit.
 - Module ownership is well defined.
 - Communication rules are consistent.
 - State transitions preserve authoritative ownership.
-- Failure and recovery strategies protect learner state.
+- Failure and recovery strategies protect learner_concept_state.
 - Security and trust boundaries are documented.
 - Observability requirements are identified.
 - Extensibility does not introduce premature implementation.
 
 ---
 
-# Cross-Phase Consistency
-
+# Cross-Phase Consistency Review
 This phase must remain consistent with:
 
 - Phase 0 — Vision
 - Phase 1 — Product Requirements
 - Phase 2 — UX
 
-Any contradiction discovered in future phases should result in an Architectural Decision Record (ADR) rather than undocumented changes.
+Any contradiction discovered in future phases should result in an ADR (ADR) rather than undocumented changes.
 
 ---
 
@@ -47,8 +45,7 @@ Deferred to later phases:
 
 ---
 
-# Freeze Decision
-
+# Architecture Freeze
 Phase 3 is considered complete when:
 
 - All ten architecture documents exist.
@@ -63,3 +60,9 @@ Once frozen, Phase 4 (AI Architecture) becomes the next source of architectural 
 # Exit Criteria
 
 The engineering foundation for ARIA is established. Subsequent phases may extend the architecture but should not violate the principles defined in Phase 3 without an explicit ADR.
+
+---
+
+## Next
+
+Phase 4 — AI Architecture.

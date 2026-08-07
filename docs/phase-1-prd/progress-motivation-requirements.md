@@ -160,7 +160,7 @@ PROGRESS
 ├── Learning progress
 │   ├── Goal / roadmap progress
 │   ├── Assessment history
-│   ├── Concept state
+│   ├── learner_concept_state
 │   ├── Improvement over time
 │   └── Readiness where supported
 │

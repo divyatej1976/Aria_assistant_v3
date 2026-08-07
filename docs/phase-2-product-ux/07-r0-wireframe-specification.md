@@ -1418,3 +1418,8 @@ Next:
 # Step 8 — UX Consistency Review & Phase 2 Freeze
 
 Step 8 will review all Phase 2 documents together against the frozen PRD and corrected VISION, identify contradictions, remove accidental scope creep, verify R0 route/state coverage, confirm Gate A/B usability requirements and produce the final Phase 2 handoff contract for Phase 3 system architecture.
+---
+
+## Next
+
+Step 8 — UX Consistency Review & Phase 2 Freeze.

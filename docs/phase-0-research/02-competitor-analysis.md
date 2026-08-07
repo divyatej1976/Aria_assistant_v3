@@ -621,7 +621,7 @@ Trying to compete with every competitor simultaneously would make ARIA unbuildab
 
 ## Reliability risk
 
-Every competitor using generative AI inherits hallucination and evaluation risks. ARIA's interconnected architecture could amplify errors if incorrect evaluation changes future plans and learner state.
+Every competitor using generative AI inherits hallucination and evaluation risks. ARIA's interconnected architecture could amplify errors if incorrect evaluation changes future plans and learner_concept_state.
 
 ---
 
@@ -713,3 +713,9 @@ This is now the central differentiation hypothesis to test in the remaining Phas
 The next Phase 0 work should test the differentiation hypothesis directly:
 
 **Is learner-wide orchestration across goals, assessment, planning, memory, resources, and revision technically useful and meaningfully different from the notebook/source-centered systems already emerging?**
+
+---
+
+## Next
+
+Step 3 — Product Vision Differentiation.

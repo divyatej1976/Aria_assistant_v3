@@ -29,7 +29,7 @@ This document catalogs every AI capability in ARIA, identifies whether it belong
 - Answer questions with citations
 
 ## Adaptation Intelligence
-- Recommend the next study focus based on learner state
+- Recommend the next study focus based on learner_concept_state
 - Suggest targeted revision topics
 
 ---
@@ -64,7 +64,7 @@ Each capability should specify:
 
 AI capabilities must never:
 
-- Modify learner state directly
+- Modify learner_concept_state directly
 - Invent evidence
 - Bypass workflow validation
 - Operate outside architectural principles established in Phases 3 and 4
@@ -82,4 +82,4 @@ AI capabilities must never:
 
 ## Next
 
-Step 3 — RAG Architecture.
+Step 3 — Retrieval-Augmented Generation (RAG) Architecture.

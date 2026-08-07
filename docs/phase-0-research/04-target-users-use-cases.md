@@ -519,7 +519,7 @@ When they return, they should not need to remember:
 
 ARIA should reconstruct a useful continuation state and propose what to do next.
 
-This is one of the reasons persistent learner state matters.
+This is one of the reasons persistent learner_concept_state matters.
 
 ---
 
@@ -664,7 +664,7 @@ ARIA's intended model is:
                       ↓
                     ARIA
                       ↓
-              Shared learner state
+              Shared learner_concept_state
                       ↓
      ┌────────────────┼────────────────┐
      ↓                ↓                ↓
@@ -809,3 +809,8 @@ Step 5 should define:
 - what belongs in the complete ARIA product versus what is outside scope.
 
 This becomes the bridge between product research and the later PRD.
+---
+
+## Next
+
+Step 5 — Complete Feature Scope.

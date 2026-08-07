@@ -28,7 +28,7 @@ Examples:
 - Fetch learning context
 - Start study session
 - Submit assessment
-- Retrieve learner state
+- Retrieve learner_concept_state
 
 These operations should provide immediate responses.
 
@@ -79,7 +79,7 @@ Retryable operations must:
 # Error Propagation
 
 - Infrastructure failures should produce recoverable application errors.
-- AI provider failures should not corrupt learner state.
+- AI provider failures should not corrupt learner_concept_state.
 - Partial failures must not create inconsistent evidence.
 
 ---

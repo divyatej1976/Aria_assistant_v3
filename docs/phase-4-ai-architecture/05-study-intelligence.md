@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document defines how ARIA delivers personalized learning experiences using AI while remaining grounded in validated learner resources and deterministic learner state.
+This document defines how ARIA delivers personalized learning experiences using AI while remaining grounded in validated learner resources and deterministic learner_concept_state.
 
 ---
 
@@ -41,7 +41,7 @@ Study Intelligence receives:
 
 - Learning Context
 - Retrieved resource chunks
-- Current Learner State
+- Current learner_concept_state
 - Previous Evidence
 - Learner preferences
 
@@ -57,7 +57,7 @@ Study Intelligence produces:
 - Learning summaries
 - Suggested next actions
 
-Outputs never modify learner state directly.
+Outputs never modify learner_concept_state directly.
 
 ---
 

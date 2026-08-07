@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document defines how ARIA determines the most effective next learning experience using validated learner state, learning context and evidence. Adaptation Intelligence is the decision engine of the adaptive-learning loop.
+This document defines how ARIA determines the most effective next learning experience using validated learner_concept_state, learning context and evidence. Adaptation Intelligence is the decision engine of the adaptive-learning loop.
 
 ---
 
@@ -24,7 +24,7 @@ Adaptation Intelligence should:
 
 # Inputs
 
-- Current Learner State
+- Current learner_concept_state
 - Validated Evidence
 - Learning Context
 - Assessment history
@@ -37,7 +37,7 @@ Adaptation decisions must never rely solely on raw AI output.
 # Decision Pipeline
 
 ```text
-Learner State
+learner_concept_state
       ↓
 Evidence Analysis
       ↓

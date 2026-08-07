@@ -29,7 +29,7 @@ Log important events such as:
 - Assessment submission
 - Evaluation completion
 - Evidence creation
-- Learner state updates
+- learner_concept_state updates
 - Adaptation decisions
 - External provider failures
 
@@ -52,7 +52,7 @@ Examples:
 
 Every adaptive-learning cycle should be traceable from:
 
-Learning Context → Resources → Study → Assessment → Evaluation → Evidence → Learner State → Adaptation.
+Learning Context → Resources → Study → Assessment → Evaluation → Evidence → learner_concept_state → Adaptation.
 
 ---
 

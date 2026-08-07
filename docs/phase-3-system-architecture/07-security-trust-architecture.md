@@ -68,7 +68,7 @@ Learners may only access and modify their own learning data.
 # AI Trust Rules
 
 - AI suggestions require deterministic validation where applicable.
-- AI cannot create authoritative learner state.
+- AI cannot create authoritative learner_concept_state.
 - AI cannot bypass authorization or ownership rules.
 
 ---

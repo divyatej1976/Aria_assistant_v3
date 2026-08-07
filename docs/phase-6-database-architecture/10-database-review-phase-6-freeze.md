@@ -10,8 +10,7 @@ This document records the completion review for Phase 6. It verifies that the Da
 
 ---
 
-# Review Checklist
-
+# Phase Review Checklist
 - Database philosophy is defined.
 - Data domains are identified.
 - Core entities are documented.
@@ -21,8 +20,7 @@ This document records the completion review for Phase 6. It verifies that the Da
 
 ---
 
-# Cross-Phase Consistency
-
+# Cross-Phase Consistency Review
 This phase remains consistent with:
 
 - Phase 0 — Vision
@@ -30,7 +28,7 @@ This phase remains consistent with:
 - Phase 2 — UX
 - Phase 3 — System Architecture
 - Phase 4 — AI Architecture
-- Phase 5 — Memory Architecture (Explicitly verified: `learner_concept_state` properly bridges evidence memory and persistent learner state)
+- Phase 5 — Memory Architecture (Explicitly verified: `learner_concept_state` properly bridges evidence memory and persistent learner_concept_state)
 
 Future database architectural changes should be documented using Architectural Decision Records (ADRs).
 
@@ -58,8 +56,7 @@ Deferred to later phases:
 
 ---
 
-# Freeze Decision
-
+# Architecture Freeze
 Phase 6 is considered complete when:
 
 - All ten database architecture documents exist.
@@ -74,3 +71,8 @@ Once frozen, Phase 7 (API Architecture) becomes the authoritative source for app
 # Exit Criteria
 
 ARIA now has a complete Database Architecture describing how logical concepts are represented in persistent storage while preserving integrity, explainability, scalability and maintainability.
+---
+
+## Next
+
+Phase 7 — API Architecture.

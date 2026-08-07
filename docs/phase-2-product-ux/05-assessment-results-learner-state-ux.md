@@ -66,7 +66,7 @@ Used after an adaptation or when more evidence is needed for a specific concept.
 
 Both produce formal evidence only after valid deterministic evaluation.
 
-Informal Study checks remain separate and do not automatically update learner state.
+Informal Study checks remain separate and do not automatically update learner_concept_state.
 
 ---
 
@@ -659,7 +659,7 @@ Evaluation corrected
 Concept attribution corrected
 ```
 
-If correction changes evidence, downstream learner state and pending adaptation must be reconsidered.
+If correction changes evidence, downstream learner_concept_state and pending adaptation must be reconsidered.
 
 ---
 
@@ -845,7 +845,7 @@ This is still reversible when future evidence changes.
 
 ---
 
-# 44. Score vs Learner State
+# 44. Score vs learner_concept_state
 
 R0 must keep these separate.
 
@@ -853,7 +853,7 @@ R0 must keep these separate.
 Assessment score
 = performance on one assessment
 
-Learner state
+learner_concept_state
 = conservative conclusion from relevant evidence across opportunities
 ```
 
@@ -1011,7 +1011,7 @@ Calling memorization of the revealed answer new independent evidence.
 
 ### Correction dead-end
 
-Correcting an answer but leaving stale learner state/adaptation unchanged.
+Correcting an answer but leaving stale learner_concept_state/adaptation unchanged.
 
 ---
 
@@ -1024,7 +1024,7 @@ Step 5 UX is valid only if:
 - generation/failure states are explicit;
 - answer selection/navigation/submission are safe;
 - evaluation failure creates no false result/evidence;
-- score and learner state are visibly distinct concepts;
+- score and learner_concept_state are visibly distinct concepts;
 - all four learner states have conservative learner-facing language;
 - evidence basis is inspectable;
 - question-level review is available;
@@ -1089,3 +1089,8 @@ Next:
 # Step 6 — Error, Empty, Loading & Recovery UX
 
 Step 6 will consolidate all cross-product non-happy states into one UX specification: loading/processing feedback, empty states, network/offline behaviour, authentication/session failures, resource-processing errors, assessment/evaluation failures, AI-generation failures, retry behaviour, stale-state recovery and safe return/resume patterns.
+---
+
+## Next
+
+Step 6 — Error, Empty, Loading & Recovery UX.

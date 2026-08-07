@@ -39,7 +39,7 @@ Conversation Memory is not responsible for updating learner knowledge.
 - Referenced dialogue history
 - Context package for AI prompts
 
-Conversation Memory provides context but does not determine learner state.
+Conversation Memory provides context but does not determine learner_concept_state.
 
 ---
 

@@ -22,7 +22,7 @@ For R0:
 
 # 2. R0 Hypothesis
 
-> **ARIA can observe meaningful learning evidence, update a basic learner state, and use that state to appropriately change the learner's next study experience.**
+> **ARIA can observe meaningful learning evidence, update a basic learner_concept_state, and use that state to appropriately change the learner's next study experience.**
 
 ```text
 Goal / Learning Context
@@ -37,7 +37,7 @@ Goal / Learning Context
           ↓
     Basic Evidence
           ↓
- Basic Learner State
+ Basic learner_concept_state
           ↓
 Adapt Next Study Experience
           ↓
@@ -78,7 +78,7 @@ Deterministic evaluation
         ↓
 Concept-attributed evidence
         ↓
-Basic learner state reconsidered
+Basic learner_concept_state reconsidered
         ↓
 ARIA adapts the next Study experience
         ↓
@@ -124,7 +124,7 @@ ARIA can conduct a study interaction grounded in selected resources where ground
 ARIA does not claim unavailable source material was retrieved.
 
 ## AC-R0-STUDY-003
-Study can receive an adaptation instruction derived from learner state and materially alter the subsequent experience.
+Study can receive an adaptation instruction derived from learner_concept_state and materially alter the subsequent experience.
 
 ## AC-R0-STUDY-004
 The system retains enough information to identify what changed and why between baseline and adapted Study.
@@ -158,7 +158,7 @@ Optional short-answer AI evaluation, if implemented, must use bounded criteria a
 
 ---
 
-# 8. R0 Acceptance — Evidence & Basic Learner State
+# 8. R0 Acceptance — Evidence & Basic learner_concept_state
 
 R0 states are:
 
@@ -379,7 +379,7 @@ R0 completion is not blocked by acceptance criteria for:
 Test explainable, learner-reviewable evidence-driven changes to a structured learning path.
 
 ## R2 — Longitudinal learning
-Test evidence accumulation, revision prioritization, confidence, progress, richer learner state and conservative misconception hypotheses.
+Test evidence accumulation, revision prioritization, confidence, progress, richer learner_concept_state and conservative misconception hypotheses.
 
 ## R3 — Learning coordination
 Test planning, missed-work recovery, deadlines, revision/new-learning prioritization, reminders and multi-goal coordination.
@@ -399,7 +399,7 @@ The eight previously open R0 decisions are resolved in `R0-DECISIONS.md`:
 1. validation context — DBMS / Transactions, Concurrency, Schedules, Serializability;
 2. resources — PDF + pasted text;
 3. required assessment — MCQ; short answer optional;
-4. learner state — `UNTESTED`, `DEVELOPING`, `NEEDS_REVIEW`, `SUPPORTED`;
+4. learner_concept_state — `UNTESTED`, `DEVELOPING`, `NEEDS_REVIEW`, `SUPPORTED`;
 5. adaptation actions — bounded Study adaptations defined above;
 6. evidence thresholds — conservative two-aligned-evidence default for strong state conclusions;
 7. Gate A critical failures — explicitly defined;
@@ -422,3 +422,8 @@ The remaining mechanical closure work is:
 No unresolved product-scope question currently blocks that closure.
 
 **Step 8: COMPLETE.**
+---
+
+## Next
+
+Step 9.

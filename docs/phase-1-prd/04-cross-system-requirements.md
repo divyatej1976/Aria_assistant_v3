@@ -48,7 +48,7 @@ Evaluation
       ↓
 EvidenceRecorded
       ↓
-Basic Learner State update check
+Basic learner_concept_state update check
       ↓
 Adaptation decision
       ↓
@@ -58,7 +58,7 @@ Targeted Reassessment
       ↓
 New Evidence
       ↓
-Learner State reconsidered
+learner_concept_state reconsidered
       ↺
 ```
 
@@ -182,7 +182,7 @@ Notes, Audio and integration-specific workflow signals are introduced when those
 # 7. Context Propagation
 
 ## XR-CTX-001 — Preserve R0 context — R0 MUST
-Relevant goal/context, topic/concept, selected resources and activity context shall propagate through Study → Assessment → Evaluation → Evidence → Learner State → Adapted Study.
+Relevant goal/context, topic/concept, selected resources and activity context shall propagate through Study → Assessment → Evaluation → Evidence → learner_concept_state → Adapted Study.
 
 ## XR-CTX-002 — Explicit override wins — R0 MUST
 Current explicit learner context selection shall override conflicting inferred/inherited context.
@@ -221,7 +221,7 @@ Evidence shall identify relevant concept/topic/skill and validation context.
 ## XR-EVD-005 — Evidence strength/reliability — R0 MUST
 Evidence shall carry enough information to avoid treating every signal as equally strong.
 
-## XR-EVD-006 — Evidence does not equal learner state — R0 MUST
+## XR-EVD-006 — Evidence does not equal learner_concept_state — R0 MUST
 Recording one evidence item shall not automatically prove a mastery, weakness, or misconception conclusion.
 
 ## XR-EVD-007 — Partial evaluation — R0 MUST
@@ -238,7 +238,7 @@ Conflicting evidence shall be preserved and should reduce certainty or motivate 
 
 ---
 
-# 9. Evidence → Basic Learner State
+# 9. Evidence → Basic learner_concept_state
 
 ## XR-EVD-011 — State update check — R0 MUST
 New valid evidence shall be eligible to trigger a learner-state update evaluation.
@@ -260,7 +260,7 @@ Completing Study or spending time in ARIA shall not itself become proof of under
 
 ---
 
-# 10. Learner State → Adapted Study
+# 10. learner_concept_state → Adapted Study
 
 This is the most important R0 cross-system boundary.
 
@@ -319,7 +319,7 @@ Gate A tests shall be able to demonstrate that:
 ```text
 Evidence A
    ↓
-Learner State A
+learner_concept_state A
    ↓
 Adaptation chosen because of A
    ↓
@@ -327,7 +327,7 @@ Adapted Study
    ↓
 Evidence B
    ↓
-Learner State reconsidered
+learner_concept_state reconsidered
 ```
 
 The system must make this chain observable enough to verify mechanically or through controlled inspection.
@@ -436,7 +436,7 @@ Preserved requirements:
 - supported misconception/prerequisite signals may trigger remediation;
 - strong repeated evidence may reduce unnecessary immediate repetition;
 - retrieval/revision activities can generate new evidence;
-- new evidence reconsiders learner state;
+- new evidence reconsiders learner_concept_state;
 - Progress distinguishes unknown, weak, improving and supported states according to Step 5 rules.
 
 R0's immediate `Adapted Study → Reassessment` loop is not the full Revision product.
@@ -614,7 +614,7 @@ Evidence:
   Transactions basics → supported
   Conflict serializability → difficulty signal
               ↓
-Basic Learner State update
+Basic learner_concept_state update
   serializability → uncertain/weak candidate
               ↓
 ARIA chooses bounded adaptation
@@ -630,7 +630,7 @@ Targeted reassessment [attempt B]
               ↓
 New evidence stored separately
               ↓
-Learner state reconsidered
+learner_concept_state reconsidered
 ```
 
 If attempt B improves, Gate A proves that the machinery successfully closed the adaptive loop. It does **not** by itself prove that ARIA caused human learning improvement; Gate B handles directional real-user evidence without causal overclaiming.
@@ -769,7 +769,7 @@ What counts as evidence?
         ↓
 How strong/reliable is it?
         ↓
-How is learner state represented?
+How is learner_concept_state represented?
         ↓
 How does uncertainty behave?
         ↓
@@ -782,4 +782,9 @@ How does a state produce an adaptation?
 How are incorrect AI/evaluation outputs corrected?
 ```
 
-It must distinguish the **basic R0 learner state needed to close the loop** from the much richer longitudinal Learner Model, memory, misconception detection, prerequisite reasoning and agentic intelligence planned for later releases.
+It must distinguish the **basic R0 learner_concept_state needed to close the loop** from the much richer longitudinal Learner Model, memory, misconception detection, prerequisite reasoning and agentic intelligence planned for later releases.
+---
+
+## Next
+
+Step 5 — AI, Learner Model, Memory & Evidence Requirements.

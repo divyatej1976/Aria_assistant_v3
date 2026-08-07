@@ -43,8 +43,8 @@ Owns deterministic scoring and assessment evaluation.
 ## Evidence
 Owns validated learning evidence derived from completed evaluations.
 
-## Learner State
-Owns current learner state computed from accumulated evidence.
+## learner_concept_state
+Owns current learner_concept_state computed from accumulated evidence.
 
 ## Adaptation
 Owns adaptation decisions and preparation of the next study experience.
@@ -66,7 +66,7 @@ Evaluation
       ↓
 Evidence
       ↓
-Learner State
+learner_concept_state
       ↓
 Adaptation
 ```
@@ -79,7 +79,7 @@ Reverse dependencies should be avoided unless explicitly defined.
 
 Examples:
 
-- Study must not modify Learner State directly.
+- Study must not modify learner_concept_state directly.
 - Assessment must not generate Evidence directly.
 - AI providers must not update domain entities.
 - Frontend components must not contain business rules.

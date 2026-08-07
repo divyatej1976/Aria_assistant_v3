@@ -61,7 +61,7 @@ DETERMINISTIC EVALUATION
    ↓
 RESULT + EVIDENCE
    ↓
-BASIC LEARNER STATE
+BASIC learner_concept_state
    ↓
 ARIA EXPLAINS NEXT ADAPTATION
    ↓
@@ -406,7 +406,7 @@ when the evidence does not justify them.
 
 ---
 
-# 16. Stage 10 — Basic Learner State UX
+# 16. Stage 10 — Basic learner_concept_state UX
 
 Internal R0 states:
 
@@ -836,3 +836,8 @@ Next:
 # Step 2 — R0 Screen Inventory & Information Architecture
 
 Step 2 will decide exactly which screens/views/components are needed to support this journey, what belongs on each screen, which states each screen must handle, and how learners navigate between them without accidentally designing later-release ARIA features into R0.
+---
+
+## Next
+
+Step 2 — R0 Screen Inventory & Information Architecture.

@@ -20,7 +20,7 @@ reliable learning observation
         ↓
 structured evidence
         ↓
-basic evidence-backed learner state
+basic evidence-backed learner_concept_state
         ↓
 confidence-aware adaptation decision
         ↓
@@ -64,7 +64,7 @@ Persistent Memory (later) ─────┼──→ AI / deterministic reasoni
 Structured Evidence ───────────┘              │
        │                                      │
        ↓                                      │
-Basic Learner State (R0) ─────────────────────┘
+Basic learner_concept_state (R0) ─────────────────────┘
                                               ↓
                                       Learning Action
 ```
@@ -74,8 +74,8 @@ These are not interchangeable:
 - **Context** = what is relevant now.
 - **Memory** = durable useful information about the learner/environment.
 - **Evidence** = observations of learning performance.
-- **Learner State** = conclusions derived from evidence.
-- **Adaptation** = action chosen using context + learner state + product rules.
+- **learner_concept_state** = conclusions derived from evidence.
+- **Adaptation** = action chosen using context + learner_concept_state + product rules.
 
 ---
 
@@ -88,7 +88,7 @@ AI-TOOL-*     Tool use
 AI-MEM-*      Memory
 AI-EVD-*      Evidence
 AI-LM-*       Learner Model
-AI-STATE-*    R0 concept state
+AI-STATE-*    R0 learner_concept_state
 AI-MIS-*      Misconceptions
 AI-PREQ-*     Prerequisite gaps
 AI-CONF-*     Confidence / uncertainty
@@ -148,7 +148,7 @@ current Study activity
 assessment specification
 current attempt
 relevant evidence
-relevant basic learner state
+relevant basic learner_concept_state
 current adaptation
 ```
 
@@ -202,7 +202,7 @@ R0 tool needs should remain minimal: resource processing/retrieval, assessment e
 
 A sophisticated persistent conversational memory system is **not required** to prove R0 adaptive learning.
 
-R0 may persist ordinary product state required for continuity (account, context, resources, attempts, evidence, learner state). That persistence must not be confused with a generalized AI memory subsystem.
+R0 may persist ordinary product state required for continuity (account, context, resources, attempts, evidence, learner_concept_state). That persistence must not be confused with a generalized AI memory subsystem.
 
 ## AI-MEM-001 — Memory is not Learner Model — LONG-TERM MUST
 Memory may eventually store preferences, useful facts, prior decisions and recurring constraints; it shall not create mastery claims by itself.
@@ -217,7 +217,7 @@ Memory may eventually store preferences, useful facts, prior decisions and recur
 ## AI-MEM-009 — Uncertainty — R2+
 ## AI-MEM-010 — Provenance — R2+
 
-Later memory may influence **how ARIA interacts**; evidence-backed learner state determines **what ARIA has grounds to believe about learning performance**.
+Later memory may influence **how ARIA interacts**; evidence-backed learner_concept_state determines **what ARIA has grounds to believe about learning performance**.
 
 ---
 
@@ -272,7 +272,7 @@ Invalid, failed or unevaluated attempts shall not silently become learner-perfor
 
 ---
 
-# 10. What R0 Learner State Actually Needs
+# 10. What R0 learner_concept_state Actually Needs
 
 R0 should **not** begin with a rich seven-state mastery ontology simply because the long-term product may need one.
 
@@ -323,7 +323,7 @@ R0 shall not claim durable mastery from the evidence needed merely to run a shor
 The long-term Learner Model may include:
 
 ```text
-concept state
+learner_concept_state
 confidence
 supporting evidence
 recency
@@ -462,7 +462,7 @@ ARIA shall not show learners fake precision merely because internal implementati
 # 16. R0 Adaptation Reasoning
 
 ## AI-ADAPT-001 — Evidence/state grounded — R0 MUST
-An adapted Study action shall be selected using relevant current learner state and its evidence.
+An adapted Study action shall be selected using relevant current learner_concept_state and its evidence.
 
 ## AI-ADAPT-002 — Real causal software trace — R0 MUST
 ARIA shall preserve enough decision metadata to demonstrate that the recorded learner-state signal actually influenced the selected adaptation.
@@ -522,7 +522,7 @@ Consequential structured AI output shall satisfy required schema/constraints bef
 Generated assessments shall be checked against the learner-selected/supported specification where applicable, including relevant question count/format, answer/rubric availability, topic/source relevance and scoring consistency.
 
 ## AI-VAL-003 — Evidence extraction validation — R0 MUST
-AI-derived evidence shall be validated sufficiently for the impact it may have on learner state.
+AI-derived evidence shall be validated sufficiently for the impact it may have on learner_concept_state.
 
 ## AI-VAL-004 — Adaptation validation — R0 MUST
 An adaptation shall be checked for context relevance, supported action type and traceable reason before it becomes the R0 next Study action.
@@ -581,7 +581,7 @@ Rules, authorization, schema validation, calculations and deterministic state tr
 ## AI-AGENT-003 — Specialized reasoning when justified — LONG-TERM
 ## AI-AGENT-004 — Orchestrator authority limits — LONG-TERM MUST
 ## AI-AGENT-005 — Controlled shared-state updates — R0 MUST
-No AI component may independently overwrite consequential learner state outside the controlled update mechanism.
+No AI component may independently overwrite consequential learner_concept_state outside the controlled update mechanism.
 
 ## AI-AGENT-006 — Structured communication — R0 MUST WHERE MULTIPLE COMPONENTS EXIST
 ## AI-AGENT-007 — Bounded loops — R0 MUST
@@ -626,9 +626,9 @@ AI failure shall not discard submitted answers, uploaded resources or completed 
 
 ---
 
-# 22. Memory vs Learner State — Explicit Separation
+# 22. Memory vs learner_concept_state — Explicit Separation
 
-| Memory / learner-provided context | Evidence-backed learner state |
+| Memory / learner-provided context | Evidence-backed learner_concept_state |
 |---|---|
 | "I prefer examples before formulas" | "Current evidence suggests difficulty with Bayes' theorem" |
 | "I'm preparing for GATE" | "Current attempts support competence on process scheduling" |
@@ -637,7 +637,7 @@ AI failure shall not discard submitted answers, uploaded resources or completed 
 
 Memory/context can influence **how ARIA interacts**.
 
-Learner state influences **what ARIA has evidence to believe about performance and which bounded learning action may be useful next**.
+learner_concept_state influences **what ARIA has evidence to believe about performance and which bounded learning action may be useful next**.
 
 Neither silently substitutes for the other.
 
@@ -656,7 +656,7 @@ What concept did it measure?
 Was assistance involved?
 Is there other evidence?
         ↓
-Basic learner state updated conservatively
+Basic learner_concept_state updated conservatively
         ↓
 Do NOT declare mastery failure or misconception
         ↓
@@ -742,7 +742,7 @@ evaluation corrected
         ↓
 dependent evidence revised/invalidated
         ↓
-basic learner state recomputed
+basic learner_concept_state recomputed
         ↓
 stale adaptation invalidated/recomputed
 ```
@@ -757,7 +757,7 @@ R0 is not complete merely because an LLM can generate explanations and quizzes.
 
 Gate A shall include controlled scenarios demonstrating at least:
 
-1. **difficulty path** — valid negative evidence changes learner state and produces a relevant bounded adaptation;
+1. **difficulty path** — valid negative evidence changes learner_concept_state and produces a relevant bounded adaptation;
 2. **competence path** — sufficiently strong evidence does not trigger unnecessary remediation;
 3. **insufficient-evidence path** — absence of evidence does not become weakness;
 4. **contradictory-evidence path** — conflicting observations reduce certainty/trigger further testing;
@@ -782,8 +782,8 @@ These scenarios test engineering behaviour. They do not establish causal human-l
 7. **AI output is not valid merely because it is fluent.**
 8. **Consequential structured output is validated.**
 9. **Uncertain upstream conclusions remain uncertain downstream.**
-10. **Evidence remains separate from derived learner state.**
-11. **Learner state remains separate from conversational memory/context.**
+10. **Evidence remains separate from derived learner_concept_state.**
+11. **learner_concept_state remains separate from conversational memory/context.**
 12. **R0 adaptation is bounded and evidence-grounded.**
 13. **Correction propagates through dependent derived state.**
 14. **Deterministic logic is not replaced by agents without reason.**
@@ -803,7 +803,7 @@ Current learning context
         +
 Structured performance evidence
         ↓
-Basic concept-level learner state
+Basic concept-level learner_concept_state
         +
 Uncertainty
         ↓
@@ -852,3 +852,8 @@ Next:
 # Step 6 — Non-Functional, Privacy, Security, Reliability & Accessibility Requirements Audit
 
 Step 6 will identify which reliability/security/privacy/performance requirements are true R0 blockers, which need measurable thresholds now, and which scalability/production requirements should remain later-release targets rather than making a solo-capstone R0 pretend to be an internet-scale production platform.
+---
+
+## Next
+
+Step 6 — Non-Functional, Privacy, Security, Reliability & Accessibility Requirements.

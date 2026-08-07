@@ -221,7 +221,7 @@ R0 requires only the subset needed for the adaptive loop.
 
 ## UR-CTX-001 — Context association — R0 MUST
 
-Study, assessment, evaluation, evidence, learner state, and subsequent adaptation shall be attributable to the relevant validation goal/context and concept/topic where applicable.
+Study, assessment, evaluation, evidence, learner_concept_state, and subsequent adaptation shall be attributable to the relevant validation goal/context and concept/topic where applicable.
 
 ## UR-CTX-002 — Exploratory learning — LATER RELEASE
 
@@ -240,7 +240,7 @@ Evaluation
   ↓
 Evidence
   ↓
-Learner State
+learner_concept_state
   ↓
 Adapted Study
 ```
@@ -335,7 +335,7 @@ ARIA may surface recent relevant validation activity. Rich Home/recommendation s
 
 ## UR-CONT-003 — Longitudinal state — PARTIAL R0 / R2+
 
-R0 shall persist the evidence and basic learner state needed across repeated validation cycles.
+R0 shall persist the evidence and basic learner_concept_state needed across repeated validation cycles.
 
 Rich revision history, longitudinal mastery modeling, Roadmap progress, and mature learner-model history belong to later releases.
 
@@ -448,7 +448,7 @@ Evaluation
   ↓
 Evidence: concept-level result
   ↓
-Basic learner state
+Basic learner_concept_state
   ↓
 Adapted Study: targeted serializability explanation/practice
   ↓
@@ -515,7 +515,7 @@ Context preserved through Study + Assessment
         ↓
 Evidence attributed correctly
         ↓
-Basic learner state persists
+Basic learner_concept_state persists
         ↓
 Adaptation uses the correct context
         ↓
@@ -562,3 +562,8 @@ Next:
 # Step 3 — Functional Requirements Audit
 
 Step 3 must preserve the complete ARIA feature requirements while explicitly distinguishing R0 implementation requirements from R1+ and long-term product requirements.
+---
+
+## Next
+
+Step 3 — Functional Requirements.

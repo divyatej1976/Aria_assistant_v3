@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document defines how ARIA converts learner interactions into structured, validated evidence that can safely influence the learner state. Evidence Intelligence bridges AI-generated learning experiences and deterministic system decisions.
+This document defines how ARIA converts learner interactions into structured, validated evidence that can safely influence the learner_concept_state. Evidence Intelligence bridges AI-generated learning experiences and deterministic system decisions.
 
 ---
 
@@ -47,7 +47,7 @@ Structured Evidence
       ↓
 Evidence Store
       ↓
-Learner State Update
+learner_concept_state Update
 ```
 
 ---
