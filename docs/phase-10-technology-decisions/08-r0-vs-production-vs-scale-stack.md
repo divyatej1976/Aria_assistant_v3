@@ -2,7 +2,7 @@
 
 ## Step 8 — R0 vs Production vs Scale Stack
 
-**Status:** Frozen v1
+**Status:** Frozen v1 — amended after R0 scope review
 
 ---
 
@@ -31,8 +31,9 @@ This document consolidates all technology decisions into a single implementation
 ## AI
 - LiteLLM
 - Groq
-- LangChain
 - Native Structured Outputs
+
+LangChain and LangGraph are intentionally excluded from the R0 runtime dependency set.
 
 ## Database
 - Supabase (PostgreSQL, Auth, Storage, RLS)
@@ -56,7 +57,8 @@ This document consolidates all technology decisions into a single implementation
 Everything in R0 plus:
 
 ## AI
-- LangGraph
+- LangChain, when concrete integration or retrieval capabilities justify it
+- LangGraph, when workflow branching or stateful orchestration justifies it
 - Gemini
 - OpenAI
 
@@ -105,6 +107,7 @@ Everything in Production v1 plus:
 - Production v1 supports sustained real-world usage.
 - Scale v2 addresses operational growth.
 - No technology enters the stack before solving a demonstrated problem.
+- Framework abstractions are introduced only when their capabilities provide a concrete benefit.
 
 ---
 
@@ -114,6 +117,7 @@ Everything in Production v1 plus:
 - R0 stack finalized
 - Production roadmap finalized
 - Scale roadmap finalized
+- Elimination test consistently applied to AI framework dependencies
 
 ---
 
