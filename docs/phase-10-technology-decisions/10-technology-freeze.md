@@ -2,13 +2,13 @@
 
 ## Step 10 — Technology Freeze
 
-**Status:** Frozen v1
+**Status:** Frozen v1 — amended after R0 scope review
 
 ---
 
 # Purpose
 
-This document formally freezes ARIA's technology decisions following the successful completion of Phase 10. It confirms that the selected technologies are internally consistent, aligned with the architecture defined in Phases 0–9, and sufficient to begin implementation.
+This document formally freezes ARIA's technology decisions following the completion and subsequent R0 scope review of Phase 10. It confirms that the selected technologies are internally consistent, aligned with the architecture defined in Phases 0–9, and sufficient to begin implementation.
 
 ---
 
@@ -23,8 +23,27 @@ The following decisions are considered frozen:
 - Infrastructure strategy
 - Testing strategy
 - R0 vs Production vs Scale technology roadmap
+- R0 elimination-test decisions for framework and infrastructure dependencies
 
 Future changes should be introduced through an Architectural Decision Record (ADR) rather than modifying this baseline directly.
+
+---
+
+# Final R0 AI Decision
+
+The R0 AI runtime dependency set is intentionally limited to:
+
+- LiteLLM
+- Groq
+- Native Structured Outputs
+
+LangChain and LangGraph are deferred from R0.
+
+LangChain is deferred because R0's retrieval and LLM integration can be implemented directly using PyMuPDF, embedding generation, PostgreSQL + pgvector, and LiteLLM without requiring LangChain's abstraction layer.
+
+LangGraph is deferred because the R0 workflow is linear and does not require graph-based orchestration.
+
+Both technologies remain candidates for Production v1 when demonstrated requirements justify their adoption.
 
 ---
 
@@ -40,7 +59,7 @@ The technology decisions have been verified against:
 - Phase 8 — Agent Architecture
 - Phase 9 — Prompt Engineering
 
-No unresolved architectural conflicts remain.
+The Phase 10 review explicitly applied the R0 elimination test to framework and infrastructure dependencies. No unresolved architectural conflicts remain.
 
 ---
 
@@ -48,6 +67,7 @@ No unresolved architectural conflicts remain.
 
 - ✅ R0 stack finalized
 - ✅ Provider independence preserved
+- ✅ Unnecessary framework dependencies removed from R0
 - ✅ Operational complexity minimized
 - ✅ Migration paths documented
 - ✅ Technology evolution strategy defined
@@ -63,6 +83,7 @@ After this freeze:
 - Architectural changes require an ADR.
 - New technologies must justify their inclusion.
 - R0 implementation should remain faithful to the frozen technology decisions unless an approved ADR supersedes them.
+- Optional developer-learning technologies must not be represented as architectural requirements.
 
 ---
 
@@ -73,7 +94,9 @@ ARIA now has:
 - Frozen product vision
 - Frozen architecture
 - Frozen technology decisions
-- Clear implementation roadmap
+- A deliberately minimal R0 implementation stack
+- A documented Production v1 technology path
+- A documented Scale v2 technology path
 
 The project is ready to transition from architecture into implementation.
 
@@ -83,7 +106,7 @@ The project is ready to transition from architecture into implementation.
 
 **Architecture Baseline:** `v1.0.0-architecture-freeze`
 
-This baseline represents the reference point for all future implementation and architectural evolution.
+This baseline represents the reference point for future implementation and architectural evolution.
 
 ---
 
