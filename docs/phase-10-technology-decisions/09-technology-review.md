@@ -2,7 +2,7 @@
 
 ## Step 9 — Technology Review
 
-**Status:** Review Complete
+**Status:** Review Complete — amended after R0 scope review
 
 ---
 
@@ -44,13 +44,36 @@ This document performs a final consistency review of all technology decisions ma
 
 ---
 
+# R0 Technology Elimination Review
+
+The same elimination test is applied to the technologies that introduce meaningful abstraction or operational complexity:
+
+> **If this technology were removed today, could ARIA still validate its R0 adaptive-learning hypothesis?**
+
+| Technology | R0 required? | Decision | Reason |
+|---|---:|---|---|
+| LiteLLM | Yes | Keep | Establishes provider abstraction without coupling application logic to Groq. |
+| Groq | Yes | Keep | Provides the actual LLM capability required by R0. |
+| LangChain | No | Defer | R0 retrieval and LLM integration can be implemented directly with existing components. |
+| LangGraph | No | Defer | R0 workflow is linear and does not require graph orchestration. |
+| pgvector | Yes | Keep | Provides the semantic retrieval capability required by R0 within PostgreSQL. |
+| Qdrant | No | Defer | Dedicated vector infrastructure is unnecessary at R0 scale. |
+| Redis | No | Defer | R0 does not require distributed caching or rate limiting. |
+| Celery / ARQ | No | Defer | R0 does not require dedicated background workers. |
+
+The review confirms that LangChain and LangGraph must be treated consistently: neither is an R0 architectural requirement.
+
+---
+
 # Scope Validation
 
-Every technology was evaluated using the project's guiding question:
+Technologies that failed the R0 elimination test were intentionally deferred to later stages rather than included by default.
 
-> If this technology were removed today, could ARIA still validate its R0 adaptive-learning hypothesis?
+This review also distinguishes between:
 
-Technologies that failed this test were intentionally deferred to later stages.
+1. **Architectural requirements** — necessary for R0 to validate its hypothesis.
+2. **Developer learning choices** — optional technologies a developer may use for deliberate learning, but which must not be presented as architectural requirements.
+3. **Future capabilities** — technologies reserved for later releases when a demonstrated need exists.
 
 ---
 
@@ -58,6 +81,7 @@ Technologies that failed this test were intentionally deferred to later stages.
 
 - ✅ No unnecessary infrastructure in R0
 - ✅ No premature optimization
+- ✅ AI framework dependencies subjected to the elimination test
 - ✅ Clear migration path to Production v1
 - ✅ Technology decisions remain provider-independent
 - ✅ Operational complexity grows with demonstrated need
@@ -67,7 +91,8 @@ Technologies that failed this test were intentionally deferred to later stages.
 
 # Known Future Work
 
-- Re-evaluate LangGraph when workflow branching is introduced.
+- Re-evaluate LangChain when concrete integration or retrieval requirements justify it.
+- Re-evaluate LangGraph when workflow branching or stateful orchestration is introduced.
 - Introduce Qdrant when pgvector no longer satisfies retrieval requirements.
 - Expand monitoring and background processing as operational needs grow.
 
@@ -75,7 +100,7 @@ Technologies that failed this test were intentionally deferred to later stages.
 
 # Review Outcome
 
-Phase 10 technology decisions are internally consistent, aligned with Phases 0–9, and ready for architecture freeze.
+Phase 10 technology decisions are internally consistent after the R0 elimination review. The R0 stack is intentionally minimal, while deferred technologies remain available as later-stage options when evidence justifies them.
 
 ---
 
