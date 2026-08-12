@@ -1,12 +1,20 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.ai.providers import DeterministicEmbeddingProvider, LiteLLMGroqProvider, RetrievedChunk
 from app.core.config import get_settings
-from app.db.models import ConceptChunk, LearnerConceptState, Resource, ResourceChunk
+from app.core.errors import ValidationError
+from app.db.models import (
+    ConceptChunk,
+    ConversationMessage,
+    LearnerConceptState,
+    Resource,
+    ResourceChunk,
+    StudySession,
+)
 from app.services.context_assembly import (
     STUDY_SYSTEM_PROMPT,  # noqa: F401  (re-exported for tests/consumers)
     assemble_context,
@@ -14,10 +22,106 @@ from app.services.context_assembly import (
     build_study_context,
     build_study_messages,  # noqa: F401  (re-exported for tests/consumers)
 )
+from app.services.contexts import get_owned_context
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW
 from app.services.text import content_terms
 
 WEAK_BOOST = 1.3
+
+
+def create_session(
+    db: Session, *, owner_id: UUID, context_id: UUID, mode: str
+) -> StudySession:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    session = StudySession(owner_id=owner_id, context_id=context_id, mode=mode)
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def list_sessions(
+    db: Session, *, owner_id: UUID, context_id: UUID
+) -> list[StudySession]:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    return list(
+        db.scalars(
+            select(StudySession)
+            .where(StudySession.owner_id == owner_id, StudySession.context_id == context_id)
+            .order_by(StudySession.created_at)
+        )
+    )
+
+
+def get_owned_session(
+    db: Session,
+    *,
+    owner_id: UUID,
+    session_id: UUID,
+    context_id: UUID | None = None,
+) -> StudySession:
+    query = select(StudySession).where(
+        StudySession.id == session_id, StudySession.owner_id == owner_id
+    )
+    if context_id is not None:
+        query = query.where(StudySession.context_id == context_id)
+    session = db.scalar(query)
+    if session is None:
+        raise ValidationError("Study session not found")
+    return session
+
+
+def list_messages(
+    db: Session, *, owner_id: UUID, session_id: UUID
+) -> list[ConversationMessage]:
+    return list(
+        db.scalars(
+            select(ConversationMessage)
+            .where(
+                ConversationMessage.study_session_id == session_id,
+                ConversationMessage.owner_id == owner_id,
+            )
+            .order_by(ConversationMessage.position, ConversationMessage.created_at)
+        )
+    )
+
+
+def persist_conversation_turn(
+    db: Session,
+    *,
+    owner_id: UUID,
+    session: StudySession,
+    user_content: str,
+    assistant_content: str,
+    assistant_refs: list[dict],
+) -> None:
+    message_count = db.scalar(
+        select(func.count(ConversationMessage.id)).where(
+            ConversationMessage.study_session_id == session.id,
+            ConversationMessage.owner_id == owner_id,
+        )
+    )
+    user_position = (message_count or 0) + 1
+    db.add(
+        ConversationMessage(
+            owner_id=owner_id,
+            study_session_id=session.id,
+            role="user",
+            content=user_content,
+            position=user_position,
+        )
+    )
+    db.add(
+        ConversationMessage(
+            owner_id=owner_id,
+            study_session_id=session.id,
+            role="assistant",
+            content=assistant_content,
+            source_refs=assistant_refs,
+            position=user_position + 1,
+        )
+    )
+    db.commit()
 
 
 @dataclass(frozen=True)

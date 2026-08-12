@@ -46,8 +46,8 @@ export default function ResourcesPage() {
 
   useEffect(() => {
     if (!context) return;
-    setStudyResourceId(localStorage.getItem(`aria_study_resource_${activeContext.id}`));
-    api<Resource[]>(`/api/v1/resources?context_id=${activeContext.id}`)
+    setStudyResourceId(localStorage.getItem(`aria_study_resource_${context.id}`));
+    api<Resource[]>(`/api/v1/resources?context_id=${context.id}`)
       .then(setResources)
       .catch((requestError: unknown) =>
         setError(requestError instanceof Error ? requestError.message : "Unable to load resources")
@@ -143,7 +143,7 @@ export default function ResourcesPage() {
     }
   }
 
-  function useInStudy(id: string) {
+  function selectForStudy(id: string) {
     const next = studyResourceId === id ? null : id;
     setStudyResourceId(next);
     localStorage.setItem(`aria_study_resource_${activeContext.id}`, next ?? "");
@@ -279,7 +279,7 @@ export default function ResourcesPage() {
                   <div className="flex flex-wrap gap-3">
                     {resource.processing_status === "READY" && (
                       <button
-                        onClick={() => useInStudy(resource.id)}
+                        onClick={() => selectForStudy(resource.id)}
                         className={`px-5 py-2 rounded-full text-label-md transition-all ${selected ? "bg-secondary text-on-secondary shadow-injected" : "bg-surface text-secondary shadow-extruded btn-extruded"}`}
                       >
                         {selected ? "Selected for Study" : "Use in Study"}

@@ -1,30 +1,35 @@
 # ARIA
 
-ARIA is an AI Learning Operating System. This repository is the working implementation of the product, UX, architecture, AI, memory, API, agent, prompt, and technology planning captured in `docs/` and the wireframe design in `design/wireframes/` (see `docs/theme-system.md` for the frozen visual baseline).
+ARIA is an AI Learning Operating System. This repository is the working implementation of the product, UX, architecture, AI, memory, API, agent, prompt, and technology planning captured in `docs/` (see `docs/theme-system.md` for the frozen visual baseline and `design/README.md` for the wireframe design assets).
 
 ## Current implementation scope
 
-Phases 0–5 of the R0 adaptive-learning loop are implemented:
+Phases 0–9 of the R0 adaptive-learning loop are implemented:
 
 - Next.js frontend (Extruded Light design system, dark default + light theme);
 - FastAPI backend with learner-owned domain model;
-- PostgreSQL + Alembic migrations;
+- PostgreSQL + Alembic migrations (single metadata-driven baseline through `0006`);
 - server-side session registry (sign in/out, active devices, data reset);
 - resources (text/PDF ingestion with retry and replace);
 - grounded Study and topology knowledge map;
 - deterministic MCQ assessment with idempotent submission;
 - evidence → learner-state → adaptation loop with explainable decisions;
+- memory: preferences, context assembly, prerequisites, memory inspector;
+- notes: generation fallback, revision scheduling, due queues, PDF export;
+- progress: meaningful-activity streaks, heatmap, badges;
+- planner: exam deadlines, planned tasks, missed-work recovery, in-app notifications, email reminders (SMTP with log fallback);
 - Docker Compose development environment;
-- CI that runs formatting, lint, type checks, and tests (SQLite and Postgres).
+- CI that runs formatting, lint, type checks, tests (SQLite and Postgres), migration round trips, frontend build/lint, and a Playwright browser + accessibility smoke.
 
 The R0 loop:
 
 ```text
 Learning Context → Resources → Study → Assessment → Evaluation
 → Evidence → Learner State → Adapted Study → Reassessment
+→ Memory → Notes/Revision → Progress → Planner
 ```
 
-Notes, Audio, Planner, Progress, and MAO remain planned product areas. They are deliberately represented in the domain and workflow boundaries so they can be added without creating parallel systems.
+Audio and MAO remain planned product areas. They are deliberately represented in the domain and workflow boundaries so they can be added without creating parallel systems.
 
 ## Local development
 
@@ -111,4 +116,14 @@ docker compose up --build
 7. Deterministic logic stays deterministic; AI does not decide authorization or MCQ correctness.
 
 See [BUILD_PLAN.md](BUILD_PLAN.md) for the implementation sequence and completion checklist.
+
+## Security & production notes
+
+This is a strong prototype, not yet a production service. Before public deployment:
+
+- **Token storage.** The frontend stores the access token in `localStorage`, which any successful XSS payload can read. A production boundary should move sessions to HTTP-only cookies with CSRF protection (or a carefully designed token/session boundary).
+- **AI dependency.** Without `GROQ_API_KEY` the app runs on deterministic fallbacks (good for tests and reliability), but generated Study/assessment/notes quality is limited. Production should add provider evaluation, prompt/version tracking, cost budgets, and quality metrics before depending on generated content.
+- **Reminders are pull-triggered.** Exam reminders run when `POST /api/v1/planner/reminders/check` is called (dev tool). A background worker/cron with idempotency and retry is planned for production hardening (Phase 12).
+- **Email.** SMTP is optional; without `SMTP_HOST` emails are logged to the console instead of delivered.
+- **Generated artifacts.** `__pycache__`, `.pytest_cache`, `.next`, `node_modules`, and the design wireframe ZIPs in `design/wireframes/` are git-ignored and should not be shipped in release bundles.
 

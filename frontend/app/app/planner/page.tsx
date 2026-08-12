@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { api } from "../../../lib/api";
@@ -51,7 +51,7 @@ export default function PlannerPage() {
   const [checkResult, setCheckResult] = useState("");
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!context) return;
     const [deadlineList, taskList, missedList, resourceList] = await Promise.all([
       api<Deadline[]>(`/api/v1/planner/deadlines?context_id=${context.id}`),
@@ -63,14 +63,13 @@ export default function PlannerPage() {
     setTasks(taskList);
     setMissed(missedList);
     setResources(resourceList);
-  }
+  }, [context]);
 
   useEffect(() => {
-    if (!context) return;
     load().catch((requestError: unknown) =>
       setError(requestError instanceof Error ? requestError.message : "Unable to load planner")
     );
-  }, [context]);
+  }, [load]);
 
   if (loading) {
     return (

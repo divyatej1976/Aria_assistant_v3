@@ -46,7 +46,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   }
 
   return (
-    <form className="w-full max-w-[480px] bg-surface shadow-extruded rounded-3xl p-8 sm:p-10 flex flex-col gap-6">
+    <form className="w-full max-w-[480px] bg-surface shadow-extruded rounded-3xl p-8 sm:p-10 flex flex-col gap-6" onSubmit={submit}>
       <div className="text-center flex flex-col items-center gap-3">
         <div className="w-14 h-14 rounded-2xl bg-surface shadow-extruded flex items-center justify-center text-secondary">
           <span className="material-symbols-outlined text-3xl ms-fill">all_inclusive</span>

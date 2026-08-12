@@ -27,7 +27,6 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [resources, setResources] = useState<Resource[]>([]);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -44,7 +43,6 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
           api<{ states: ConceptState[]; decisions: Decision[] }>(`/api/v1/contexts/${contextId}/adaptation`),
         ]);
         if (!active) return;
-        setResources(resourceList);
         setDecisions(adaptation.decisions);
         setStates(adaptation.states);
         const selectedId = localStorage.getItem(`aria_study_resource_${contextId}`);

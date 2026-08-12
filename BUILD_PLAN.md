@@ -607,12 +607,25 @@ These apply throughout the build:
 - [x] Migration and rollback tests.
 - [x] AI structured-output validation.
 - [x] Prompt/resource injection defenses.
-- [x] Accessibility checks.
-- [x] Responsive UI checks.
+- [~] Accessibility checks. (automated axe smoke in CI; deeper manual pass tracked in `docs/qa-checklist.md`)
+- [~] Responsive UI checks. (Playwright smoke in CI; manual breakpoint pass tracked in `docs/qa-checklist.md`)
 - [x] Failure and retry tests.
-- [x] Cost and latency tracking.
-- [x] Auditability of AI-driven decisions.
+- [x] Cost and latency tracking. (per-call AI duration/token logs)
+- [x] Auditability of AI-driven decisions. (evidence provenance + adaptation reasons + tests)
 - [x] Documentation updated with every architectural change.
+
+## Known limitations / production readiness
+
+- **Session tokens** are stored in `localStorage` in the frontend (XSS-exposed). Production should
+  move to HTTP-only cookies + CSRF protection.
+- **AI is fallback-oriented** without a configured provider: deterministic fallbacks keep the loop
+  reliable and tested, but generated Study/assessment/notes quality and semantic retrieval are
+  limited until a real provider is configured and evaluated (provider eval, prompt/version
+  tracking, cost budgets, quality metrics).
+- **Reminder checks are pull-triggered** via `POST /api/v1/planner/reminders/check`; a background
+  worker/cron with idempotency and retry is deferred to Phase 12.
+- **Email** is delivered via SMTP when configured, otherwise logged to the console.
+- Generated artifacts (`__pycache__`, `.next`, `node_modules`, design ZIPs) are git-ignored.
 
 ---
 

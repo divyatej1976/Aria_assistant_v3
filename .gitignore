@@ -13,6 +13,9 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+test-results/
+playwright-report/
+e2e-smoke.db
 
 # Environment and secrets
 .env
@@ -32,4 +35,7 @@ Thumbs.db
 .vscode/
 
 # Design assets (wireframes kept locally, not tracked)
-design/
+design/*
+!design/README.md
+
+e2e-smoke.db

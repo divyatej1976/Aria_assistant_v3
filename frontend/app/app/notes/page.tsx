@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { api, apiBlob } from "../../../lib/api";
@@ -32,7 +32,7 @@ export default function NotesPage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!context) return;
     const [noteList, dueList] = await Promise.all([
       api<Note[]>(`/api/v1/notes?context_id=${context.id}`),
@@ -40,14 +40,13 @@ export default function NotesPage() {
     ]);
     setNotes(noteList);
     setDue(dueList);
-  }
+  }, [context]);
 
   useEffect(() => {
-    if (!context) return;
     load().catch((requestError: unknown) =>
       setError(requestError instanceof Error ? requestError.message : "Unable to load notes")
     );
-  }, [context]);
+  }, [load]);
 
   if (loading) {
     return (
