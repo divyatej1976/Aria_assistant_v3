@@ -62,6 +62,28 @@ class Concept(OwnedModel, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
+class ConceptRelation(OwnedModel, Base):
+    __tablename__ = "concept_relations"
+    __table_args__ = (
+        UniqueConstraint(
+            "concept_id", "prerequisite_concept_id", name="uq_concept_relation"
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
+    prerequisite_concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
+
+
+class LearnerPreference(OwnedModel, Base):
+    __tablename__ = "learner_preferences"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "key", name="uq_learner_preference_key"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    value: Mapped[str] = mapped_column(String(500), nullable=False)
+
+
 class Resource(OwnedModel, Base):
     __tablename__ = "resources"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
@@ -110,6 +132,7 @@ class ConversationMessage(OwnedModel, Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     source_refs: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class Assessment(OwnedModel, Base):

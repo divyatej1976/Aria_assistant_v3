@@ -7,45 +7,17 @@ from sqlalchemy.orm import Session
 from app.ai.providers import DeterministicEmbeddingProvider, LiteLLMGroqProvider, RetrievedChunk
 from app.core.config import get_settings
 from app.db.models import ConceptChunk, LearnerConceptState, Resource, ResourceChunk
+from app.services.context_assembly import (
+    STUDY_SYSTEM_PROMPT,  # noqa: F401  (re-exported for tests/consumers)
+    assemble_context,
+    build_prompt,
+    build_study_context,
+    build_study_messages,  # noqa: F401  (re-exported for tests/consumers)
+)
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW
 from app.services.text import content_terms
 
 WEAK_BOOST = 1.3
-
-STUDY_SYSTEM_PROMPT = "Answer only from the supplied study material. If it is insufficient, say so."
-
-
-def build_study_context(
-    sources: list[RetrievedChunk], *, max_chars: int = 4000
-) -> str:
-    """Render source chunks as data-only context, capped at max_chars.
-
-    Resource text is always treated as untrusted data: it never reaches the
-    system instruction.
-    """
-    parts: list[str] = []
-    used = 0
-    for source in sources:
-        if source.score <= 0:
-            continue
-        block = f"[{source.source_title}] {source.content}"
-        if used + len(block) > max_chars:
-            remaining = max_chars - used
-            if remaining > 0:
-                parts.append(block[:remaining])
-            break
-        parts.append(block)
-        used += len(block)
-    return "\n\n".join(parts)
-
-
-def build_study_messages(*, question: str, context_text: str) -> tuple[str, str]:
-    """Build (system, user) prompt messages.
-
-    The system instruction is a constant; the learner question and the source
-    material are placed only in the user message.
-    """
-    return STUDY_SYSTEM_PROMPT, f"Study material:\n{context_text}\n\nLearner question: {question}"
 
 
 @dataclass(frozen=True)
@@ -131,7 +103,12 @@ async def retrieve_chunks(
 
 
 async def answer_question(
-    db: Session, *, owner_id: UUID, context_id: UUID, question: str
+    db: Session,
+    *,
+    owner_id: UUID,
+    context_id: UUID,
+    question: str,
+    session_id: UUID | None = None,
 ) -> StudyResult:
     sources = await retrieve_chunks(db, owner_id=owner_id, context_id=context_id, query=question)
     settings = get_settings()
@@ -155,7 +132,14 @@ async def answer_question(
             fallback_used=True,
         )
     try:
-        system, user = build_study_messages(question=question, context_text=context_text)
+        package = assemble_context(
+            db,
+            owner_id=owner_id,
+            context_id=context_id,
+            session_id=session_id,
+            sources=sources,
+        )
+        system, user = build_prompt(question, package)
         answer = await LiteLLMGroqProvider(
             api_key=settings.groq_api_key, model=settings.llm_model
         ).generate_text(system=system, user=user)

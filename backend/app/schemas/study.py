@@ -35,6 +35,7 @@ class StudyMessageResponse(BaseModel):
 
 
 class StudyMessage(BaseModel):
+    id: str
     role: str
     content: str
     sources: list[SourceReference]

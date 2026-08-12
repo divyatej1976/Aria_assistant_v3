@@ -10,13 +10,16 @@ from app.services.learner_state import (
     context_states_with_concepts,
     recompute_learner_states,
 )
+from app.services.memory import weak_prerequisite_names
 
 DECISION_FOCUS_STUDY = "FOCUS_STUDY"
 DECISION_RETEST_TARGETED = "RETEST_TARGETED"
 DECISION_NO_ACTION = "NO_ACTION"
 
 
-def _decision_for_state(state: LearnerConceptState, concept_name: str) -> tuple[str, str] | None:
+def _decision_for_state(
+    state: LearnerConceptState, concept_name: str
+) -> tuple[str, str] | None:
     if state.state == STATE_NEEDS_REVIEW:
         return (
             DECISION_FOCUS_STUDY,
@@ -47,6 +50,16 @@ def generate_adaptation_decisions(
         decision = _decision_for_state(learner_state, concept.name)
         if decision is not None:
             decision_type, reason = decision
+            if learner_state.state == STATE_NEEDS_REVIEW:
+                weak_prerequisites = weak_prerequisite_names(
+                    db, owner_id=owner_id, concept_id=concept.id
+                )
+                if weak_prerequisites:
+                    names = ", ".join(weak_prerequisites)
+                    reason += (
+                        f" A weak prerequisite ({names}) may be the cause, so it may help "
+                        "to review that foundation first."
+                    )
             decisions.append(
                 AdaptationDecision(
                     owner_id=owner_id,

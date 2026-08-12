@@ -2,7 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
@@ -16,6 +16,7 @@ from app.schemas.study import (
     StudySessionResponse,
 )
 from app.security.dependencies import CurrentLearner
+from app.services.memory import delete_message as delete_message_service
 from app.services.study import answer_question
 
 router = APIRouter(prefix="/api/v1/study", tags=["study"])
@@ -82,16 +83,27 @@ def list_messages(
             ConversationMessage.study_session_id == session_id,
             ConversationMessage.owner_id == learner.id,
         )
-        .order_by(ConversationMessage.created_at)
+        .order_by(ConversationMessage.position, ConversationMessage.created_at)
     ).all()
     return [
         StudyMessage(
+            id=str(message.id),
             role=message.role,
             content=message.content,
             sources=[SourceReference(**ref) for ref in message.source_refs],
         )
         for message in messages
     ]
+
+
+@router.delete("/sessions/{session_id}/messages/{message_id}")
+def delete_message(
+    session_id: UUID, message_id: UUID, learner: CurrentLearner, db: Db
+) -> dict[str, object]:
+    get_session(db, session_id=session_id, owner_id=learner.id)
+    if not delete_message_service(db, owner_id=learner.id, message_id=message_id):
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"deleted": True}
 
 
 @router.post("/sessions", status_code=201)
@@ -117,13 +129,28 @@ async def send_message(
     session_id: UUID, request: StudyMessageCreate, learner: CurrentLearner, db: Db
 ) -> StudyMessageResponse:
     session = get_session(db, session_id=session_id, owner_id=learner.id)
+    message_count = db.scalar(
+        select(func.count(ConversationMessage.id)).where(
+            ConversationMessage.study_session_id == session.id,
+            ConversationMessage.owner_id == learner.id,
+        )
+    )
+    user_position = (message_count or 0) + 1
     db.add(
         ConversationMessage(
-            owner_id=learner.id, study_session_id=session.id, role="user", content=request.content
+            owner_id=learner.id,
+            study_session_id=session.id,
+            role="user",
+            content=request.content,
+            position=user_position,
         )
     )
     result = await answer_question(
-        db, owner_id=learner.id, context_id=session.context_id, question=request.content
+        db,
+        owner_id=learner.id,
+        context_id=session.context_id,
+        question=request.content,
+        session_id=session.id,
     )
     refs = [
         {
@@ -141,6 +168,7 @@ async def send_message(
             role="assistant",
             content=result.content,
             source_refs=refs,
+            position=user_position + 1,
         )
     )
     db.commit()

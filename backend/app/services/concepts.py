@@ -135,10 +135,24 @@ def chunk_ids_for_concepts(
 
 
 def concept_id_for_chunk(db: Session, *, owner_id: UUID, chunk_id: UUID) -> UUID | None:
-    row = db.execute(
-        select(ConceptChunk.concept_id)
+    """Return the concept best represented by a chunk.
+
+    The best concept is the one whose name occurs most often in the chunk
+    content (deterministic), falling back to alphabetical order.
+    """
+    chunk = db.get(ResourceChunk, chunk_id)
+    if chunk is None:
+        return None
+    rows = db.execute(
+        select(Concept, ConceptChunk.concept_id)
+        .join(ConceptChunk, ConceptChunk.concept_id == Concept.id)
         .where(ConceptChunk.owner_id == owner_id, ConceptChunk.chunk_id == chunk_id)
-        .order_by(ConceptChunk.concept_id)
-        .limit(1)
-    ).first()
-    return row[0] if row else None
+        .order_by(Concept.name)
+    ).all()
+    content_lower = chunk.content.lower()
+    best: tuple[int, str, UUID] | None = None
+    for concept, _relation_id in rows:
+        frequency = content_lower.count(concept.name.lower())
+        if best is None or (frequency, concept.name) > (best[0], best[1]):
+            best = (frequency, concept.name, concept.id)
+    return best[2] if best else None

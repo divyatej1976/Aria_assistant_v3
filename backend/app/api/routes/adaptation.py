@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.errors import ValidationError
 from app.db.dependencies import get_db
-from app.db.models import LearningContext
+from app.db.models import Concept, LearningContext
 from app.schemas.adaptation import (
     AdaptationDecisionResponse,
     ConceptResponse,
@@ -14,11 +15,17 @@ from app.schemas.adaptation import (
     CycleSummaryResponse,
     EvidenceResponse,
 )
+from app.schemas.memory import PrerequisiteAddRequest, PrerequisiteResponse
 from app.security.dependencies import CurrentLearner
 from app.services.adaptation import list_decisions, run_learner_loop
 from app.services.concepts import list_concepts, sync_concepts
 from app.services.evidence import invalidate_evidence, list_context_evidence
 from app.services.learner_state import context_states_with_concepts
+from app.services.memory import (
+    add_prerequisite,
+    list_prerequisites,
+    remove_prerequisite,
+)
 
 router = APIRouter(prefix="/api/v1/contexts", tags=["adaptation"])
 Db = Annotated[Session, Depends(get_db)]
@@ -97,6 +104,85 @@ def evidence(context_id: UUID, learner: CurrentLearner, db: Db) -> list[Evidence
         )
         for item, concept in rows
     ]
+
+
+def get_owned_concept(
+    db: Session, *, context_id: UUID, concept_id: UUID, owner_id: UUID
+) -> Concept:
+    get_owned_context(db, context_id=context_id, owner_id=owner_id)
+    concept = db.scalar(
+        select(Concept).where(
+            Concept.id == concept_id,
+            Concept.owner_id == owner_id,
+            Concept.context_id == context_id,
+        )
+    )
+    if concept is None:
+        raise HTTPException(status_code=404, detail="Concept not found")
+    return concept
+
+
+@router.get(
+    "/{context_id}/concepts/{concept_id}/prerequisites",
+    response_model=list[PrerequisiteResponse],
+)
+def prerequisites(
+    context_id: UUID, concept_id: UUID, learner: CurrentLearner, db: Db
+) -> list[PrerequisiteResponse]:
+    get_owned_concept(db, context_id=context_id, concept_id=concept_id, owner_id=learner.id)
+    return [
+        PrerequisiteResponse(**item)
+        for item in list_prerequisites(db, owner_id=learner.id, concept_id=concept_id)
+    ]
+
+
+@router.post(
+    "/{context_id}/concepts/{concept_id}/prerequisites",
+    response_model=list[PrerequisiteResponse],
+    status_code=201,
+)
+def add_prerequisite_route(
+    context_id: UUID,
+    concept_id: UUID,
+    request: PrerequisiteAddRequest,
+    learner: CurrentLearner,
+    db: Db,
+) -> list[PrerequisiteResponse]:
+    get_owned_concept(db, context_id=context_id, concept_id=concept_id, owner_id=learner.id)
+    try:
+        add_prerequisite(
+            db,
+            owner_id=learner.id,
+            concept_id=concept_id,
+            prerequisite_concept_id=UUID(request.prerequisite_concept_id),
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return [
+        PrerequisiteResponse(**item)
+        for item in list_prerequisites(db, owner_id=learner.id, concept_id=concept_id)
+    ]
+
+
+@router.delete(
+    "/{context_id}/concepts/{concept_id}/prerequisites/{prerequisite_concept_id}"
+)
+def remove_prerequisite_route(
+    context_id: UUID,
+    concept_id: UUID,
+    prerequisite_concept_id: UUID,
+    learner: CurrentLearner,
+    db: Db,
+) -> dict[str, object]:
+    get_owned_concept(db, context_id=context_id, concept_id=concept_id, owner_id=learner.id)
+    if not remove_prerequisite(
+        db,
+        owner_id=learner.id,
+        concept_id=concept_id,
+        prerequisite_concept_id=prerequisite_concept_id,
+    ):
+        raise HTTPException(status_code=404, detail="Prerequisite link not found")
+    return {"deleted": True}
 
 
 @router.post(
