@@ -10,6 +10,19 @@ diagnose a provisioning gap in seconds:
 import importlib
 import sys
 
+
+def _utf8_stdout() -> None:
+    """Make prints safe on Windows consoles with non-ASCII paths (cp1252)."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
+_utf8_stdout()
+
 MODULES = {
     "fastapi": "fastapi",
     "uvicorn": "uvicorn",

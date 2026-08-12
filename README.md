@@ -30,6 +30,16 @@ Notes, Audio, Planner, Progress, and MAO remain planned product areas. They are 
 
 ### Backend
 
+The recommended setup is a repo-local virtual environment (hermetic, interpreter-independent):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup_local.ps1
+.\.venv\Scripts\python.exe scripts\check_deps.py
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Manual alternative:
+
 ```powershell
 python -m venv .venv
 .\\.venv\\Scripts\\Activate.ps1
@@ -37,23 +47,23 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --app-dir backend
 ```
 
-> On Linux/macOS you may prefer the editable install (`pip install -e ".[dev]"`), which keeps
-> the package installable. On Windows, `-e ".[dev]"` can fail to build the editable wheel with a
-> `UnicodeEncodeError` when the repository path contains non-ASCII characters — `requirements-dev.txt`
-> avoids that entirely, and `pytest` resolves `app` via `pythonpath` regardless.
+> **Windows notes**
+> - The WindowsApps `python` launcher can fail in some sessions with a "terminated logon session"
+>   error. `scripts\setup_local.ps1` discovers a real interpreter and provisions `.venv` from it,
+>   so tests never depend on the launcher. Run tests with
+>   `.\.venv\Scripts\python.exe -m pytest` (or `scripts\test.ps1`).
+> - Non-ASCII repository paths can trip the cp1252 console encoding. Set `$env:PYTHONUTF8="1"`
+>   before install/test commands if you see `UnicodeEncodeError` or mojibake — `check_deps.py` is
+>   encoding-safe either way.
+> - On Linux/macOS you may prefer `pip install -e ".[dev]"`; `pytest` resolves `app` via
+>   `pythonpath` regardless of install method.
 
-> If the test suite fails on imports, verify the environment quickly:
-
-```powershell
-python scripts/check_deps.py      # prints the active interpreter + PASS/MISSING per dependency
-```
-
-> `check_deps.py` prints which interpreter it ran under. If it reports `MISSING`
-> for `fitz`/`pymupdf` or `litellm`, the interpreter running the tests was not the
-> one you provisioned — another Python on `PATH` (for example a leftover virtual
-> environment) is being picked up. Activate the correct environment (or run
-> `python -m pytest` explicitly from it) and re-run `check_deps.py` until every
-> dependency is `OK`.
+> If the test suite fails on imports, run `python scripts/check_deps.py` (or
+> `.\.venv\Scripts\python.exe scripts\check_deps.py`). It prints the active interpreter and a
+> `PASS`/`MISSING` line per dependency. If `fitz`/`pymupdf` or `litellm` show `MISSING`, the
+> interpreter running the tests was not the one you provisioned — another Python on `PATH` (for
+> example a leftover virtual environment) is being picked up. Provision with
+> `scripts\setup_local.ps1` and use the `.venv` interpreter.
 
 Backend API: <http://localhost:8000>  
 Health check: <http://localhost:8000/health>  
