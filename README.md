@@ -33,16 +33,19 @@ Notes, Audio, Planner, Progress, and MAO remain planned product areas. They are 
 ```powershell
 python -m venv .venv
 .\\.venv\\Scripts\\Activate.ps1
-pip install -e ".[dev]"
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --app-dir backend
 ```
 
-> **Windows note:** if `pip install -e ".[dev]"` fails to build the editable wheel with a
-> `UnicodeEncodeError` (this happens when the repository path contains non-ASCII characters),
-> install the dependencies directly instead — `pytest` resolves `app` via `pythonpath`:
+> On Linux/macOS you may prefer the editable install (`pip install -e ".[dev]"`), which keeps
+> the package installable. On Windows, `-e ".[dev]"` can fail to build the editable wheel with a
+> `UnicodeEncodeError` when the repository path contains non-ASCII characters — `requirements-dev.txt`
+> avoids that entirely, and `pytest` resolves `app` via `pythonpath` regardless.
+
+> If the test suite fails on imports, verify the environment quickly:
 
 ```powershell
-pip install fastapi "uvicorn[standard]" pydantic-settings sqlalchemy alembic "psycopg[binary]" pymupdf litellm httpx pytest pytest-asyncio ruff
+python scripts/check_deps.py      # prints PASS/MISSING for every declared dependency
 ```
 
 Backend API: <http://localhost:8000>  
