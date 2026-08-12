@@ -19,12 +19,13 @@ from app.db.models import (
 )
 from app.services.learner_state import STATE_SUPPORTED
 
-MEANINGFUL_TYPES = frozenset({"assessment", "study", "revision"})
+MEANINGFUL_TYPES = frozenset({"assessment", "study", "revision", "planned_task"})
 
 BADGE_CATALOG = [
     ("first_assessment", "First assessment"),
     ("first_study", "First study session"),
     ("first_revision", "First revision"),
+    ("first_planned_task", "First planned task completed"),
     ("streak_3", "3-day learning streak"),
     ("streak_7", "7-day learning streak"),
     ("streak_30", "30-day learning streak"),
@@ -178,6 +179,8 @@ def sync_badges(
         earn("first_study", "First study session")
     if "revision" in types:
         earn("first_revision", "First revision")
+    if "planned_task" in types:
+        earn("first_planned_task", "First planned task completed")
     for threshold in (3, 7, 30):
         if stats["longest_streak"] >= threshold:
             earn(f"streak_{threshold}", f"{threshold}-day learning streak")

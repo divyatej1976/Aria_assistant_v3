@@ -128,6 +128,40 @@ class LearnerBadge(OwnedModel, Base):
     earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class Deadline(OwnedModel, Base):
+    __tablename__ = "deadlines"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    context_id: Mapped[UUID] = mapped_column(ForeignKey("learning_contexts.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    syllabus_resource_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("resources.id"), index=True
+    )
+    reminder_days_before: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    reminder_sent_days_before: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
+
+
+class PlannedTask(OwnedModel, Base):
+    __tablename__ = "planned_tasks"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    context_id: Mapped[UUID] = mapped_column(ForeignKey("learning_contexts.id"), index=True)
+    deadline_id: Mapped[UUID | None] = mapped_column(ForeignKey("deadlines.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Notification(OwnedModel, Base):
+    __tablename__ = "notifications"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    ntype: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Resource(OwnedModel, Base):
     __tablename__ = "resources"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)

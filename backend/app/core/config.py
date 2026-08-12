@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str | None = Field(default=None, repr=False)
     groq_api_key: str | None = Field(default=None, repr=False)
     llm_model: str = "llama-3.3-70b-versatile"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = Field(default=None, repr=False)
+    smtp_from: str = "ARIA <noreply@aria.local>"
+    smtp_use_tls: bool = True
 
     @property
     def cors_origins(self) -> list[str]:
