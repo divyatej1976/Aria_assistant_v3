@@ -173,6 +173,46 @@ def main() -> int:
     )
     check("invalidate evidence recomputes", invalidated.status_code == 200, invalidated.text)
 
+    note = client.post(
+        "/api/v1/notes",
+        headers=h,
+        json={"context_id": context_id, "title": "Locks note", "body": "Two-phase locking summary."},
+    )
+    check("create note", note.status_code == 201 and note.json()["state"] == "NEW", note.text)
+    note_id = note.json()["id"]
+
+    generated = client.post(
+        "/api/v1/notes/generate", headers=h, json={"context_id": context_id}
+    )
+    check(
+        "generate note (fallback)",
+        generated.status_code == 201 and generated.json()["title"],
+        generated.text,
+    )
+
+    reviewed = client.post(
+        f"/api/v1/notes/{note_id}/review",
+        headers=h,
+        json={"outcome": "good"},
+    )
+    check(
+        "review advances schedule",
+        reviewed.status_code == 200 and reviewed.json()["interval_days"] == 3,
+        reviewed.text,
+    )
+
+    due = client.get(f"/api/v1/notes/due?context_id={context_id}", headers=h)
+    check("notes due queue empty for fresh note", due.status_code == 200 and due.json() == [], due.text)
+
+    downloaded = client.get(f"/api/v1/notes/{note_id}/download", headers=h)
+    check(
+        "note PDF download",
+        downloaded.status_code == 200
+        and downloaded.headers["content-type"].startswith("application/pdf")
+        and downloaded.content[:5] == b"%PDF-",
+        downloaded.text[:80],
+    )
+
     second_token = register(f"smoke-{uuid.uuid4().hex[:10]}@example.com")["access_token"]
     isolated = client.get(
         f"/api/v1/contexts/{context_id}/adaptation", headers=headers(second_token)
