@@ -7,12 +7,17 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
-from app.db.models import Deadline, PlannedTask
-from app.services.progress import record_activity
+from app.db.models import Deadline, PlannedTask, Resource
+from app.services.progress import learner_timezone, record_activity
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _coerce_aware(value: datetime, *, tz) -> datetime:
+    aware = value if value.tzinfo is not None else value.replace(tzinfo=tz)
+    return aware.astimezone(UTC)
 
 
 def get_owned_deadline(db: Session, *, owner_id: UUID, deadline_id: UUID) -> Deadline:
@@ -36,11 +41,22 @@ def create_deadline(
     syllabus_resource_id: UUID | None,
     reminder_days_before: int,
 ) -> Deadline:
+    if syllabus_resource_id is not None:
+        resource = db.scalar(
+            select(Resource).where(
+                Resource.id == syllabus_resource_id, Resource.owner_id == owner_id
+            )
+        )
+        if resource is None:
+            raise ValidationError("Syllabus resource not found")
+        if resource.context_id != context_id:
+            raise ValidationError("Syllabus resource does not belong to this context")
+    tz = learner_timezone(db, owner_id=owner_id)
     deadline = Deadline(
         owner_id=owner_id,
         context_id=context_id,
         title=title,
-        due_at=due_at,
+        due_at=_coerce_aware(due_at, tz=tz),
         syllabus_resource_id=syllabus_resource_id,
         reminder_days_before=reminder_days_before,
     )
@@ -117,6 +133,13 @@ def create_task(
     deadline_id: UUID | None,
     due_at: datetime | None,
 ) -> PlannedTask:
+    if deadline_id is not None:
+        deadline = get_owned_deadline(db, owner_id=owner_id, deadline_id=deadline_id)
+        if deadline.context_id != context_id:
+            raise ValidationError("Deadline does not belong to this context")
+    if due_at is not None and due_at.tzinfo is None:
+        tz = learner_timezone(db, owner_id=owner_id)
+        due_at = _coerce_aware(due_at, tz=tz)
     task = PlannedTask(
         owner_id=owner_id,
         context_id=context_id,

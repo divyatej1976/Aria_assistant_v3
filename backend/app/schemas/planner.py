@@ -50,4 +50,6 @@ class NotificationResponse(BaseModel):
 
 class ReminderCheckResponse(BaseModel):
     notifications_created: int
-    emails_sent: int
+    emails_delivered: int
+    emails_logged: int
+    emails_failed: int

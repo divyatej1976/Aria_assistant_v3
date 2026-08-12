@@ -2,12 +2,10 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
-from app.db.models import LearningContext
 from app.schemas.planner import (
     DeadlineCreateRequest,
     DeadlineResponse,
@@ -16,6 +14,7 @@ from app.schemas.planner import (
     TaskResponse,
 )
 from app.security.dependencies import CurrentLearner
+from app.services.contexts import get_owned_context
 from app.services.notifications import check_reminders
 from app.services.planner import (
     complete_deadline,
@@ -34,15 +33,11 @@ router = APIRouter(prefix="/api/v1/planner", tags=["planner"])
 Db = Annotated[Session, Depends(get_db)]
 
 
-def get_owned_context(db: Session, *, context_id: UUID, owner_id: UUID) -> LearningContext:
-    context = db.scalar(
-        select(LearningContext).where(
-            LearningContext.id == context_id, LearningContext.owner_id == owner_id
-        )
-    )
-    if context is None:
-        raise HTTPException(status_code=404, detail="Learning context not found")
-    return context
+def ensure_context(db: Session, *, context_id: UUID, owner_id: UUID) -> None:
+    try:
+        get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    except ValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def deadline_response(deadline) -> DeadlineResponse:
@@ -77,18 +72,21 @@ def create_deadline_route(
     request: DeadlineCreateRequest, learner: CurrentLearner, db: Db
 ) -> DeadlineResponse:
     context_id = UUID(request.context_id)
-    get_owned_context(db, context_id=context_id, owner_id=learner.id)
-    deadline = create_deadline(
-        db,
-        owner_id=learner.id,
-        context_id=context_id,
-        title=request.title,
-        due_at=request.due_at,
-        syllabus_resource_id=UUID(request.syllabus_resource_id)
-        if request.syllabus_resource_id
-        else None,
-        reminder_days_before=request.reminder_days_before,
-    )
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
+    try:
+        deadline = create_deadline(
+            db,
+            owner_id=learner.id,
+            context_id=context_id,
+            title=request.title,
+            due_at=request.due_at,
+            syllabus_resource_id=UUID(request.syllabus_resource_id)
+            if request.syllabus_resource_id
+            else None,
+            reminder_days_before=request.reminder_days_before,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return deadline_response(deadline)
 
 
@@ -97,7 +95,7 @@ def list_deadlines_route(
     context_id: str, learner: CurrentLearner, db: Db
 ) -> list[DeadlineResponse]:
     context_uuid = UUID(context_id)
-    get_owned_context(db, context_id=context_uuid, owner_id=learner.id)
+    ensure_context(db, context_id=context_uuid, owner_id=learner.id)
     return [
         deadline_response(item)
         for item in list_deadlines(db, owner_id=learner.id, context_id=context_uuid)
@@ -141,15 +139,18 @@ def create_task_route(
     request: TaskCreateRequest, learner: CurrentLearner, db: Db
 ) -> TaskResponse:
     context_id = UUID(request.context_id)
-    get_owned_context(db, context_id=context_id, owner_id=learner.id)
-    task = create_task(
-        db,
-        owner_id=learner.id,
-        context_id=context_id,
-        title=request.title,
-        deadline_id=UUID(request.deadline_id) if request.deadline_id else None,
-        due_at=request.due_at,
-    )
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
+    try:
+        task = create_task(
+            db,
+            owner_id=learner.id,
+            context_id=context_id,
+            title=request.title,
+            deadline_id=UUID(request.deadline_id) if request.deadline_id else None,
+            due_at=request.due_at,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return task_response(task)
 
 
@@ -158,7 +159,7 @@ def list_tasks_route(
     context_id: str, learner: CurrentLearner, db: Db
 ) -> list[TaskResponse]:
     context_uuid = UUID(context_id)
-    get_owned_context(db, context_id=context_uuid, owner_id=learner.id)
+    ensure_context(db, context_id=context_uuid, owner_id=learner.id)
     return [
         task_response(item)
         for item in list_tasks(db, owner_id=learner.id, context_id=context_uuid)

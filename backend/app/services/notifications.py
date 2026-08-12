@@ -28,6 +28,7 @@ from app.db.models import (
     RevisionItem,
 )
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW, STATE_SUPPORTED
+from app.services.progress import learner_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ class SmtpEmailProvider:
         self.from_addr = from_addr
         self.use_tls = use_tls
 
-    def send(self, *, recipient: str, subject: str, body: str) -> None:
+    def send(self, *, recipient: str, subject: str, body: str) -> str:
         message = EmailMessage()
         message["From"] = self.from_addr
         message["To"] = recipient
@@ -87,11 +88,13 @@ class SmtpEmailProvider:
             if self.username:
                 server.login(self.username, self.password)
             server.send_message(message)
+        return "delivered"
 
 
 class LogEmailProvider:
-    def send(self, *, recipient: str, subject: str, body: str) -> None:
+    def send(self, *, recipient: str, subject: str, body: str) -> str:
         logger.info("email to=%s subject=%s body=%s", recipient, subject, body)
+        return "logged"
 
 
 def get_email_provider():
@@ -244,15 +247,40 @@ def build_digest_message(
     return "ARIA: Your learning digest", "\n".join(lines) + "\n"
 
 
-def check_reminders(db: Session, *, owner_id: UUID) -> dict[str, int]:
-    provider = get_email_provider()
+def _send_email(provider, *, email: str, subject: str, body: str) -> str:
+    try:
+        return provider.send(recipient=email, subject=subject, body=body)
+    except Exception:
+        logger.exception("email delivery failed to=%s subject=%s", email, subject)
+        return "failed"
+
+
+def check_reminders(
+    db: Session, *, owner_id: UUID, provider=None
+) -> dict[str, int]:
+    provider = provider or get_email_provider()
     learner = db.scalar(select(Learner).where(Learner.id == owner_id))
     email = learner.email if learner else None
     send_email = email is not None and email_enabled(db, owner_id=owner_id)
-    now = datetime.now(UTC)
+    tz = learner_timezone(db, owner_id=owner_id)
+    now = datetime.now(tz)
 
     notifications_created = 0
-    emails_sent = 0
+    emails_delivered = 0
+    emails_logged = 0
+    emails_failed = 0
+
+    def deliver(subject: str, body: str) -> None:
+        nonlocal emails_delivered, emails_logged, emails_failed
+        if not send_email:
+            return
+        status = _send_email(provider, email=email, subject=subject, body=body)
+        if status == "delivered":
+            emails_delivered += 1
+        elif status == "logged":
+            emails_logged += 1
+        else:
+            emails_failed += 1
 
     deadlines = db.scalars(
         select(Deadline).where(
@@ -260,11 +288,13 @@ def check_reminders(db: Session, *, owner_id: UUID) -> dict[str, int]:
         )
     ).all()
     for deadline in deadlines:
-        days_left = (deadline.due_at.date() - now.date()).days
-        if (
-            deadline.reminder_sent_days_before is None
-            and 0 <= days_left <= deadline.reminder_days_before
-        ):
+        days_left = (deadline.due_at.astimezone(tz).date() - now.date()).days
+        if not (0 <= days_left <= deadline.reminder_days_before):
+            continue
+        sent = deadline.reminder_sent_days_before
+        if sent is not None and sent != -1:
+            continue
+        if sent is None:
             progress = syllabus_progress(db, owner_id=owner_id, context_id=deadline.context_id)
             study_next = what_to_study(db, owner_id=owner_id, context_id=deadline.context_id)
             subject, body = build_exam_message(deadline, progress, study_next, days_left)
@@ -272,11 +302,14 @@ def check_reminders(db: Session, *, owner_id: UUID) -> dict[str, int]:
                 db, owner_id=owner_id, ntype="deadline", title=subject, body=body
             )
             notifications_created += 1
-            if send_email:
-                provider.send(recipient=email, subject=subject, body=body)
-                emails_sent += 1
-            deadline.reminder_sent_days_before = days_left
-            db.add(deadline)
+        else:
+            progress = syllabus_progress(db, owner_id=owner_id, context_id=deadline.context_id)
+            study_next = what_to_study(db, owner_id=owner_id, context_id=deadline.context_id)
+            subject, body = build_exam_message(deadline, progress, study_next, days_left)
+        failed_before = emails_failed
+        deliver(subject, body)
+        deadline.reminder_sent_days_before = -1 if emails_failed > failed_before else days_left
+        db.add(deadline)
 
     today = now.date().isoformat()
     if get_preference(db, owner_id=owner_id, key=DIGEST_PREFERENCE_KEY) != today:
@@ -295,10 +328,13 @@ def check_reminders(db: Session, *, owner_id: UUID) -> dict[str, int]:
             subject, body = build_digest_message(missed, revisions)
             create_notification(db, owner_id=owner_id, ntype="digest", title=subject, body=body)
             notifications_created += 1
-            if send_email:
-                provider.send(recipient=email, subject=subject, body=body)
-                emails_sent += 1
+            deliver(subject, body)
             set_preference(db, owner_id=owner_id, key=DIGEST_PREFERENCE_KEY, value=today)
 
     db.commit()
-    return {"notifications_created": notifications_created, "emails_sent": emails_sent}
+    return {
+        "notifications_created": notifications_created,
+        "emails_delivered": emails_delivered,
+        "emails_logged": emails_logged,
+        "emails_failed": emails_failed,
+    }

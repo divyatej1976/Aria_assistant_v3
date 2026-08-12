@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -157,7 +158,9 @@ def test_exam_reminder_created_and_deduped(client: TestClient) -> None:
     first = client.post("/api/v1/planner/reminders/check", headers=headers(token))
     assert first.status_code == 200
     assert first.json()["notifications_created"] == 1
-    assert first.json()["emails_sent"] == 1  # no SMTP -> log provider "sends" to the log
+    assert first.json()["emails_delivered"] == 0  # no SMTP
+    assert first.json()["emails_logged"] == 1  # log provider "sends" to the log
+    assert first.json()["emails_failed"] == 0
 
     notifications = client.get("/api/v1/notifications", headers=headers(token)).json()
     reminder = notifications[0]
@@ -208,7 +211,175 @@ def test_email_preference_disables_sending(client: TestClient) -> None:
 
     result = client.post("/api/v1/planner/reminders/check", headers=headers(token)).json()
     assert result["notifications_created"] == 1
-    assert result["emails_sent"] == 0
+    assert result["emails_delivered"] == 0
+    assert result["emails_logged"] == 0
+    assert result["emails_failed"] == 0
+
+
+def test_task_deadline_must_be_owned_and_same_context(client: TestClient) -> None:
+    first = register(client, "task-own@example.com")
+    second = register(client, "task-other@example.com")
+    context_id = create_context(client, first["access_token"])
+    other_context = create_context(client, first["access_token"])
+    second_context = create_context(client, second["access_token"])
+    deadline = create_deadline(client, first["access_token"], context_id, days=10)
+
+    foreign = client.post(
+        "/api/v1/planner/tasks",
+        headers=headers(second["access_token"]),
+        json={"context_id": second_context, "title": "x", "deadline_id": deadline["id"]},
+    )
+    assert foreign.status_code == 422
+
+    cross_context = client.post(
+        "/api/v1/planner/tasks",
+        headers=headers(first["access_token"]),
+        json={"context_id": other_context, "title": "x", "deadline_id": deadline["id"]},
+    )
+    assert cross_context.status_code == 422
+
+
+def test_deadline_syllabus_resource_must_be_owned_and_same_context(client: TestClient) -> None:
+    first = register(client, "res-own@example.com")
+    second = register(client, "res-other@example.com")
+    context_id = create_context(client, first["access_token"])
+    other_context = create_context(client, first["access_token"])
+    second_context = create_context(client, second["access_token"])
+    resource_id = add_material(client, first["access_token"], context_id)
+
+    foreign = client.post(
+        "/api/v1/planner/deadlines",
+        headers=headers(second["access_token"]),
+        json={
+            "context_id": second_context,
+            "title": "x",
+            "due_at": (now() + timedelta(days=5)).isoformat(),
+            "syllabus_resource_id": resource_id,
+        },
+    )
+    assert foreign.status_code == 422
+
+    cross_context = client.post(
+        "/api/v1/planner/deadlines",
+        headers=headers(first["access_token"]),
+        json={
+            "context_id": other_context,
+            "title": "x",
+            "due_at": (now() + timedelta(days=5)).isoformat(),
+            "syllabus_resource_id": resource_id,
+        },
+    )
+    assert cross_context.status_code == 422
+
+
+def test_naive_due_at_interpreted_in_learner_timezone(client: TestClient) -> None:
+    session = register(client, "tz-deadline@example.com")
+    token = session["access_token"]
+    context_id = create_context(client, token)
+    client.put(
+        "/api/v1/me/preferences",
+        headers=headers(token),
+        json={"key": "timezone", "value": "Asia/Kolkata"},
+    )
+    created = client.post(
+        "/api/v1/planner/deadlines",
+        headers=headers(token),
+        json={
+            "context_id": context_id,
+            "title": "Exam",
+            "due_at": "2026-09-01T00:00:00",
+            "reminder_days_before": 5,
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["due_at"].startswith("2026-08-31T18:30")
+
+
+def test_reminder_at_boundary_and_after_completion(client: TestClient) -> None:
+    session = register(client, "boundary@example.com")
+    token = session["access_token"]
+    context_id = create_context(client, token)
+    deadline = create_deadline(client, token, context_id, days=5)
+
+    first = client.post("/api/v1/planner/reminders/check", headers=headers(token))
+    assert first.json()["notifications_created"] == 1
+
+    completed = client.post(
+        f"/api/v1/planner/deadlines/{deadline['id']}/complete", headers=headers(token)
+    )
+    assert completed.status_code == 200
+
+    second = client.post("/api/v1/planner/reminders/check", headers=headers(token))
+    assert second.json()["notifications_created"] == 0
+
+
+class FailingProvider:
+    def send(self, *, recipient: str, subject: str, body: str) -> str:
+        raise RuntimeError("smtp down")
+
+
+def test_email_failure_is_reported_and_retried() -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    from app.db.base import Base
+    from app.db.models import Deadline, Learner
+    from app.services.notifications import LogEmailProvider, check_reminders
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_factory() as db:
+        owner_id = uuid4()
+        db.add(Learner(id=owner_id, owner_id=owner_id, email="learner@example.com"))
+        db.flush()
+        db.add(
+            Deadline(
+                owner_id=owner_id,
+                context_id=uuid4(),
+                title="Exam",
+                due_at=now() + timedelta(days=5),
+                reminder_days_before=5,
+                status="ACTIVE",
+            )
+        )
+        db.commit()
+
+        first = check_reminders(db, owner_id=owner_id, provider=FailingProvider())
+        assert first["notifications_created"] == 1
+        assert first["emails_failed"] == 1
+        assert first["emails_delivered"] == 0
+
+        second = check_reminders(db, owner_id=owner_id, provider=LogEmailProvider())
+        assert second["notifications_created"] == 0
+        assert second["emails_logged"] == 1
+        assert second["emails_failed"] == 0
+    engine.dispose()
+
+
+def test_notification_isolation(client: TestClient) -> None:
+    first = register(client, "notif-a@example.com")
+    second = register(client, "notif-b@example.com")
+    context_id = create_context(client, first["access_token"])
+    create_deadline(client, first["access_token"], context_id, days=5)
+    client.post("/api/v1/planner/reminders/check", headers=headers(first["access_token"]))
+
+    first_notifications = client.get(
+        "/api/v1/notifications", headers=headers(first["access_token"])
+    ).json()
+    assert len(first_notifications) == 1
+    notif_id = first_notifications[0]["id"]
+
+    second_list = client.get("/api/v1/notifications", headers=headers(second["access_token"]))
+    assert second_list.json() == []
+
+    forged = client.post(
+        f"/api/v1/notifications/{notif_id}/read", headers=headers(second["access_token"])
+    )
+    assert forged.status_code == 404
 
 
 def test_notifications_read(client: TestClient) -> None:
