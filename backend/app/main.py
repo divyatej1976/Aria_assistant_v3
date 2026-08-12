@@ -11,6 +11,7 @@ from app.api.routes.contexts import router as contexts_router
 from app.api.routes.health import router as health_router
 from app.api.routes.memory import router as memory_router
 from app.api.routes.notes import router as notes_router
+from app.api.routes.progress import router as progress_router
 from app.api.routes.resources import router as resources_router
 from app.api.routes.study import router as study_router
 from app.core.config import get_settings
@@ -41,6 +42,7 @@ app.include_router(contexts_router)
 app.include_router(adaptation_router)
 app.include_router(memory_router)
 app.include_router(notes_router)
+app.include_router(progress_router)
 app.include_router(resources_router)
 app.include_router(study_router)
 app.include_router(assessments_router)

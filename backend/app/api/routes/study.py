@@ -17,6 +17,7 @@ from app.schemas.study import (
 )
 from app.security.dependencies import CurrentLearner
 from app.services.memory import delete_message as delete_message_service
+from app.services.progress import record_activity
 from app.services.study import answer_question
 
 router = APIRouter(prefix="/api/v1/study", tags=["study"])
@@ -172,6 +173,7 @@ async def send_message(
         )
     )
     db.commit()
+    record_activity(db, owner_id=learner.id, activity_type="study", source_id=session.id)
     return StudyMessageResponse(
         session_id=str(session.id),
         content=result.content,

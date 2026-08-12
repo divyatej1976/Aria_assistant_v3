@@ -34,6 +34,7 @@ from app.services.assessment import (
     start_attempt,
     submit_attempt,
 )
+from app.services.progress import record_activity
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 Db = Annotated[Session, Depends(get_db)]
@@ -202,6 +203,7 @@ def submit(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     run_learner_loop(db, owner_id=learner.id, context_id=assessment.context_id)
+    record_activity(db, owner_id=learner.id, activity_type="assessment", source_id=attempt.id)
     return AttemptResultResponse(
         attempt_id=str(attempt.id),
         evaluation_id=str(evaluation.id),

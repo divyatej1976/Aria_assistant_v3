@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -106,6 +107,25 @@ class RevisionItem(OwnedModel, Base):
     interval_days: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     next_review_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_outcome: Mapped[str | None] = mapped_column(String(32))
+
+
+class LearningActivity(OwnedModel, Base):
+    __tablename__ = "learning_activities"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    activity_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    occurred_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    source_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+
+
+class LearnerBadge(OwnedModel, Base):
+    __tablename__ = "learner_badges"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "code", name="uq_learner_badge_code"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Resource(OwnedModel, Base):
