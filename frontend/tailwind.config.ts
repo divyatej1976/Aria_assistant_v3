@@ -1,0 +1,90 @@
+import type { Config } from "tailwindcss";
+
+const color = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
+const colors = {
+  background: color("color-background"),
+  "on-background": color("color-on-background"),
+  surface: color("color-surface"),
+  "surface-bright": color("color-surface-bright"),
+  "surface-dim": color("color-surface-dim"),
+  "surface-container-lowest": color("color-surface-container-lowest"),
+  "surface-container-low": color("color-surface-container-low"),
+  "surface-container": color("color-surface-container"),
+  "surface-container-high": color("color-surface-container-high"),
+  "surface-container-highest": color("color-surface-container-highest"),
+  "surface-variant": color("color-surface-variant"),
+  "on-surface": color("color-on-surface"),
+  "on-surface-variant": color("color-on-surface-variant"),
+  "inverse-surface": color("color-inverse-surface"),
+  "inverse-on-surface": color("color-inverse-on-surface"),
+  outline: color("color-outline"),
+  "outline-variant": color("color-outline-variant"),
+  "surface-tint": color("color-surface-tint"),
+  primary: color("color-primary"),
+  "on-primary": color("color-on-primary"),
+  "primary-container": color("color-primary-container"),
+  "on-primary-container": color("color-on-primary-container"),
+  secondary: color("color-secondary"),
+  "on-secondary": color("color-on-secondary"),
+  "secondary-container": color("color-secondary-container"),
+  "on-secondary-container": color("color-on-secondary-container"),
+  tertiary: color("color-tertiary"),
+  "on-tertiary": color("color-on-tertiary"),
+  "tertiary-container": color("color-tertiary-container"),
+  "on-tertiary-container": color("color-on-tertiary-container"),
+  error: color("color-error"),
+  "on-error": color("color-on-error"),
+  "error-container": color("color-error-container"),
+  "on-error-container": color("color-on-error-container"),
+  "primary-fixed": color("color-primary-fixed"),
+  "primary-fixed-dim": color("color-primary-fixed-dim"),
+  "on-primary-fixed": color("color-on-primary-fixed"),
+  "secondary-fixed": color("color-secondary-fixed"),
+  "secondary-fixed-dim": color("color-secondary-fixed-dim"),
+  "on-secondary-fixed": color("color-on-secondary-fixed"),
+  "tertiary-fixed": color("color-tertiary-fixed"),
+  "tertiary-fixed-dim": color("color-tertiary-fixed-dim"),
+  "on-tertiary-fixed": color("color-on-tertiary-fixed"),
+  "aria-red": color("color-aria-red"),
+};
+
+const config: Config = {
+  darkMode: "class",
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors,
+      fontFamily: {
+        sans: ["Plus Jakarta Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        "headline-xl": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "800" }],
+        "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.01em", fontWeight: "700" }],
+        "headline-lg-mobile": ["28px", { lineHeight: "36px", fontWeight: "700" }],
+        "headline-md": ["24px", { lineHeight: "32px", fontWeight: "600" }],
+        "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+        "body-md": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+        "label-md": ["14px", { lineHeight: "20px", letterSpacing: "0.02em", fontWeight: "600" }],
+        "label-sm": ["12px", { lineHeight: "16px", fontWeight: "500" }],
+      },
+      borderRadius: {
+        DEFAULT: "0.25rem",
+        lg: "0.5rem",
+        xl: "0.75rem",
+        "2xl": "1rem",
+        "3xl": "2rem",
+        full: "9999px",
+      },
+      spacing: {
+        unit: "8px",
+        "container-padding": "24px",
+        "element-gap": "16px",
+        "section-margin": "48px",
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
