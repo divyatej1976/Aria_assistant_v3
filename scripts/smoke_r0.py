@@ -43,7 +43,9 @@ def make_pdf_bytes(text: str) -> bytes:
 
 
 def register(email: str) -> dict:
-    response = client.post("/api/v1/auth/register", json={"email": email, "password": "correct-horse"})
+    response = client.post(
+        "/api/v1/auth/register", json={"email": email, "password": "correct-horse"}
+    )
     check("register", response.status_code == 201, response.text)
     return response.json()
 
@@ -62,7 +64,11 @@ def main() -> int:
     context = client.post(
         "/api/v1/contexts",
         headers=h,
-        json={"title": "DBMS", "description": "Smoke context", "configuration": {"mastery_level": "beginner"}},
+        json={
+            "title": "DBMS",
+            "description": "Smoke context",
+            "configuration": {"mastery_level": "beginner"},
+        },
     )
     check("create context", context.status_code == 201, context.text)
     context_id = context.json()["id"]
@@ -98,7 +104,11 @@ def main() -> int:
         headers=h,
         json={"content": "When does strict two-phase locking release its locks?"},
     )
-    check("grounded question answered", answer.status_code == 200 and answer.json()["content"], answer.text)
+    check(
+        "grounded question answered",
+        answer.status_code == 200 and answer.json()["content"],
+        answer.text,
+    )
 
     follow_up = client.post(
         f"/api/v1/study/sessions/{session_id}/messages",
@@ -115,7 +125,12 @@ def main() -> int:
     assessment = client.post(
         "/api/v1/assessments",
         headers=h,
-        json={"context_id": context_id, "format": "mcq", "question_count": 3, "difficulty": "medium"},
+        json={
+            "context_id": context_id,
+            "format": "mcq",
+            "question_count": 3,
+            "difficulty": "medium",
+        },
     )
     check("create assessment", assessment.status_code == 201, assessment.text)
     assessment_id = assessment.json()["id"]
@@ -138,7 +153,11 @@ def main() -> int:
         headers=h,
         json={"idempotency_key": key, "answers": {q["id"]: "A" for q in questions}},
     )
-    check("submit attempt", submitted.status_code == 200 and submitted.json()["status"] == "COMPLETED", submitted.text)
+    check(
+        "submit attempt",
+        submitted.status_code == 200 and submitted.json()["status"] == "COMPLETED",
+        submitted.text,
+    )
     first_result = submitted.json()
 
     resubmitted = client.post(
@@ -161,7 +180,10 @@ def main() -> int:
     check(
         "weak states + decisions",
         any(s["state"] in ("NEEDS_REVIEW", "DEVELOPING") for s in body["states"])
-        and any(d["decision_type"] in ("FOCUS_STUDY", "RETEST_TARGETED") for d in body["decisions"]),
+        and any(
+            d["decision_type"] in ("FOCUS_STUDY", "RETEST_TARGETED")
+            for d in body["decisions"]
+        ),
         adaptation.text,
     )
 
@@ -176,7 +198,11 @@ def main() -> int:
     note = client.post(
         "/api/v1/notes",
         headers=h,
-        json={"context_id": context_id, "title": "Locks note", "body": "Two-phase locking summary."},
+        json={
+            "context_id": context_id,
+            "title": "Locks note",
+            "body": "Two-phase locking summary.",
+        },
     )
     check("create note", note.status_code == 201 and note.json()["state"] == "NEW", note.text)
     note_id = note.json()["id"]
@@ -202,7 +228,11 @@ def main() -> int:
     )
 
     due = client.get(f"/api/v1/notes/due?context_id={context_id}", headers=h)
-    check("notes due queue empty for fresh note", due.status_code == 200 and due.json() == [], due.text)
+    check(
+        "notes due queue empty for fresh note",
+        due.status_code == 200 and due.json() == [],
+        due.text,
+    )
 
     downloaded = client.get(f"/api/v1/notes/{note_id}/download", headers=h)
     check(

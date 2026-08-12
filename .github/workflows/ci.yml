@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
-      - run: ruff check backend tests
+      - run: ruff check backend tests scripts
       - run: pytest
 
   backend-postgres:
