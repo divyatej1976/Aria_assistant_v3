@@ -16,9 +16,21 @@ export default function AccountPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [emailReminders, setEmailReminders] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
+
+  useEffect(() => {
+    api<{ key: string; value: string }[]>("/api/v1/me/preferences")
+      .then((preferences) => {
+        const pref = preferences.find((item) => item.key === "email_reminders");
+        setEmailReminders(pref ? pref.value !== "off" : true);
+      })
+      .catch(() => {
+        // Preferences are optional for rendering.
+      });
+  }, []);
 
   async function loadSessions() {
     try {
@@ -78,6 +90,22 @@ export default function AccountPage() {
       await loadSessions();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to sign out that device");
+    }
+  }
+
+  async function toggleEmailReminders() {
+    const next = !emailReminders;
+    setEmailReminders(next);
+    setError("");
+    setNotice("");
+    try {
+      await api("/api/v1/me/preferences", {
+        method: "PUT",
+        body: JSON.stringify({ key: "email_reminders", value: next ? "on" : "off" }),
+      });
+      setNotice(next ? "Email reminders enabled." : "Email reminders disabled.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to update preference");
     }
   }
 
@@ -177,6 +205,21 @@ export default function AccountPage() {
               ))}
             </ul>
           )}
+        </div>
+
+        <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-4">
+          <h3 className="text-headline-md text-on-surface">Notifications</h3>
+          <p className="text-body-md text-on-surface-variant">
+            Receive exam reminders and the daily digest by email when SMTP is configured.
+          </p>
+          <button
+            onClick={() => void toggleEmailReminders()}
+            className={`self-start px-6 py-3 rounded-full text-label-md font-bold shadow-extruded btn-extruded ${
+              emailReminders ? "bg-secondary text-on-secondary" : "bg-surface text-on-surface-variant"
+            }`}
+          >
+            {emailReminders ? "Email reminders: ON" : "Email reminders: OFF"}
+          </button>
         </div>
 
         <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-4">

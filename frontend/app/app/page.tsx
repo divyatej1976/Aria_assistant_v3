@@ -38,6 +38,7 @@ export default function DashboardPage() {
     current_streak: number;
     today_active: boolean;
   } | null>(null);
+  const [nextDeadline, setNextDeadline] = useState<{ id: string; title: string; due_at: string } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -46,6 +47,9 @@ export default function DashboardPage() {
       .catch(() => {
         // Consistency is optional for rendering.
       });
+    api<{ id: string; title: string; due_at: string }[]>("/api/v1/planner/upcoming?days=30")
+      .then((list) => setNextDeadline(list[0] ?? null))
+      .catch(() => setNextDeadline(null));
     if (!active) return;
     api<CycleSummary>(`/api/v1/contexts/${active.id}/adaptation`)
       .then(setSummary)
@@ -130,6 +134,21 @@ export default function DashboardPage() {
           </div>
           <span className={`px-4 py-2 rounded-full text-label-md ${consistency.today_active ? "bg-tertiary-container text-on-tertiary-container" : "bg-surface-container-low text-on-surface-variant"}`}>
             {consistency.today_active ? "Active today" : "Study today to keep it alive"}
+          </span>
+        </div>
+      )}
+
+      {/* Next deadline strip */}
+      {nextDeadline && (
+        <div className="bg-surface shadow-extruded rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-aria-red ms-fill">event</span>
+            <span className="text-body-md text-on-background">
+              Next exam: <span className="font-semibold">{nextDeadline.title}</span>
+            </span>
+          </div>
+          <span className="px-4 py-2 rounded-full bg-error-container text-on-error-container text-label-md font-semibold">
+            {Math.max(0, Math.ceil((new Date(nextDeadline.due_at).getTime() - Date.now()) / 86_400_000))} days
           </span>
         </div>
       )}

@@ -1,11 +1,92 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { api } from "../lib/api";
 import { useAuth } from "./auth-provider";
 import { ThemeToggle } from "./theme-toggle";
+
+type AppNotification = {
+  id: string;
+  ntype: string;
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+function NotificationBell() {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [open, setOpen] = useState(false);
+
+  async function refresh() {
+    try {
+      const items = await api<AppNotification[]>("/api/v1/notifications");
+      setNotifications(items);
+    } catch {
+      setNotifications([]);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const unread = notifications.filter((item) => item.read_at === null).length;
+
+  async function markRead(id: string) {
+    try {
+      await api(`/api/v1/notifications/${id}/read`, { method: "POST" });
+      await refresh();
+    } catch {
+      // Best effort; ignore transient failures.
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        aria-label={`Notifications (${unread} unread)`}
+        onClick={() => {
+          setOpen((value) => !value);
+          if (!open) void refresh();
+        }}
+        className="w-10 h-10 rounded-full shadow-extruded flex items-center justify-center text-on-surface-variant bg-surface relative"
+      >
+        <span className="material-symbols-outlined">notifications</span>
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-secondary text-on-secondary text-[10px] font-bold flex items-center justify-center px-1">
+            {unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-12 z-50 w-80 bg-surface shadow-extruded rounded-3xl p-4 flex flex-col gap-3">
+            <p className="text-label-md text-secondary font-bold">Notifications</p>
+            {notifications.length === 0 ? (
+              <p className="text-body-md text-on-surface-variant">No notifications yet.</p>
+            ) : (
+              notifications.slice(0, 10).map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => void markRead(item.id)}
+                  className={`text-left rounded-xl p-3 ${item.read_at === null ? "bg-surface-container-low" : "opacity-60"}`}
+                >
+                  <p className="text-label-md text-on-surface font-semibold">{item.title}</p>
+                  <p className="text-label-sm text-on-surface-variant mt-1">{item.body}</p>
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 type NavItem = {
   href: string;
@@ -20,6 +101,7 @@ const NAV: NavItem[] = [
   { href: "/app/learn", label: "Learn", icon: "school", active: (p) => p.startsWith("/app/learn") },
   { href: "/app/resources", label: "Resources", icon: "library_books", active: (p) => p.startsWith("/app/resources") },
   { href: "/app/progress", label: "Progress", icon: "trending_up", active: (p) => p.startsWith("/app/progress") },
+  { href: "/app/planner", label: "Planner", icon: "calendar_month", active: (p) => p.startsWith("/app/planner") },
   { href: "/app/account", label: "Settings", icon: "settings", active: (p) => p.startsWith("/app/account") },
 ];
 
@@ -95,7 +177,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="min-w-0">
               <p className="text-label-md text-on-surface truncate">{learner?.display_name || learner?.email || "Learner"}</p>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <NotificationBell />
               <ThemeToggle />
             </div>
           </div>
@@ -106,6 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="md:hidden flex justify-between items-center px-container-padding h-16 sticky top-0 z-50 bg-surface border-b border-outline-variant">
         <div className="text-headline-md font-extrabold text-secondary">ARIA</div>
         <div className="flex items-center gap-4">
+          <NotificationBell />
           <ThemeToggle />
           <Link href="/app/account" aria-label="Account" className="text-on-surface-variant hover:opacity-80 transition-opacity">
             <span className="material-symbols-outlined">account_circle</span>

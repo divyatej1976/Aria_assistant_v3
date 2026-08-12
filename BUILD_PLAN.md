@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–8 are implemented (including the Extruded Light frontend rebuild); Phase 9 is next.
+**Current implementation status:** Phases 0–9 are implemented (including the Extruded Light frontend rebuild); Phase 10 is next.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -457,21 +457,42 @@ This phase is the R0 product milestone.
 
 # Phase 9 — Planner and learning coordination
 
-**Status:** `[ ] Not started`  
+**Status:** `[x] Complete`  
 **Goal:** Coordinate goals, deadlines, availability, and learning actions.
 
 ## Work
 
-- [ ] Multiple goals and learning contexts.
-- [ ] Deadlines and target dates.
-- [ ] Roadmap items.
-- [ ] Learner availability.
-- [ ] Study-plan generation.
-- [ ] Daily and weekly planning.
-- [ ] Reminders and notifications.
-- [ ] Missed-work recovery.
-- [ ] Planner adaptation based on evidence and progress.
-- [ ] Conflict handling across goals.
+- [x] Multiple goals and learning contexts.
+- [x] Deadlines and target dates.
+- [ ] Roadmap items. (deferred follow-up)
+- [ ] Learner availability. (deferred follow-up)
+- [ ] Study-plan generation. (deferred follow-up)
+- [ ] Daily and weekly planning. (deferred follow-up)
+- [x] Reminders and notifications.
+- [x] Missed-work recovery.
+- [ ] Planner adaptation based on evidence and progress. (partial: reminders reference concept/task progress)
+- [ ] Conflict handling across goals. (deferred follow-up)
+
+## Implementation notes
+
+- Exams/deadlines are context-scoped with a date, an optional linked syllabus
+  resource, and a reminder window. Planned tasks are concrete study actions;
+  completing one records a `planned_task` meaningful activity (feeds Phase 8
+  streaks and badges).
+- `check_reminders` sends an exam reminder once it enters its window ("Exam in
+  N days — syllabus so far: X/Y concepts supported, Z% tasks done — study next:
+  weak concepts + due revisions"), deduped per deadline, plus a daily digest of
+  missed work and due revision notes (once per day).
+- Email is sent via SMTP (`smtplib`) when configured, otherwise logged to the
+  console so the feature works in development without credentials; a per-learner
+  `email_reminders` preference gates delivery. Reminder checks are triggered on
+  demand via `POST /planner/reminders/check`; a background scheduler arrives
+  with production hardening.
+- In-app notifications are listed in a bell in the app shell with an unread
+  badge and read-on-open. The Planner page shows exams (countdown), planned
+  tasks, and a missed-work recovery banner; Home shows a next-exam countdown.
+- Deferred follow-ups: roadmap generation, availability windows, auto
+  study-plan generation, day/week calendar views, cross-goal conflict handling.
 
 ## Definition of done
 
