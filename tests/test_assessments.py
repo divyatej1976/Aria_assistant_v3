@@ -293,6 +293,49 @@ def test_assessments_and_attempts_are_isolated(client: TestClient) -> None:
     assert start.status_code == 404
 
 
+def test_pdf_present_does_not_break_concept_linking(client: TestClient) -> None:
+    import fitz
+
+    session = register(client, "pdf-concept@example.com")
+    context_id = create_context(client, session["access_token"])
+    add_material(client, session["access_token"], context_id)
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Conflict serializability is tested with precedence graphs.")
+    pdf_bytes = document.tobytes()
+    document.close()
+    uploaded = client.post(
+        f"/api/v1/resources/pdf?context_id={context_id}&title=Notes.pdf",
+        headers={**headers(session["access_token"]), "Content-Type": "application/pdf"},
+        content=pdf_bytes,
+    )
+    assert uploaded.status_code == 201
+    assessment_id = create_assessment(
+        client, session["access_token"], context_id, count=3
+    ).json()["id"]
+    detail = client.get(
+        f"/api/v1/assessments/{assessment_id}", headers=headers(session["access_token"])
+    ).json()
+    assert any(question["concept_id"] for question in detail["questions"])
+
+    started = start_attempt(client, session["access_token"], assessment_id)
+    attempt_id = started.json()["attempt_id"]
+    questions = started.json()["questions"]
+    result = submit(
+        client,
+        session["access_token"],
+        assessment_id,
+        attempt_id,
+        f"key-{uuid4()}",
+        {q["id"]: "A" for q in questions},
+    )
+    assert result.status_code == 200
+    evidence = client.get(
+        f"/api/v1/contexts/{context_id}/evidence", headers=headers(session["access_token"])
+    )
+    assert len(evidence.json()) > 0
+
+
 def test_structured_schema_validation() -> None:
     with pytest.raises(ValidationError):
         MCQItem(

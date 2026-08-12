@@ -11,7 +11,7 @@ from app.assessment.schema import MCQSet
 from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
-from app.services.concepts import chunk_ids_for_concepts
+from app.services.concepts import chunk_ids_for_concepts, concept_id_for_chunk
 
 
 @dataclass(frozen=True)
@@ -43,7 +43,7 @@ def _load_chunk_sentences(
     owner_id: UUID,
     context_id: UUID,
     chunk_ids: set[UUID] | None = None,
-) -> list[list[str]]:
+) -> tuple[list[UUID], list[list[str]]]:
     query = (
         select(ResourceChunk, Resource)
         .join(Resource, Resource.id == ResourceChunk.resource_id)
@@ -58,7 +58,9 @@ def _load_chunk_sentences(
     if chunk_ids is not None:
         query = query.where(ResourceChunk.id.in_(chunk_ids))
     rows = db.execute(query).all()
-    return [_sentences(chunk.content) for chunk, _resource in rows]
+    chunk_ids_out = [chunk.id for chunk, _resource in rows]
+    sentences = [_sentences(chunk.content) for chunk, _resource in rows]
+    return chunk_ids_out, sentences
 
 
 def _stable_seed(all_sentences: list[str]) -> int:
@@ -121,23 +123,30 @@ def generate_mcqs_deterministic(
     concept_ids: list[str] | None = None,
 ) -> list[GeneratedMCQ]:
     chunk_filter = _chunk_id_filter(db, owner_id=owner_id, concept_ids=concept_ids)
-    chunk_sentences = _load_chunk_sentences(
+    chunk_ids, chunk_sentences = _load_chunk_sentences(
         db, owner_id=owner_id, context_id=context_id, chunk_ids=chunk_filter
     )
-    all_sentences = [sentence for group in chunk_sentences for sentence in group]
+    all_pairs = [
+        (chunk_ids[group_index], sentence)
+        for group_index, group in enumerate(chunk_sentences)
+        for sentence in group
+    ]
+    all_sentences = [sentence for _, sentence in all_pairs]
     if len(all_sentences) < 4:
         raise ValidationError(
             "Add more study material — at least four sentences are needed to build a quiz"
         )
     rng = random.Random(_stable_seed(all_sentences))
+    rng.shuffle(all_pairs)
     questions: list[GeneratedMCQ] = []
     for index in range(count):
-        correct = all_sentences[rng.randrange(len(all_sentences))]
+        chunk_id, correct = all_pairs[index % len(all_pairs)]
         options = [correct, *_pick_distractors(
             chunk_sentences, all_sentences, correct, difficulty, rng
         )]
         rng.shuffle(options)
         correct_letter = "ABCD"[options.index(correct)]
+        concept_id = concept_id_for_chunk(db, owner_id=owner_id, chunk_id=chunk_id)
         questions.append(
             GeneratedMCQ(
                 prompt=(
@@ -146,7 +155,7 @@ def generate_mcqs_deterministic(
                 ),
                 options=options,
                 correct_option=correct_letter,
-                concept_id=None,
+                concept_id=concept_id,
             )
         )
     return questions

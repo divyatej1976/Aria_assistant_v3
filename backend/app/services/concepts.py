@@ -132,3 +132,13 @@ def chunk_ids_for_concepts(
         )
     )
     return {row[0] for row in rows}
+
+
+def concept_id_for_chunk(db: Session, *, owner_id: UUID, chunk_id: UUID) -> UUID | None:
+    row = db.execute(
+        select(ConceptChunk.concept_id)
+        .where(ConceptChunk.owner_id == owner_id, ConceptChunk.chunk_id == chunk_id)
+        .order_by(ConceptChunk.concept_id)
+        .limit(1)
+    ).first()
+    return row[0] if row else None

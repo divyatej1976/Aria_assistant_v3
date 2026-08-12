@@ -122,17 +122,19 @@ def _assign_question_concepts(
     concept_terms = [(concept.id, set(tokenize(concept.name))) for concept in concepts]
     assigned: list[GeneratedMCQ] = []
     for question in questions:
-        letter_index = "ABCD".index(question.correct_option)
-        option_text = question.options[letter_index]
-        option_terms = set(tokenize(option_text))
-        concept_id = next(
-            (
-                concept_id
-                for concept_id, terms in concept_terms
-                if terms and terms <= option_terms
-            ),
-            None,
-        )
+        concept_id = question.concept_id
+        if concept_id is None:
+            option_terms = set()
+            for option in question.options:
+                option_terms.update(tokenize(option))
+            concept_id = next(
+                (
+                    concept_id
+                    for concept_id, terms in concept_terms
+                    if terms and terms <= option_terms
+                ),
+                None,
+            )
         assigned.append(
             GeneratedMCQ(
                 prompt=question.prompt,
