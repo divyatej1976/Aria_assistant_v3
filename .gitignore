@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local services and tooling
+postgres-data/
+aria*.db
+coverage.xml
+htmlcov/
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Design assets (wireframes kept locally, not tracked)
+design/
