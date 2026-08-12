@@ -84,6 +84,30 @@ class LearnerPreference(OwnedModel, Base):
     value: Mapped[str] = mapped_column(String(500), nullable=False)
 
 
+class Note(OwnedModel, Base):
+    __tablename__ = "notes"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    context_id: Mapped[UUID] = mapped_column(ForeignKey("learning_contexts.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    resource_id: Mapped[UUID | None] = mapped_column(ForeignKey("resources.id"), index=True)
+    concept_id: Mapped[UUID | None] = mapped_column(ForeignKey("concepts.id"), index=True)
+    study_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("study_sessions.id"), index=True
+    )
+    source_refs: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
+
+class RevisionItem(OwnedModel, Base):
+    __tablename__ = "revision_items"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    note_id: Mapped[UUID] = mapped_column(ForeignKey("notes.id"), index=True, nullable=False)
+    state: Mapped[str] = mapped_column(String(32), default="NEW", nullable=False)
+    interval_days: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    next_review_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_outcome: Mapped[str | None] = mapped_column(String(32))
+
+
 class Resource(OwnedModel, Base):
     __tablename__ = "resources"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)

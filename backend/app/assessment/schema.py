@@ -43,3 +43,8 @@ class ConceptSet(BaseModel):
                 seen.add(name)
                 cleaned.append(name)
         return cleaned
+
+
+class NoteDraftSchema(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    body: str = Field(min_length=1)
