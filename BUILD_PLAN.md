@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–5 are implemented (including the Extruded Light frontend rebuild); Phase 6 is next.
+**Current implementation status:** Phases 0–6 are implemented (including the Extruded Light frontend rebuild); Phase 7 is next.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -329,21 +329,38 @@ This phase is the R0 product milestone.
 
 # Phase 6 — Memory and learner intelligence
 
-**Status:** `[ ] Not started`  
+**Status:** `[x] Complete`  
 **Goal:** Make ARIA useful across sessions without confusing memory with mastery.
 
 ## Work
 
-- [ ] Session memory.
-- [ ] Conversation memory.
-- [ ] Learner preferences.
-- [ ] Durable learner memory.
-- [ ] Evidence memory.
-- [ ] Concept and prerequisite relationships.
-- [ ] Context assembly pipeline.
-- [ ] Memory retention and deletion policies.
-- [ ] Memory inspection and correction controls.
-- [ ] Conservative misconception signals.
+- [x] Session memory.
+- [x] Conversation memory.
+- [x] Learner preferences.
+- [x] Durable learner memory.
+- [x] Evidence memory.
+- [x] Concept and prerequisite relationships.
+- [x] Context assembly pipeline.
+- [x] Memory retention and deletion policies.
+- [x] Memory inspection and correction controls.
+- [x] Conservative misconception signals.
+
+## Implementation notes
+
+- Memory stays separate from evidence and learner state: preferences live in
+  `learner_preferences`, prerequisites in `concept_relations`, and Study now
+  assembles a focused, explainable `ContextPackage` (recent conversation
+  history, relevant learner state, relevant evidence, retrieved chunks) for
+  each AI call. Conversation history is included in the Study prompt, so
+  multi-turn follow-ups keep context.
+- `ConversationMessage.position` gives deterministic ordering (created_at has
+  second granularity, which previously made same-second messages ambiguous).
+- Learners can inspect and remove durable information on the Memory page:
+  preferences (free-form key/value), conversation messages, and challenged
+  evidence. Data reset remains the full wipe.
+- A conservative misconception signal: when a concept needs review and one of
+  its (manually linked) prerequisites is also weak, the adaptation reason notes
+  the likely root cause. Prerequisite links are manual and deterministic only.
 
 ## Definition of done
 

@@ -137,9 +137,14 @@ export default function ProgressPage() {
 
   return (
     <div className="p-container-padding md:p-section-margin w-full max-w-7xl mx-auto flex flex-col gap-8">
-      <div>
-        <h2 className="text-headline-xl text-on-background">Progress &amp; Assessment</h2>
-        <p className="text-body-lg text-on-surface-variant mt-2">{context.title}</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-headline-xl text-on-background">Progress &amp; Assessment</h2>
+          <p className="text-body-lg text-on-surface-variant mt-2">{context.title}</p>
+        </div>
+        <a href="/app/memory" className="self-start px-6 py-3 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary">
+          Memory
+        </a>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

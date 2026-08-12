@@ -102,12 +102,20 @@ export default function AccountPage() {
             {learner?.display_name || learner?.email || "Account"}
           </p>
         </div>
-        <button
-          onClick={() => void signOut()}
-          className="px-6 py-3 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-error"
-        >
-          Sign out this device
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="/app/memory"
+            className="px-6 py-3 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary"
+          >
+            Memory
+          </a>
+          <button
+            onClick={() => void signOut()}
+            className="px-6 py-3 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-error"
+          >
+            Sign out this device
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
