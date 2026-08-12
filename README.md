@@ -45,8 +45,15 @@ uvicorn app.main:app --reload --app-dir backend
 > If the test suite fails on imports, verify the environment quickly:
 
 ```powershell
-python scripts/check_deps.py      # prints PASS/MISSING for every declared dependency
+python scripts/check_deps.py      # prints the active interpreter + PASS/MISSING per dependency
 ```
+
+> `check_deps.py` prints which interpreter it ran under. If it reports `MISSING`
+> for `fitz`/`pymupdf` or `litellm`, the interpreter running the tests was not the
+> one you provisioned — another Python on `PATH` (for example a leftover virtual
+> environment) is being picked up. Activate the correct environment (or run
+> `python -m pytest` explicitly from it) and re-run `check_deps.py` until every
+> dependency is `OK`.
 
 Backend API: <http://localhost:8000>  
 Health check: <http://localhost:8000/health>  

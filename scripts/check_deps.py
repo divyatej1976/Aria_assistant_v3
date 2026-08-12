@@ -30,6 +30,7 @@ MODULES = {
 
 
 def main() -> int:
+    print(f"Interpreter: {sys.executable}")
     missing: list[str] = []
     for label, module in MODULES.items():
         try:
