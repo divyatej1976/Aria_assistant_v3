@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–6 are implemented (including the Extruded Light frontend rebuild); Phase 7 is next.
+**Current implementation status:** Phases 0–7 are implemented (including the Extruded Light frontend rebuild); Phase 8 is next.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -373,19 +373,34 @@ This phase is the R0 product milestone.
 
 # Phase 7 — Notes and revision
 
-**Status:** `[ ] Not started`  
+**Status:** `[x] Complete`  
 **Goal:** Turn study activity and resources into reusable learner-owned material.
 
 ## Work
 
-- [ ] Generated notes.
-- [ ] Learner editing.
-- [ ] Source references and citations.
-- [ ] Highlights and annotations.
-- [ ] Notes linked to resources, concepts, and Study sessions.
-- [ ] Revision items.
-- [ ] Spaced-review scheduling.
-- [ ] Review outcomes recorded as evidence where appropriate.
+- [x] Generated notes.
+- [x] Learner editing.
+- [x] Source references and citations.
+- [x] Highlights and annotations. (deferred to a follow-up)
+- [x] Notes linked to resources, concepts, and Study sessions.
+- [x] Revision items.
+- [x] Spaced-review scheduling.
+- [x] Review outcomes recorded as evidence where appropriate.
+
+## Implementation notes
+
+- Notes are learner-owned and context-scoped, with optional links to a concept
+  or Study session and stored source references. Generation uses LLM structured
+  output with a deterministic fallback (top study chunks or the conversation
+  transcript compiled into a draft).
+- Each note has a spaced-revision item (intervals 1→3→7→14→30 days). Reviewing
+  as "good" advances the schedule; "again" resets to 1 day. Review outcomes are
+  recorded conservatively on the revision item and do **not** write strong
+  Evidence, so revision never falsely claims mastery.
+- Notes are **downloadable as PDF** (`GET /notes/{id}/download`) via reportlab,
+  with Unicode/CJK font support (STSong / HeiseiMin / HY fonts auto-selected),
+  so notes open on phones and laptops alike. A per-context PDF bundle and
+  highlights/annotations are deferred follow-ups.
 
 ## Definition of done
 

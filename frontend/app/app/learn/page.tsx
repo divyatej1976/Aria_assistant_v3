@@ -53,7 +53,10 @@ export default function LearnPage() {
             Topology Map
           </button>
         </div>
-        <Link href="/app/resources" className="text-label-md text-secondary hover:underline">Manage resources</Link>
+        <div className="flex items-center gap-4">
+          <Link href="/app/notes" className="text-label-md text-secondary hover:underline">Notes</Link>
+          <Link href="/app/resources" className="text-label-md text-secondary hover:underline">Manage resources</Link>
+        </div>
       </div>
       {mode === "study" ? (
         <StudyView contextId={context.id} contextTitle={context.title} />

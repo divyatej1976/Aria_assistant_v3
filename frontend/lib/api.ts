@@ -93,3 +93,25 @@ export async function apiBinary<T>(
   }
   return payload as T;
 }
+
+export async function apiBlob(path: string): Promise<Blob> {
+  const token = getToken();
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new ApiError(0, "Network error — check your connection and try again.");
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const detail = payload.detail ?? "ARIA request failed";
+    if (response.status === 401 && token && !isAuthPage()) {
+      clearToken();
+      window.location.assign("/signin?reason=expired");
+    }
+    throw new ApiError(response.status, detail);
+  }
+  return response.blob();
+}
