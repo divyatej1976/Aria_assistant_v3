@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–7 are implemented (including the Extruded Light frontend rebuild); Phase 8 is next.
+**Current implementation status:** Phases 0–8 are implemented (including the Extruded Light frontend rebuild); Phase 9 is next.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -412,21 +412,39 @@ This phase is the R0 product milestone.
 
 # Phase 8 — Progress and analytics
 
-**Status:** `[ ] Not started`  
+**Status:** `[x] Complete`  
 **Goal:** Show meaningful learning progress and consistency.
 
 ## Work
 
-- [ ] Meaningful activity definition.
-- [ ] Learning activity timeline.
-- [ ] Assessment history.
-- [ ] Evidence timeline.
-- [ ] Concept-level progress.
-- [ ] Learning consistency and active days.
-- [ ] Streaks and milestones.
-- [ ] Progress summaries.
-- [ ] Explainable analytics.
-- [ ] Healthy gamification boundaries.
+- [x] Meaningful activity definition.
+- [x] Learning activity timeline.
+- [x] Assessment history.
+- [x] Evidence timeline.
+- [x] Concept-level progress.
+- [x] Learning consistency and active days.
+- [x] Streaks and milestones.
+- [x] Progress summaries.
+- [x] Explainable analytics.
+- [x] Healthy gamification boundaries.
+
+## Implementation notes
+
+- A `learning_activity` record is written only for qualifying actions: assessment
+  submitted, a grounded Study interaction, or a note revision (planned tasks
+  arrive with Phase 9). Logging in, viewing pages, or trivial messages never
+  count, and the same event in a day is deduplicated.
+- Consistency is computed server-side from the learner's stored timezone
+  preference (default UTC): current streak, longest streak, active days
+  (7/30), and a 182-day activity heatmap with intensity.
+- Badges are earned deterministically and persisted: activity milestones
+  (first assessment / study / revision) and consistency milestones
+  (3/7/30-day streaks), plus a learning milestone (first supported concept).
+  Each badge carries an earned date and specific label.
+- Activity and consistency are always presented separately from mastery:
+  the Progress page shows streaks/heatmap/badges distinctly from concept
+  states and evidence, and a "what counts" explainer is shown. Missing a day
+  resets only the current streak, never history or progress.
 
 ## Definition of done
 

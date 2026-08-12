@@ -27,6 +27,43 @@ type EvidenceRecord = {
 
 type Point = { pct: number };
 
+type HeatmapDay = { date: string; count: number };
+
+type Consistency = {
+  current_streak: number;
+  longest_streak: number;
+  active_this_week: number;
+  active_this_month: number;
+  today_active: boolean;
+  heatmap: HeatmapDay[];
+};
+
+type Badge = { code: string; label: string; earned: boolean; earned_at: string | null };
+
+type Activity = { id: string; activity_type: string; occurred_on: string; created_at: string };
+
+function heatColor(count: number): string {
+  if (count <= 0) return "bg-surface-container-low";
+  if (count === 1) return "bg-tertiary-container";
+  if (count === 2) return "bg-tertiary";
+  return "bg-tertiary-fixed-dim";
+}
+
+function Heatmap({ heatmap }: { heatmap: HeatmapDay[] }) {
+  const recent = heatmap.slice(-84);
+  return (
+    <div className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-1">
+      {recent.map((day) => (
+        <span
+          key={day.date}
+          title={`${day.date}: ${day.count} activity`}
+          className={`w-3 h-3 rounded-sm ${heatColor(day.count)}`}
+        />
+      ))}
+    </div>
+  );
+}
+
 function buildSeries(evidence: EvidenceRecord[]): Point[] {
   let correct = 0;
   let total = 0;
@@ -69,7 +106,28 @@ export default function ProgressPage() {
   const [states, setStates] = useState<ConceptState[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([]);
+  const [consistency, setConsistency] = useState<Consistency | null>(null);
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    api<Consistency>("/api/v1/progress/consistency")
+      .then(setConsistency)
+      .catch((requestError: unknown) =>
+        setError(requestError instanceof Error ? requestError.message : "Unable to load consistency")
+      );
+    api<Badge[]>("/api/v1/progress/badges")
+      .then(setBadges)
+      .catch(() => {
+        // Badges are optional for rendering.
+      });
+    api<Activity[]>("/api/v1/progress/activity")
+      .then(setActivities)
+      .catch(() => {
+        // Activity timeline is optional for rendering.
+      });
+  }, []);
 
   useEffect(() => {
     if (!context) return;
@@ -146,6 +204,80 @@ export default function ProgressPage() {
           Memory
         </a>
       </div>
+
+      {/* Consistency */}
+      {consistency && (
+        <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-headline-md text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary">local_fire_department</span>
+                Consistency
+              </h3>
+              <p className="text-body-md text-on-surface-variant mt-1">
+                Activity and consistency, never mastery. Only qualifying learning actions count.
+              </p>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                { label: "Current streak", value: consistency.current_streak },
+                { label: "Longest", value: consistency.longest_streak },
+                { label: "Active (7d)", value: consistency.active_this_week },
+                { label: "Active (30d)", value: consistency.active_this_month },
+              ].map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <p className="text-headline-md text-secondary">{stat.value}</p>
+                  <p className="text-label-sm text-on-surface-variant mt-1">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Heatmap heatmap={consistency.heatmap} />
+          <p className="text-label-sm text-on-surface-variant">
+            {consistency.today_active
+              ? "Today is an active learning day. Keep it up!"
+              : "Study, assess, or revise today to keep your streak alive."}
+          </p>
+        </div>
+      )}
+
+      {/* Badges */}
+      {badges.length > 0 && (
+        <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-5">
+          <h3 className="text-headline-md text-on-surface">Badges</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {badges.map((badge) => (
+              <div
+                key={badge.code}
+                className={`rounded-2xl p-5 flex flex-col items-center gap-2 text-center ${
+                  badge.earned ? "bg-surface shadow-injected" : "bg-surface-container-low opacity-50"
+                }`}
+                title={badge.earned ? `Earned ${badge.earned_at ? new Date(badge.earned_at).toLocaleDateString() : ""}` : "Not yet earned"}
+              >
+                <span className={`material-symbols-outlined text-3xl ${badge.earned ? "text-secondary" : "text-on-surface-variant"}`}>
+                  {badge.earned ? "workspace_premium" : "lock"}
+                </span>
+                <span className="text-label-md text-on-surface">{badge.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Activity timeline */}
+      {activities.length > 0 && (
+        <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-4">
+          <h3 className="text-headline-md text-on-surface">Recent activity</h3>
+          <ul className="flex flex-col gap-3">
+            {activities.map((activity) => (
+              <li key={activity.id} className="bg-surface shadow-injected rounded-xl p-4 flex items-center justify-between gap-4">
+                <span className="text-body-md text-on-background capitalize">{activity.activity_type}</span>
+                <span className="text-label-md text-on-surface-variant">{activity.occurred_on}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Mastery trajectory */}

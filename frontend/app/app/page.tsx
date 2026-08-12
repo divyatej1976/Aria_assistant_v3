@@ -34,9 +34,18 @@ function stateChip(state: string): { label: string; cls: string; pulse?: boolean
 export default function DashboardPage() {
   const { context: active, contexts, loading, setActiveContextId } = useActiveContext();
   const [summary, setSummary] = useState<CycleSummary | null>(null);
+  const [consistency, setConsistency] = useState<{
+    current_streak: number;
+    today_active: boolean;
+  } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    api<{ current_streak: number; today_active: boolean }>("/api/v1/progress/consistency")
+      .then(setConsistency)
+      .catch(() => {
+        // Consistency is optional for rendering.
+      });
     if (!active) return;
     api<CycleSummary>(`/api/v1/contexts/${active.id}/adaptation`)
       .then(setSummary)
@@ -109,6 +118,21 @@ export default function DashboardPage() {
           </label>
         )}
       </div>
+
+      {/* Consistency strip */}
+      {consistency && (
+        <div className="bg-surface shadow-extruded rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-secondary ms-fill">local_fire_department</span>
+            <span className="text-body-md text-on-background">
+              {consistency.current_streak}-day learning streak
+            </span>
+          </div>
+          <span className={`px-4 py-2 rounded-full text-label-md ${consistency.today_active ? "bg-tertiary-container text-on-tertiary-container" : "bg-surface-container-low text-on-surface-variant"}`}>
+            {consistency.today_active ? "Active today" : "Study today to keep it alive"}
+          </span>
+        </div>
+      )}
 
       {/* Bento grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
