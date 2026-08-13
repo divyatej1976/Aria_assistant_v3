@@ -2,7 +2,7 @@
 
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { api, clearToken, getToken } from "../lib/api";
+import { api, clearToken } from "../lib/api";
 
 export type Learner = { id: string; email: string; display_name: string | null };
 
@@ -36,10 +36,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     async function restore() {
-      if (!getToken()) {
-        setLoading(false);
-        return;
-      }
       try {
         const me = await api<Learner>("/api/v1/auth/me");
         if (active) setLearner(me);

@@ -1,29 +1,35 @@
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.db.dependencies import get_db
 from app.db.models import Learner, LearnerSession
+from app.security.csrf import SESSION_COOKIE
+from app.security.secrets import get_session_secret
 from app.security.tokens import SessionTokenError, read_session_token
 
 bearer = HTTPBearer(auto_error=False)
 
 
 def get_current_session(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     db: Annotated[Session, Depends(get_db)],
 ) -> LearnerSession:
-    if credentials is None:
+    token: str | None = None
+    if credentials is not None:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get(SESSION_COOKIE)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
         )
-    settings = get_settings()
-    secret = settings.supabase_jwt_secret or "development-only-change-me"
+    secret = get_session_secret()
     try:
-        session_id = read_session_token(credentials.credentials, secret=secret)
+        session_id = read_session_token(token, secret=secret)
     except SessionTokenError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     session = db.get(LearnerSession, session_id)

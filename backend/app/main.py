@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routes.account import router as account_router
 from app.api.routes.adaptation import router as adaptation_router
@@ -21,6 +22,7 @@ from app.api.routes.study import router as study_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.request_context import RequestContextMiddleware
+from app.security.csrf import CSRFMiddleware
 
 
 @asynccontextmanager
@@ -31,6 +33,9 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title="ARIA API", version="0.1.0", lifespan=lifespan)
+app.add_middleware(CSRFMiddleware)
+if settings.aria_env == "production":
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,

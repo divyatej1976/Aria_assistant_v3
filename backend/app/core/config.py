@@ -15,8 +15,13 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
     supabase_jwt_secret: str | None = Field(default=None, repr=False)
+    aria_session_secret: str | None = Field(default=None, repr=False)
     groq_api_key: str | None = Field(default=None, repr=False)
     llm_model: str = "llama-3.3-70b-versatile"
+    aria_trusted_hosts: str = "localhost,127.0.0.1"
+    aria_rate_limit_enabled: bool = True
+    aria_rate_limit_requests: int = 10
+    aria_rate_limit_window_seconds: int = 60
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -30,6 +35,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.aria_cors_origins.split(",") if origin.strip()]
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        return [host.strip() for host in self.aria_trusted_hosts.split(",") if host.strip()]
 
 
 @lru_cache
