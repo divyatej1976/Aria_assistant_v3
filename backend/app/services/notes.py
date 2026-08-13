@@ -18,6 +18,7 @@ from app.db.models import (
     Note,
     RevisionItem,
 )
+from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
 from app.services.concepts import context_chunks
 
 REVIEW_INTERVALS = [1, 3, 7, 14, 30]
@@ -110,6 +111,7 @@ def delete_note(db: Session, *, owner_id: UUID, note_id: UUID) -> None:
         )
     )
     db.flush()
+    delete_audio_artifacts(db, owner_id=owner_id, source_type="NOTE", source_id=note.id)
     db.delete(note)
     db.commit()
 

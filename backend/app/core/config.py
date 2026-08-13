@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     smtp_password: str | None = Field(default=None, repr=False)
     smtp_from: str = "ARIA <noreply@aria.local>"
     smtp_use_tls: bool = True
+    aria_tts_provider: str = "auto"  # auto | cloud | local
+    aria_tts_api_key: str | None = Field(default=None, repr=False)
+    aria_stt_api_key: str | None = Field(default=None, repr=False)
 
     @property
     def cors_origins(self) -> list[str]:

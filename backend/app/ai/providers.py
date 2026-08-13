@@ -44,6 +44,16 @@ class NotificationProvider(Protocol):
         """Send a notification without coupling domain logic to a vendor."""
 
 
+class TTSProvider(Protocol):
+    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+        """Synthesize speech. Returns (audio bytes, content type, duration seconds)."""
+
+
+class STTProvider(Protocol):
+    def transcribe(self, *, audio: bytes, content_type: str) -> str:
+        """Transcribe audio to text."""
+
+
 class DeterministicEmbeddingProvider:
     """Small local embedding fallback for development and deterministic tests."""
 
@@ -56,6 +66,71 @@ class DeterministicEmbeddingProvider:
             magnitude = sum(value * value for value in vector) ** 0.5 or 1.0
             vectors.append([value / magnitude for value in vector])
         return vectors
+
+
+class CloudTTSProvider:
+    def __init__(self, *, api_key: str, model: str = "tts-1", voice: str = "nova") -> None:
+        self.api_key = api_key
+        self.model = model
+        self.voice = voice
+
+    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+        import httpx
+
+        response = httpx.post(
+            "https://api.openai.com/v1/audio/speech",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={"model": self.model, "voice": self.voice, "input": text[:4000]},
+            timeout=60,
+        )
+        response.raise_for_status()
+        return response.content, "audio/mpeg", max(1, len(text) // 15)
+
+
+class LocalTTSProvider:
+    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+        import os
+        import tempfile
+
+        try:
+            import pyttsx3
+        except ImportError as exc:
+            raise RuntimeError(
+                "Local text-to-speech requires the pyttsx3 dependency"
+            ) from exc
+        engine = pyttsx3.init()
+        fd, path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            engine.save_to_file(text, path)
+            engine.runAndWait()
+            with open(path, "rb") as handle:
+                data = handle.read()
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+        if not data:
+            raise RuntimeError("No audio was produced")
+        return data, "audio/wav", max(1, len(text) // 15)
+
+
+class CloudSTTProvider:
+    def __init__(self, *, api_key: str, model: str = "whisper-1") -> None:
+        self.api_key = api_key
+        self.model = model
+
+    def transcribe(self, *, audio: bytes, content_type: str) -> str:
+        import httpx
+
+        response = httpx.post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            files={"file": ("audio", audio, content_type)},
+            data={"model": self.model},
+            timeout=60,
+        )
+        response.raise_for_status()
+        return response.json().get("text", "").strip()
 
 
 class LiteLLMGroqProvider:

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.account import router as account_router
 from app.api.routes.adaptation import router as adaptation_router
 from app.api.routes.assessments import router as assessments_router
+from app.api.routes.audio import router as audio_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.contexts import router as contexts_router
 from app.api.routes.health import router as health_router
@@ -47,6 +48,7 @@ app.include_router(notes_router)
 app.include_router(progress_router)
 app.include_router(planner_router)
 app.include_router(notifications_router)
+app.include_router(audio_router)
 app.include_router(resources_router)
 app.include_router(study_router)
 app.include_router(assessments_router)

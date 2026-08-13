@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.ai.providers import DeterministicEmbeddingProvider
 from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
+from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
 
 
 def chunk_text(text: str, *, size: int = 900, overlap: int = 120) -> list[str]:
@@ -127,6 +128,10 @@ def get_owned_resource(
 
 def delete_resource(db: Session, *, resource: Resource) -> None:
     db.execute(delete(ResourceChunk).where(ResourceChunk.resource_id == resource.id))
+    db.flush()
+    delete_audio_artifacts(
+        db, owner_id=resource.owner_id, source_type="RESOURCE", source_id=resource.id
+    )
     db.delete(resource)
     db.commit()
 

@@ -162,6 +162,33 @@ class Notification(OwnedModel, Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class AudioArtifact(OwnedModel, Base):
+    __tablename__ = "audio_artifacts"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    source_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False)
+    error_detail: Mapped[str | None] = mapped_column(Text)
+    audio_bytes: Mapped[bytes | None] = mapped_column(LargeBinary)
+    content_type: Mapped[str | None] = mapped_column(String(64))
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    storage_key: Mapped[str | None] = mapped_column(String(500))
+
+
+class AudioProgress(OwnedModel, Base):
+    __tablename__ = "audio_progress"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "artifact_id", name="uq_audio_progress_artifact"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    artifact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("audio_artifacts.id"), index=True, nullable=False
+    )
+    position_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
 class Resource(OwnedModel, Base):
     __tablename__ = "resources"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)

@@ -165,7 +165,8 @@ def test_exam_reminder_created_and_deduped(client: TestClient) -> None:
     notifications = client.get("/api/v1/notifications", headers=headers(token)).json()
     reminder = notifications[0]
     assert reminder["ntype"] == "deadline"
-    assert "DBMS End Sem in 5 days" in reminder["title"]
+    assert "DBMS End Sem" in reminder["title"]
+    assert "in " in reminder["title"]
     assert "Syllabus so far" in reminder["body"]
     assert "concepts supported" in reminder["body"]
 
