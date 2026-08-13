@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-import { api } from "../lib/api";
+import { api, apiFormData } from "../lib/api";
 
 type SessionRecord = { id: string; context_id: string; mode: string; status: string; created_at: string };
 type Source = { resource_id: string; chunk_id: string; title: string; score: number };
@@ -27,6 +27,9 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -80,17 +83,15 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  async function send(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!sessionId || !input.trim()) return;
+  async function dispatch(content: string) {
+    if (!sessionId || !content.trim()) return;
     setSending(true);
     setError("");
     try {
-      setMessages((items) => [...items, { role: "user", content: input, sources: [] }]);
-      setInput("");
+      setMessages((items) => [...items, { role: "user", content, sources: [] }]);
       await api(`/api/v1/study/sessions/${sessionId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content: input }),
+        body: JSON.stringify({ content }),
       });
       const history = await api<Message[]>(`/api/v1/study/sessions/${sessionId}/messages`);
       setMessages(history);
@@ -98,6 +99,51 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
       setError(requestError instanceof Error ? requestError.message : "Unable to send message");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!sessionId || !input.trim()) return;
+    setInput("");
+    await dispatch(input);
+  }
+
+  async function toggleVoice() {
+    setError("");
+    if (recorderRef.current && recorderRef.current.state === "recording") {
+      recorderRef.current.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => chunks.push(event.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        setRecording(false);
+        setTranscribing(true);
+        try {
+          const form = new FormData();
+          form.append("file", blob, "voice.webm");
+          const { text } = await apiFormData<{ text: string }>(
+            "/api/v1/audio/transcribe",
+            form,
+          );
+          if (text.trim()) await dispatch(text.trim());
+        } catch (requestError) {
+          setError(requestError instanceof Error ? requestError.message : "Unable to transcribe voice");
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      setError("Microphone unavailable or permission denied.");
     }
   }
 
@@ -223,20 +269,33 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
         <div className="p-container-padding bg-surface border-t border-surface-dim/50 shadow-[0_-8px_16px_rgba(209,217,230,0.3)]">
           <form onSubmit={send} className="relative flex items-center">
             <input
-              className="w-full py-4 pl-5 pr-14 rounded-full input-injected text-body-md text-on-surface placeholder:text-on-surface-variant"
+              className="w-full py-4 pl-5 pr-20 rounded-full input-injected text-body-md text-on-surface placeholder:text-on-surface-variant"
               placeholder="Ask a question..."
               value={input}
               onChange={(event) => setInput(event.target.value)}
             />
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              aria-label="Send"
-              className="absolute right-2 w-10 h-10 rounded-full flex items-center justify-center text-secondary btn-extruded bg-surface disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined ms-fill">arrow_upward</span>
-            </button>
+            <div className="absolute right-2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void toggleVoice()}
+                disabled={transcribing}
+                aria-label={recording ? "Stop recording" : "Ask with voice"}
+                className={`w-10 h-10 rounded-full flex items-center justify-center btn-extruded bg-surface ${recording ? "text-error" : "text-secondary"}`}
+              >
+                <span className="material-symbols-outlined">{recording ? "stop" : "mic"}</span>
+              </button>
+              <button
+                type="submit"
+                disabled={sending || !input.trim()}
+                aria-label="Send"
+                className="w-10 h-10 rounded-full flex items-center justify-center text-secondary btn-extruded bg-surface disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined ms-fill">arrow_upward</span>
+              </button>
+            </div>
           </form>
+          {transcribing && <p className="text-label-sm text-on-surface-variant mt-2">Transcribing your voice…</p>}
+          {recording && <p className="text-label-sm text-error mt-2">Recording… tap mic to stop</p>}
         </div>
       </aside>
     </div>

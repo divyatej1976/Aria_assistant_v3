@@ -4,7 +4,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { api, apiBlob } from "../../../lib/api";
+import { AudioPlayer } from "../../../components/audio-player";
 import { useActiveContext } from "../../../components/use-active-context";
+
+type AudioMeta = { id: string; status: string; error_detail: string | null };
 
 type Note = {
   id: string;
@@ -30,6 +33,7 @@ export default function NotesPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [audio, setAudio] = useState<Record<string, AudioMeta>>({});
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -126,6 +130,18 @@ export default function NotesPage() {
       await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to delete note");
+    }
+  }
+
+  async function generateAudio(noteId: string) {
+    setError("");
+    try {
+      const artifact = await api<AudioMeta>(`/api/v1/audio/notes/${noteId}/generate`, {
+        method: "POST",
+      });
+      setAudio((items) => ({ ...items, [noteId]: artifact }));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to generate audio");
     }
   }
 
@@ -281,10 +297,29 @@ export default function NotesPage() {
                     <button onClick={() => startEdit(note)} className="px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-on-surface-variant">
                       Edit
                     </button>
+                    <button
+                      onClick={() => void generateAudio(note.id)}
+                      disabled={audio[note.id]?.status === "READY"}
+                      className="px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary flex items-center gap-2 disabled:opacity-60"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">graphic_eq</span>
+                      {audio[note.id]?.status === "READY" ? "Audio ready" : "Generate audio"}
+                    </button>
                     <button onClick={() => void remove(note.id)} className="px-5 py-2 rounded-full text-label-md text-error">
                       Delete
                     </button>
                   </div>
+                  {audio[note.id]?.status === "READY" && (
+                    <div className="mt-4">
+                      <AudioPlayer artifactId={audio[note.id].id} />
+                    </div>
+                  )}
+                  {audio[note.id]?.status === "FAILED" && (
+                    <p className="text-label-md text-error mt-3" role="alert">
+                      {audio[note.id].error_detail ?? "Audio generation failed."}{" "}
+                      <button onClick={() => void generateAudio(note.id)} className="underline">Retry</button>
+                    </p>
+                  )}
                 </>
               )}
             </div>

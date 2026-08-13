@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–9 are implemented (including the Extruded Light frontend rebuild); Phase 10 is next.
+**Current implementation status:** Phases 0–10 are implemented (including the Extruded Light frontend rebuild); Phase 11 is next.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -505,20 +505,37 @@ This phase is the R0 product milestone.
 
 # Phase 10 — Audio and voice learning
 
-**Status:** `[ ] Not started`  
+**Status:** `[x] Complete`  
 **Goal:** Extend learning into audio and voice-based workflows.
 
 ## Work
 
-- [ ] Text-to-speech provider boundary.
-- [ ] Audio notes.
-- [ ] Resource-to-audio conversion.
-- [ ] Playback progress.
-- [ ] Speech-to-text input.
-- [ ] Voice questions and answers.
-- [ ] Audio revision sessions.
-- [ ] Accessibility review for audio controls.
-- [ ] Audio storage and retention policies.
+- [x] Text-to-speech provider boundary.
+- [x] Audio notes.
+- [x] Resource-to-audio conversion.
+- [x] Playback progress.
+- [x] Speech-to-text input.
+- [x] Voice questions and answers.
+- [x] Audio revision sessions.
+- [x] Accessibility review for audio controls.
+- [x] Audio storage and retention policies.
+
+## Implementation notes
+
+- `TTSProvider`/`STTProvider` boundaries in `ai/providers.py`: a cloud TTS
+  implementation (OpenAI speech) plus a local `pyttsx3` fallback, so audio
+  generation works with no API key (`ARIA_TTS_PROVIDER=auto|cloud|local`).
+- Audio is generated from approved notes or resources into `audio_artifacts`
+  (status PENDING/PROCESSING/READY/FAILED, retryable by re-generating), with
+  playback bytes stored in the DB (`raw_bytes` precedent) and `storage_key`
+  reserved for object storage. Deleting a note/resource cascades its audio.
+- Playback progress is per-artifact and resumes where you left off; marking an
+  audio item reviewed records a meaningful activity (feeds Phase 8 streaks).
+- Voice questions: the Study input records audio, transcribes it via the
+  `STTProvider` (cloud key; a clear "not configured" error otherwise), and
+  sends it as a normal grounded Study message. Generation runs in-request on a
+  dedicated audio endpoint, so it never blocks Study or assessments; a
+  background worker is deferred to Phase 12.
 
 ## Definition of done
 

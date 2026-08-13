@@ -4,7 +4,10 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { api, apiBinary } from "../../../lib/api";
+import { AudioPlayer } from "../../../components/audio-player";
 import { useActiveContext } from "../../../components/use-active-context";
+
+type AudioMeta = { id: string; status: string; error_detail: string | null };
 
 type Resource = {
   id: string;
@@ -42,6 +45,7 @@ export default function ResourcesPage() {
   const [replaceTitle, setReplaceTitle] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [studyResourceId, setStudyResourceId] = useState<string | null>(null);
+  const [audio, setAudio] = useState<Record<string, AudioMeta>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -117,6 +121,18 @@ export default function ResourcesPage() {
       setResources(list);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to upload PDF");
+    }
+  }
+
+  async function generateAudio(id: string) {
+    setError("");
+    try {
+      const artifact = await api<AudioMeta>(`/api/v1/audio/resources/${id}/generate`, {
+        method: "POST",
+      });
+      setAudio((items) => ({ ...items, [id]: artifact }));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to generate audio");
     }
   }
 
@@ -285,6 +301,16 @@ export default function ResourcesPage() {
                         {selected ? "Selected for Study" : "Use in Study"}
                       </button>
                     )}
+                    {resource.processing_status === "READY" && (
+                      <button
+                        onClick={() => void generateAudio(resource.id)}
+                        disabled={audio[resource.id]?.status === "READY"}
+                        className="px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary flex items-center gap-2 disabled:opacity-60"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">graphic_eq</span>
+                        {audio[resource.id]?.status === "READY" ? "Audio ready" : "Convert to audio"}
+                      </button>
+                    )}
                     {resource.processing_status === "FAILED" && (
                       <button onClick={() => void retry(resource.id)} className="px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary">
                         Try processing again
@@ -300,6 +326,17 @@ export default function ResourcesPage() {
                     </button>
                   </div>
                 </div>
+                {audio[resource.id]?.status === "READY" && (
+                  <div className="mt-5">
+                    <AudioPlayer artifactId={audio[resource.id].id} />
+                  </div>
+                )}
+                {audio[resource.id]?.status === "FAILED" && (
+                  <p className="text-label-md text-error mt-3" role="alert">
+                    {audio[resource.id].error_detail ?? "Audio generation failed."}{" "}
+                    <button onClick={() => void generateAudio(resource.id)} className="underline">Retry</button>
+                  </p>
+                )}
                 {replaceId === resource.id && resource.resource_type === "TEXT" && (
                   <form onSubmit={submitReplace} className="mt-6 bg-surface-container-low rounded-2xl shadow-injected p-6 flex flex-col gap-4">
                     <label className="flex flex-col gap-2">
