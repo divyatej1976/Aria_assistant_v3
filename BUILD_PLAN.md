@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–10 are implemented (including the Extruded Light frontend rebuild); Phase 11 is next.
+**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 is next.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -53,7 +53,7 @@ The long-term features are intentionally included in this plan. They are sequenc
 - [x] Resource ingestion and retrieval.
 - [x] Study, assessment, evaluation, evidence, and adaptation workflows.
 - [x] Automated tests and CI/CD.
-- [ ] Notes, Audio, Planner, Progress, and MAO runtime features.
+- [x] Notes, Audio, Planner, Progress, and MAO runtime features.
 
 ---
 
@@ -547,42 +547,48 @@ This phase is the R0 product milestone.
 
 # Phase 11 — MAO / multi-agent orchestration
 
-**Status:** `[ ] Not started`  
+**Status:** `[x] Complete`  
 **Goal:** Coordinate specialized ARIA capabilities safely.
 
 > MAO is interpreted here as multi-agent orchestration.
+>
+> **Implemented as a deterministic workflow engine.** Agents are thin wrappers
+> over existing domain services and never touch persistence directly; an
+> orchestrator drives workflow steps (with retries and approval gates) and
+> records every step to an audit trail. LLM-driven next-step selection is
+> deliberately deferred to Phase 12.
 
 ## Work
 
-- [ ] Agent registry.
-- [ ] Agent capabilities and permissions.
-- [ ] Agent lifecycle states.
-- [ ] Task and workflow model.
-- [ ] Orchestrator.
-- [ ] Agent-to-agent communication contracts.
-- [ ] Human approval for consequential actions.
-- [ ] Agent retries and compensation.
-- [ ] Agent evaluation and quality scoring.
-- [ ] Full audit trail.
+- [x] Agent registry.
+- [x] Agent capabilities and permissions.
+- [x] Agent lifecycle states.
+- [x] Task and workflow model.
+- [x] Orchestrator.
+- [x] Agent-to-agent communication contracts.
+- [x] Human approval for consequential actions.
+- [x] Agent retries and compensation.
+- [ ] Agent evaluation and quality scoring. (deferred to Phase 12)
+- [x] Full audit trail.
 
 ## Initial agent roles
 
-- [ ] Study Agent.
-- [ ] Assessment Agent.
-- [ ] Evaluation Agent.
-- [ ] Learner Model Agent.
-- [ ] Notes Agent.
-- [ ] Planner Agent.
-- [ ] Progress Agent.
-- [ ] Audio Agent.
+- [x] Study Agent.
+- [x] Assessment Agent.
+- [ ] Evaluation Agent. (quality scoring deferred to Phase 12)
+- [x] Learner Model Agent.
+- [x] Notes Agent.
+- [x] Planner Agent.
+- [x] Progress Agent.
+- [ ] Audio Agent. (generation remains an in-request service call; see Phase 10)
 
 ## Definition of done
 
-- Agents use application services rather than directly modifying persistence.
-- Deterministic rules remain outside the agents where appropriate.
-- Every consequential agent action is attributable and inspectable.
-- Failed agents preserve valid previous work.
-- Human approval boundaries are enforced.
+- [x] Agents use application services rather than directly modifying persistence.
+- [x] Deterministic rules remain outside the agents where appropriate.
+- [x] Every consequential agent action is attributable and inspectable.
+- [x] Failed agents preserve valid previous work.
+- [x] Human approval boundaries are enforced.
 
 ---
 

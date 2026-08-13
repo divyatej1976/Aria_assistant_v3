@@ -137,6 +137,12 @@ export default function AccountPage() {
           >
             Memory
           </a>
+          <a
+            href="/app/orchestration"
+            className="px-6 py-3 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary"
+          >
+            Orchestration
+          </a>
           <button
             onClick={() => void signOut()}
             className="px-6 py-3 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-error"
