@@ -22,6 +22,7 @@ from app.api.routes.resources import router as resources_router
 from app.api.routes.study import router as study_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.metrics import init_sentry
 from app.core.request_context import RequestContextMiddleware
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
 from app.security.csrf import CSRFMiddleware
@@ -30,6 +31,7 @@ from app.security.csrf import CSRFMiddleware
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging()
+    init_sentry()
     start_scheduler()
     try:
         yield

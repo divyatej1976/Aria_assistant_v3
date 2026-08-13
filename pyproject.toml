@@ -20,6 +20,8 @@ dependencies = [
   "pyttsx3>=2.9,<3",
   "apscheduler>=3.10,<4",
   "pywebpush>=1.14,<2",
+  "prometheus-client>=0.20,<1",
+  "sentry-sdk>=2.0,<3",
 ]
 
 [project.optional-dependencies]

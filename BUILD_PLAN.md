@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 is next.
+**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 is in progress (tranche 12.1–12.4 done).
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -594,23 +594,29 @@ This phase is the R0 product milestone.
 
 # Phase 12 — Integrations, production hardening, and scale
 
-**Status:** `[ ] Not started`  
+**Status:** `[~] In progress` — tranche 12.1–12.4 implemented; 12.5+ deferred.  
 **Goal:** Prepare ARIA for sustained real-world use.
+
+> **Tranche progress (12.1–12.4):** Security hardening (cookie sessions, CSRF,
+> rate limiting, headers, secret fail-fast), background workers (reminders +
+> audio queue), notifications with web push and new triggers, and observability
+> (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse). The
+> remaining items below are the deferred 12.5–12.10 tranches.
 
 ## Work
 
-- [ ] Calendar integrations.
-- [ ] External learning-platform integrations.
-- [ ] Email and push notifications.
-- [ ] Background workers.
-- [ ] Caching and rate limiting.
-- [ ] Dedicated vector database if justified.
-- [ ] Production deployment.
-- [ ] Sentry/Langfuse or equivalent observability.
-- [ ] OpenTelemetry, metrics, and dashboards.
-- [ ] Load and stress testing.
-- [ ] Backup and disaster recovery.
-- [ ] Security review and threat modeling.
+- [ ] Calendar integrations. (deferred)
+- [ ] External learning-platform integrations. (deferred)
+- [x] Email and push notifications.
+- [x] Background workers.
+- [~] Caching and rate limiting. (rate limiting done; caching deferred pending load evidence)
+- [ ] Dedicated vector database if justified. (deferred; see Phase 12.8)
+- [ ] Production deployment. (deferred until the app is verified working)
+- [x] Sentry/Langfuse or equivalent observability.
+- [~] OpenTelemetry, metrics, and dashboards. (Prometheus `/metrics` done; OTel export + dashboards deferred)
+- [ ] Load and stress testing. (deferred)
+- [ ] Backup and disaster recovery. (deferred)
+- [ ] Security review and threat modeling. (deferred)
 
 ## Definition of done
 

@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     aria_vapid_public_key: str | None = None
     aria_vapid_private_key: str | None = Field(default=None, repr=False)
     aria_vapid_subject: str = "mailto:noreply@aria.local"
+    aria_sentry_dsn: str | None = Field(default=None, repr=False)
+    aria_langfuse_public_key: str | None = None
+    aria_langfuse_secret_key: str | None = Field(default=None, repr=False)
+    aria_langfuse_host: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

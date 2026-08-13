@@ -151,6 +151,18 @@ class LiteLLMGroqProvider:
             prompt_tokens,
             completion_tokens,
         )
+        try:
+            from app.core.metrics import observe_ai_call
+
+            observe_ai_call(
+                kind=kind,
+                model=self.model,
+                duration_ms=duration_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+        except Exception:
+            logger.debug("ai metrics update failed", exc_info=True)
 
     async def generate_text(self, *, system: str, user: str) -> str:
         from litellm import acompletion

@@ -15,6 +15,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 os.environ.setdefault("ARIA_SCHEDULER_ENABLED", "false")
+# Point the app-level engine (used by /ready probes) at the test database.
+os.environ["DATABASE_URL"] = (
+    os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or "sqlite://"
+)
 
 from app.db.base import Base
 from app.db.dependencies import get_db

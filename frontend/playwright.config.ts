@@ -19,6 +19,7 @@ export default defineConfig({
       env: {
         ...process.env,
         PYTHONPATH: "../backend",
+        ARIA_SCHEDULER_ENABLED: "false",
         DATABASE_URL:
           process.env.DATABASE_URL ?? "sqlite:///./e2e-smoke.db",
       },
