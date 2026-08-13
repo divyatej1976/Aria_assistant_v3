@@ -4,7 +4,8 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.ai.providers import LiteLLMGroqProvider
+from app.ai.prompts import get_prompt
+from app.ai.registry import get_llm_provider
 from app.assessment.schema import ConceptSet
 from app.core.config import get_settings
 from app.db.models import Concept, ConceptChunk, Resource, ResourceChunk
@@ -53,14 +54,14 @@ async def extract_concepts_structured(
     material = "\n\n".join(
         f"[{index + 1}] {chunk.content[:400]}" for index, chunk in enumerate(chunks)
     )
-    settings = get_settings()
-    provider = LiteLLMGroqProvider(api_key=settings.groq_api_key, model=settings.llm_model)
-    prompt = (
-        "Extract the most important learning concepts from the supplied study material. "
-        'Return JSON matching the schema: {"concepts": ["concept one", "concept two"]}. '
-        f"Produce up to {limit} concepts.\n\nStudy material:\n{material}"
+    provider = get_llm_provider()
+    if provider is None:
+        raise RuntimeError("LLM provider is not configured")
+    prompt_version = get_prompt("concept_extraction")
+    prompt = prompt_version.render(limit=limit, material=material)
+    parsed = await provider.generate_structured(
+        prompt=prompt, schema=ConceptSet, prompt_version=prompt_version.label()
     )
-    parsed = await provider.generate_structured(prompt=prompt, schema=ConceptSet)
     return parsed.concepts[:limit]
 
 

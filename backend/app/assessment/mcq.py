@@ -6,9 +6,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.providers import LiteLLMGroqProvider
+from app.ai.prompts import get_prompt
+from app.ai.registry import get_llm_provider
 from app.assessment.schema import MCQSet
-from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
 from app.services.concepts import chunk_ids_for_concepts, concept_id_for_chunk
@@ -202,17 +202,16 @@ async def generate_mcqs_structured(
         raise ValidationError(
             "Add ready study material before creating an assessment"
         )
-    settings = get_settings()
-    provider = LiteLLMGroqProvider(api_key=settings.groq_api_key, model=settings.llm_model)
-    prompt = (
-        "Generate multiple-choice questions grounded only in the supplied study material. "
-        "Each question must have exactly four distinct options and a correct_option letter "
-        "of A, B, C, or D matching the correct option. Return JSON matching the schema:\n"
-        '{"questions": [{"prompt": "...", "options": ["...", "...", "...", "..."], '
-        '"correct_option": "A"}]}\n\n'
-        f"Difficulty: {difficulty}. Produce {count} questions.\n\nStudy material:\n{material}"
+    provider = get_llm_provider()
+    if provider is None:
+        raise RuntimeError("LLM provider is not configured")
+    prompt_version = get_prompt("mcq_generation")
+    prompt = prompt_version.render(
+        difficulty=difficulty, count=count, material=material
     )
-    parsed = await provider.generate_structured(prompt=prompt, schema=MCQSet)
+    parsed = await provider.generate_structured(
+        prompt=prompt, schema=MCQSet, prompt_version=prompt_version.label()
+    )
     return [
         GeneratedMCQ(
             prompt=item.prompt,

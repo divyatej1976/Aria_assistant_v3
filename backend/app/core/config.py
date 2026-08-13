@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     aria_langfuse_public_key: str | None = None
     aria_langfuse_secret_key: str | None = Field(default=None, repr=False)
     aria_langfuse_host: str | None = None
+    aria_ai_monthly_budget_usd: float = 0.0
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

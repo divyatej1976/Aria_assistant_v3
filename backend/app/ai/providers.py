@@ -138,25 +138,42 @@ class LiteLLMGroqProvider:
         self.api_key = api_key
         self.model = model
 
-    def _log_call(self, *, kind: str, started: float, response: object) -> None:
+    def _log_call(
+        self,
+        *,
+        kind: str,
+        started: float,
+        response: object,
+        prompt_version: str | None = None,
+    ) -> None:
         duration_ms = int((time.monotonic() - started) * 1000)
         usage = getattr(response, "usage", None)
         prompt_tokens = getattr(usage, "prompt_tokens", None) if usage else None
         completion_tokens = getattr(usage, "completion_tokens", None) if usage else None
         logger.info(
-            "ai_call kind=%s model=%s duration_ms=%d prompt_tokens=%s completion_tokens=%s",
+            "ai_call kind=%s model=%s prompt_version=%s duration_ms=%d "
+            "prompt_tokens=%s completion_tokens=%s",
             kind,
             self.model,
+            prompt_version,
             duration_ms,
             prompt_tokens,
             completion_tokens,
         )
         try:
+            from app.ai.budget import record_usage
             from app.core.metrics import observe_ai_call
 
+            if prompt_tokens is not None and completion_tokens is not None:
+                record_usage(
+                    model=self.model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
             observe_ai_call(
                 kind=kind,
                 model=self.model,
+                prompt_version=prompt_version,
                 duration_ms=duration_ms,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
@@ -164,21 +181,33 @@ class LiteLLMGroqProvider:
         except Exception:
             logger.debug("ai metrics update failed", exc_info=True)
 
-    async def generate_text(self, *, system: str, user: str) -> str:
+    async def generate_text(
+        self, *, system: str, user: str, prompt_version: str | None = None
+    ) -> str:
         from litellm import acompletion
 
+        from app.ai.budget import assert_within_budget
+
+        assert_within_budget()
         started = time.monotonic()
         response = await acompletion(
             model=f"groq/{self.model}",
             api_key=self.api_key,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         )
-        self._log_call(kind="generate_text", started=started, response=response)
+        self._log_call(
+            kind="generate_text", started=started, response=response, prompt_version=prompt_version
+        )
         return response.choices[0].message.content or ""
 
-    async def generate_structured(self, *, prompt: str, schema: type) -> object:
+    async def generate_structured(
+        self, *, prompt: str, schema: type, prompt_version: str | None = None
+    ) -> object:
         from litellm import acompletion
 
+        from app.ai.budget import assert_within_budget
+
+        assert_within_budget()
         started = time.monotonic()
         response = await acompletion(
             model=f"groq/{self.model}",
@@ -189,6 +218,11 @@ class LiteLLMGroqProvider:
             ],
             response_format={"type": "json_object"},
         )
-        self._log_call(kind="generate_structured", started=started, response=response)
+        self._log_call(
+            kind="generate_structured",
+            started=started,
+            response=response,
+            prompt_version=prompt_version,
+        )
         text = response.choices[0].message.content or ""
         return schema.model_validate_json(text)

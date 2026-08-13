@@ -30,7 +30,7 @@ http_request_duration = Histogram(
 ai_calls_total = Counter(
     "aria_ai_calls_total",
     "AI provider calls",
-    ["kind", "model"],
+    ["kind", "model", "prompt_version"],
 )
 ai_call_duration = Histogram(
     "aria_ai_call_duration_seconds",
@@ -63,11 +63,14 @@ def observe_ai_call(
     *,
     kind: str,
     model: str,
+    prompt_version: str | None,
     duration_ms: int,
     prompt_tokens: int | None,
     completion_tokens: int | None,
 ) -> None:
-    ai_calls_total.labels(kind=kind, model=model).inc()
+    ai_calls_total.labels(
+        kind=kind, model=model, prompt_version=prompt_version or "unknown"
+    ).inc()
     ai_call_duration.labels(kind=kind).observe(duration_ms / 1000.0)
     _post_langfuse_trace(
         kind=kind,

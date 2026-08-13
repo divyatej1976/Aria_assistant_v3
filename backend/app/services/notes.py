@@ -8,7 +8,8 @@ from xml.sax.saxutils import escape
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.ai.providers import LiteLLMGroqProvider
+from app.ai.prompts import get_prompt
+from app.ai.registry import get_llm_provider
 from app.assessment.schema import NoteDraftSchema
 from app.core.config import get_settings
 from app.core.errors import ValidationError
@@ -170,13 +171,16 @@ async def generate_note(
     settings = get_settings()
     if settings.groq_api_key:
         try:
-            provider = LiteLLMGroqProvider(api_key=settings.groq_api_key, model=settings.llm_model)
-            prompt = (
-                "Write concise, factual study notes grounded only in the supplied material. "
-                'Return JSON matching the schema: {"title": "...", "body": "..."}. '
-                "The body should be clean prose or short sections.\n\nMaterial:\n" + material
-            )
-            draft = await provider.generate_structured(prompt=prompt, schema=NoteDraftSchema)
+            prompt_version = get_prompt("note_draft")
+            provider = get_llm_provider()
+            if provider is not None:
+                draft = await provider.generate_structured(
+                    prompt=prompt_version.render(material=material),
+                    schema=NoteDraftSchema,
+                    prompt_version=prompt_version.label(),
+                )
+            else:
+                draft = _deterministic_draft(material, context.title)
         except Exception:
             draft = _deterministic_draft(material, context.title)
     else:

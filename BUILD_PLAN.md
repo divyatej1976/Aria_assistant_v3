@@ -594,14 +594,16 @@ This phase is the R0 product milestone.
 
 # Phase 12 — Integrations, production hardening, and scale
 
-**Status:** `[~] In progress` — tranche 12.1–12.4 implemented; 12.5+ deferred.  
+**Status:** `[~] In progress` — tranche 12.1–12.5 implemented; 12.6+ deferred.  
 **Goal:** Prepare ARIA for sustained real-world use.
 
-> **Tranche progress (12.1–12.4):** Security hardening (cookie sessions, CSRF,
+> **Tranche progress (12.1–12.5):** Security hardening (cookie sessions, CSRF,
 > rate limiting, headers, secret fail-fast), background workers (reminders +
-> audio queue), notifications with web push and new triggers, and observability
-> (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse). The
-> remaining items below are the deferred 12.5–12.10 tranches.
+> audio queue), notifications with web push and new triggers, observability
+> (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse), and AI
+> provider governance (provider registry, versioned prompt registry, cost
+> budget, eval harness). The remaining items below are the deferred
+> 12.6–12.10 tranches.
 
 ## Work
 

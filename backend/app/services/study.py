@@ -4,8 +4,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ai.providers import DeterministicEmbeddingProvider, LiteLLMGroqProvider, RetrievedChunk
-from app.core.config import get_settings
+from app.ai.prompts import get_prompt
+from app.ai.providers import DeterministicEmbeddingProvider, RetrievedChunk
+from app.ai.registry import get_llm_provider
 from app.core.errors import ValidationError
 from app.db.models import (
     ConceptChunk,
@@ -215,7 +216,6 @@ async def answer_question(
     session_id: UUID | None = None,
 ) -> StudyResult:
     sources = await retrieve_chunks(db, owner_id=owner_id, context_id=context_id, query=question)
-    settings = get_settings()
     context_text = build_study_context(sources)
     if not context_text:
         return StudyResult(
@@ -226,7 +226,7 @@ async def answer_question(
             sources=sources,
             fallback_used=True,
         )
-    if not settings.groq_api_key:
+    if get_llm_provider() is None:
         return StudyResult(
             content=(
                 "Provider fallback: here are the most relevant excerpts from your material. "
@@ -244,9 +244,9 @@ async def answer_question(
             sources=sources,
         )
         system, user = build_prompt(question, package)
-        answer = await LiteLLMGroqProvider(
-            api_key=settings.groq_api_key, model=settings.llm_model
-        ).generate_text(system=system, user=user)
+        answer = await get_llm_provider().generate_text(
+            system=system, user=user, prompt_version=get_prompt("study_answer").label()
+        )
         return StudyResult(content=answer, sources=sources, fallback_used=False)
     except Exception:
         return StudyResult(
