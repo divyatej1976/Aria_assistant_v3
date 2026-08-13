@@ -594,16 +594,17 @@ This phase is the R0 product milestone.
 
 # Phase 12 — Integrations, production hardening, and scale
 
-**Status:** `[~] In progress` — tranche 12.1–12.5 implemented; 12.6+ deferred.  
+**Status:** `[~] In progress` — tranche 12.1–12.6 implemented; 12.7+ deferred.  
 **Goal:** Prepare ARIA for sustained real-world use.
 
-> **Tranche progress (12.1–12.5):** Security hardening (cookie sessions, CSRF,
+> **Tranche progress (12.1–12.6):** Security hardening (cookie sessions, CSRF,
 > rate limiting, headers, secret fail-fast), background workers (reminders +
 > audio queue), notifications with web push and new triggers, observability
-> (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse), and AI
-> provider governance (provider registry, versioned prompt registry, cost
-> budget, eval harness). The remaining items below are the deferred
-> 12.6–12.10 tranches.
+> (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse), AI
+> provider governance (provider registry, versioned prompts, cost budget, eval
+> harness), and a load baseline (`scripts/load_baseline.py` →
+> `reports/load_baseline.json`). The remaining items below are the deferred
+> 12.7–12.10 tranches.
 
 ## Work
 
@@ -616,7 +617,7 @@ This phase is the R0 product milestone.
 - [ ] Production deployment. (deferred until the app is verified working)
 - [x] Sentry/Langfuse or equivalent observability.
 - [~] OpenTelemetry, metrics, and dashboards. (Prometheus `/metrics` done; OTel export + dashboards deferred)
-- [ ] Load and stress testing. (deferred)
+- [~] Load and stress testing. (load baseline done; stress at scale deferred to 12.9)
 - [ ] Backup and disaster recovery. (deferred)
 - [ ] Security review and threat modeling. (deferred)
 

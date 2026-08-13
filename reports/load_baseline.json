@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-08-13T22:34:57.973205+00:00",
+  "base": "http://localhost:8010",
+  "concurrency": 10,
+  "duration_seconds": 10,
+  "authenticated": true,
+  "total_requests": 1460,
+  "errors": 0,
+  "paths": {
+    "/health": {
+      "requests": 368,
+      "p50_ms": 34.9,
+      "p95_ms": 62.6,
+      "max_ms": 333.7
+    },
+    "/ready": {
+      "requests": 366,
+      "p50_ms": 36.1,
+      "p95_ms": 51.1,
+      "max_ms": 315.4
+    },
+    "/metrics": {
+      "requests": 363,
+      "p50_ms": 39.9,
+      "p95_ms": 60.4,
+      "max_ms": 154.9
+    },
+    "/api/v1/contexts": {
+      "requests": 363,
+      "p50_ms": 150.4,
+      "p95_ms": 190.2,
+      "max_ms": 282.6
+    }
+  }
+}
