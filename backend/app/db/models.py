@@ -189,6 +189,51 @@ class AudioProgress(OwnedModel, Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class Workflow(OwnedModel, Base):
+    __tablename__ = "workflows"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="RUNNING", nullable=False)
+    current_step: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    error_detail: Mapped[str | None] = mapped_column(Text)
+
+
+class AgentTask(OwnedModel, Base):
+    __tablename__ = "agent_tasks"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    workflow_id: Mapped[UUID] = mapped_column(
+        ForeignKey("workflows.id"), index=True, nullable=False
+    )
+    agent: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False)
+    attempt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    input_refs: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    output_refs: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    error_detail: Mapped[str | None] = mapped_column(Text)
+
+
+class ApprovalRequest(OwnedModel, Base):
+    __tablename__ = "approval_requests"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    workflow_id: Mapped[UUID] = mapped_column(
+        ForeignKey("workflows.id"), index=True, nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AuditLog(OwnedModel, Base):
+    __tablename__ = "audit_log"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    agent: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    request_id: Mapped[str | None] = mapped_column(String(64))
+
+
 class Resource(OwnedModel, Base):
     __tablename__ = "resources"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)

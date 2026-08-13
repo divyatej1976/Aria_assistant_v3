@@ -1,48 +1,31 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
-from app.db.models import (
-    AdaptationDecision,
-    Assessment,
-    AssessmentAttempt,
-    AssessmentQuestion,
-    AttemptAnswer,
-    Concept,
-    ConversationMessage,
-    Evaluation,
-    Evidence,
-    Goal,
-    Learner,
-    LearnerConceptState,
-    LearnerSession,
-    LearningContext,
-    Resource,
-    ResourceChunk,
-    StudySession,
-)
+from app.db.base import Base
+from app.db.models import Learner, LearnerSession
 from app.security.passwords import hash_password, verify_password
 
-_DATA_TABLES = (
-    AdaptationDecision,
-    LearnerConceptState,
-    Evidence,
-    Evaluation,
-    AttemptAnswer,
-    AssessmentAttempt,
-    AssessmentQuestion,
-    Assessment,
-    ConversationMessage,
-    StudySession,
-    ResourceChunk,
-    Resource,
-    Concept,
-    LearningContext,
-    Goal,
-)
+_RESET_EXCLUDED_TABLES = {
+    "learners",
+    "learner_sessions",
+    "workflows",
+    "agent_tasks",
+    "approval_requests",
+    "audit_log",
+}
+
+
+def _learner_data_tables() -> list:
+    """Learner-owned tables ordered children-first so deletes satisfy FKs."""
+    return [
+        table
+        for table in reversed(Base.metadata.sorted_tables)
+        if "owner_id" in table.c and table.name not in _RESET_EXCLUDED_TABLES
+    ]
 
 
 def create_learner_session(
@@ -118,8 +101,8 @@ def change_password(
 
 
 def reset_learner_data(db: Session, *, owner_id: UUID) -> None:
-    for table in _DATA_TABLES:
-        db.execute(delete(table).where(table.owner_id == owner_id))
+    for table in _learner_data_tables():
+        db.execute(table.delete().where(table.c.owner_id == owner_id))
     db.execute(
         update(LearnerSession)
         .where(LearnerSession.owner_id == owner_id)

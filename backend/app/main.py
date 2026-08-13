@@ -13,6 +13,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.memory import router as memory_router
 from app.api.routes.notes import router as notes_router
 from app.api.routes.notifications import router as notifications_router
+from app.api.routes.orchestration import router as orchestration_router
 from app.api.routes.planner import router as planner_router
 from app.api.routes.progress import router as progress_router
 from app.api.routes.resources import router as resources_router
@@ -48,6 +49,7 @@ app.include_router(notes_router)
 app.include_router(progress_router)
 app.include_router(planner_router)
 app.include_router(notifications_router)
+app.include_router(orchestration_router)
 app.include_router(audio_router)
 app.include_router(resources_router)
 app.include_router(study_router)
