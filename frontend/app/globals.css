@@ -51,7 +51,7 @@
   --color-tertiary-fixed: 113 248 228;
   --color-tertiary-fixed-dim: 79 219 200;
   --color-on-tertiary-fixed: 0 32 28;
-  --color-aria-red: 229 57 53;                 /* #e53935 */
+  --color-aria-red: 198 40 40;                 /* #c62828 (AA on light surface) */
 }
 
 /* ------------------------------------------------------------------ */
@@ -102,7 +102,7 @@
   --color-tertiary-fixed: 113 248 228;
   --color-tertiary-fixed-dim: 79 219 200;
   --color-on-tertiary-fixed: 0 32 28;
-  --color-aria-red: 229 57 53;
+  --color-aria-red: 255 138 128;               /* #ff8a80 (AA on dark surface) */
 }
 
 /* ------------------------------------------------------------------ */
