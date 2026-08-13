@@ -255,6 +255,22 @@ def _send_email(provider, *, email: str, subject: str, body: str) -> str:
         return "failed"
 
 
+def check_reminders_for_all(db: Session) -> dict[str, int]:
+    """Run reminder checks for every learner. Used by the background scheduler."""
+    totals = {
+        "notifications_created": 0,
+        "emails_delivered": 0,
+        "emails_logged": 0,
+        "emails_failed": 0,
+    }
+    learner_ids = db.scalars(select(Learner.id)).all()
+    for owner_id in learner_ids:
+        result = check_reminders(db, owner_id=owner_id)
+        for key in totals:
+            totals[key] += result[key]
+    return totals
+
+
 def check_reminders(
     db: Session, *, owner_id: UUID, provider=None
 ) -> dict[str, int]:

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     aria_rate_limit_enabled: bool = True
     aria_rate_limit_requests: int = 10
     aria_rate_limit_window_seconds: int = 60
+    aria_scheduler_enabled: bool = True
+    aria_reminder_check_interval_minutes: int = 60
+    aria_audio_queue_interval_seconds: int = 30
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

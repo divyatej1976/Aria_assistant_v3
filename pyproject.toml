@@ -18,6 +18,7 @@ dependencies = [
   "litellm>=1.60,<2",
   "reportlab>=4,<5",
   "pyttsx3>=2.9,<3",
+  "apscheduler>=3.10,<4",
 ]
 
 [project.optional-dependencies]

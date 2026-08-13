@@ -14,6 +14,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+os.environ.setdefault("ARIA_SCHEDULER_ENABLED", "false")
+
 from app.db.base import Base
 from app.db.dependencies import get_db
 from app.main import app
@@ -31,11 +33,21 @@ def _engine():
 
 
 @pytest.fixture()
-def client() -> Generator[TestClient, None, None]:
+def engine():
     engine = _engine()
     Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    yield engine
+    Base.metadata.drop_all(engine)
+    engine.dispose()
 
+
+@pytest.fixture()
+def session_factory(engine):
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+@pytest.fixture()
+def client(engine, session_factory) -> Generator[TestClient, None, None]:
     def override_get_db() -> Generator[Session, None, None]:
         db = session_factory()
         try:
@@ -47,5 +59,3 @@ def client() -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
-    Base.metadata.drop_all(engine)
-    engine.dispose()

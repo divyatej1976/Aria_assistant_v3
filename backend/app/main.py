@@ -22,13 +22,18 @@ from app.api.routes.study import router as study_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.request_context import RequestContextMiddleware
+from app.jobs.scheduler import shutdown_scheduler, start_scheduler
 from app.security.csrf import CSRFMiddleware
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging()
-    yield
+    start_scheduler()
+    try:
+        yield
+    finally:
+        shutdown_scheduler()
 
 
 settings = get_settings()

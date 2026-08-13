@@ -130,6 +130,27 @@ def generate_audio(
     return artifact
 
 
+def process_audio_queue(db: Session, *, limit: int = 5, provider=None) -> int:
+    """Generate audio for artifacts stuck in PENDING/PROCESSING. Scheduler job."""
+    artifacts = list(
+        db.scalars(
+            select(AudioArtifact)
+            .where(AudioArtifact.status.in_(["PENDING", "PROCESSING"]))
+            .order_by(AudioArtifact.created_at)
+            .limit(limit)
+        )
+    )
+    for artifact in artifacts:
+        generate_audio(
+            db,
+            owner_id=artifact.owner_id,
+            source_type=artifact.source_type,
+            source_id=artifact.source_id,
+            provider=provider,
+        )
+    return len(artifacts)
+
+
 def delete_audio(db: Session, *, owner_id: UUID, artifact_id: UUID) -> None:
     artifact = get_owned_artifact(db, owner_id=owner_id, artifact_id=artifact_id)
     progress = db.scalar(
