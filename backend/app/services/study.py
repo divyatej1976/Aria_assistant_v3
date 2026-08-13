@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
 from app.ai.providers import DeterministicEmbeddingProvider, RetrievedChunk
-from app.ai.registry import get_llm_provider
+from app.ai.registry import get_embedding_provider, get_llm_provider
 from app.core.errors import ValidationError
 from app.db.models import (
     ConceptChunk,
@@ -183,7 +183,7 @@ async def retrieve_chunks(
     ).all()
     boosts = weak_chunk_boosts(db, owner_id=owner_id, context_id=context_id)
     query_terms = {term for term in content_terms(query) if len(term) > 2}
-    provider = DeterministicEmbeddingProvider()
+    provider = get_embedding_provider()
     semantic = semantic_scoring_available(provider)
     query_embedding = (await provider.embed([query]))[0] if semantic else None
     scored: list[RetrievedChunk] = []

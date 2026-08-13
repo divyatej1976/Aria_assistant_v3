@@ -4,6 +4,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,17 +57,53 @@ class STTProvider(Protocol):
 
 
 class DeterministicEmbeddingProvider:
-    """Small local embedding fallback for development and deterministic tests."""
+    """Small local embedding fallback for development and deterministic tests.
+
+    Produces `aria_embedding_dim`-dimensional unit vectors so the dimension is
+    stable whether or not a cloud embedding provider is configured.
+    """
+
+    def __init__(self, *, dimension: int | None = None) -> None:
+        from app.core.config import get_settings
+
+        self.dimension = dimension or get_settings().aria_embedding_dim
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
         for text in texts:
-            vector = [0.0] * 32
+            vector = [0.0] * self.dimension
             for token in text.lower().split():
-                vector[hash(token) % len(vector)] += 1.0
+                vector[abs(hash(token)) % self.dimension] += 1.0
             magnitude = sum(value * value for value in vector) ** 0.5 or 1.0
             vectors.append([value / magnitude for value in vector])
         return vectors
+
+
+class CloudEmbeddingProvider:
+    """OpenAI-compatible embeddings endpoint (configurable base URL/model)."""
+
+    def __init__(
+        self, *, api_key: str, model: str, base_url: str | None, dimension: int
+    ) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
+        self.dimension = dimension
+
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        payload: dict = {"model": self.model, "input": list(texts)}
+        if self.model.startswith("text-embedding"):
+            payload["dimensions"] = self.dimension
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{self.base_url}/embeddings",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+            response.raise_for_status()
+            data = response.json()
+        ordered = sorted(data["data"], key=lambda item: item["index"])
+        return [item["embedding"][: self.dimension] for item in ordered]
 
 
 class CloudTTSProvider:
@@ -75,8 +113,6 @@ class CloudTTSProvider:
         self.voice = voice
 
     def generate(self, *, text: str) -> tuple[bytes, str, int]:
-        import httpx
-
         response = httpx.post(
             "https://api.openai.com/v1/audio/speech",
             headers={"Authorization": f"Bearer {self.api_key}"},
@@ -120,8 +156,6 @@ class CloudSTTProvider:
         self.model = model
 
     def transcribe(self, *, audio: bytes, content_type: str) -> str:
-        import httpx
-
         response = httpx.post(
             "https://api.openai.com/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {self.api_key}"},

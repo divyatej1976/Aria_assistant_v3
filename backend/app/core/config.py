@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     aria_session_secret: str | None = Field(default=None, repr=False)
     groq_api_key: str | None = Field(default=None, repr=False)
     llm_model: str = "llama-3.3-70b-versatile"
+    aria_embedding_api_key: str | None = Field(default=None, repr=False)
+    aria_embedding_model: str = "text-embedding-3-small"
+    aria_embedding_base_url: str | None = None
+    aria_embedding_dim: int = 768
     aria_trusted_hosts: str = "localhost,127.0.0.1"
     aria_rate_limit_enabled: bool = True
     aria_rate_limit_requests: int = 10

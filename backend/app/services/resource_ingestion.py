@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.ai.providers import DeterministicEmbeddingProvider
+from app.ai.registry import get_embedding_provider
 from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
 from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
@@ -42,7 +42,7 @@ async def _process_resource(db: Session, resource: Resource, text: str) -> Resou
         chunks = chunk_text(text)
         if not chunks:
             raise ValueError("No readable text could be extracted")
-        embeddings = await DeterministicEmbeddingProvider().embed(chunks)
+        embeddings = await get_embedding_provider().embed(chunks)
         for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
             db.add(
                 ResourceChunk(
