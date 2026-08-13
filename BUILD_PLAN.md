@@ -594,17 +594,18 @@ This phase is the R0 product milestone.
 
 # Phase 12 — Integrations, production hardening, and scale
 
-**Status:** `[~] In progress` — tranche 12.1–12.6 implemented; 12.7+ deferred.  
+**Status:** `[~] In progress` — tranche 12.1–12.7 implemented; 12.8+ deferred.  
 **Goal:** Prepare ARIA for sustained real-world use.
 
-> **Tranche progress (12.1–12.6):** Security hardening (cookie sessions, CSRF,
+> **Tranche progress (12.1–12.7):** Security hardening (cookie sessions, CSRF,
 > rate limiting, headers, secret fail-fast), background workers (reminders +
 > audio queue), notifications with web push and new triggers, observability
 > (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse), AI
 > provider governance (provider registry, versioned prompts, cost budget, eval
-> harness), and a load baseline (`scripts/load_baseline.py` →
-> `reports/load_baseline.json`). The remaining items below are the deferred
-> 12.7–12.10 tranches.
+> harness), a load baseline (`scripts/load_baseline.py` →
+> `reports/load_baseline.json`), and generalized idempotency
+> (`Idempotency-Key` replay for workflows). The remaining items below are the
+> deferred 12.8–12.10 tranches.
 
 ## Work
 
@@ -612,7 +613,8 @@ This phase is the R0 product milestone.
 - [ ] External learning-platform integrations. (deferred)
 - [x] Email and push notifications.
 - [x] Background workers.
-- [~] Caching and rate limiting. (rate limiting done; caching deferred pending load evidence)
+- [~] Caching and rate limiting. (rate limiting done; in-process TTL cache utility added but unwired, Redis deferred pending usage evidence)
+- [x] Generalized idempotency keys. (Idempotency-Key replay for workflows)
 - [ ] Dedicated vector database if justified. (deferred; see Phase 12.8)
 - [ ] Production deployment. (deferred until the app is verified working)
 - [x] Sentry/Langfuse or equivalent observability.

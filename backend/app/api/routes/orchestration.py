@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,9 @@ from app.schemas.orchestration import (
     WorkflowStartResponse,
 )
 from app.security.dependencies import CurrentLearner
+from app.services.idempotency import find as find_idempotency
+from app.services.idempotency import record as record_idempotency
+from app.services.idempotency import replayable
 from app.services.orchestration import (
     decide_approval,
     get_workflow,
@@ -86,15 +89,40 @@ def start_response(workflow, approval) -> WorkflowStartResponse:
 
 @router.post("/workflows/{name}", response_model=WorkflowStartResponse, status_code=201)
 async def start(
-    name: str, request: WorkflowStartRequest, learner: CurrentLearner, db: Db
+    name: str,
+    request: WorkflowStartRequest,
+    learner: CurrentLearner,
+    db: Db,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> WorkflowStartResponse:
+    scope = f"workflow:{name}"
+    if idempotency_key:
+        existing = find_idempotency(
+            db, owner_id=learner.id, scope=scope, key=idempotency_key
+        )
+        if replayable(existing):
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=existing.response_status, content=existing.response_json
+            )
     try:
         workflow, approval = await run_workflow(
             db, owner_id=learner.id, name=name, payload=request.payload
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return start_response(workflow, approval)
+    response = start_response(workflow, approval)
+    if idempotency_key:
+        record_idempotency(
+            db,
+            owner_id=learner.id,
+            scope=scope,
+            key=idempotency_key,
+            status=201,
+            response=response.model_dump(mode="json"),
+        )
+    return response
 
 
 @router.get("/workflows", response_model=list[WorkflowResponse])

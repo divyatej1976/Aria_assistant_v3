@@ -19,7 +19,7 @@ import json
 import statistics
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -104,7 +104,7 @@ async def run(args) -> int:
         await asyncio.gather(*workers)
 
     report = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "base": args.base,
         "concurrency": args.concurrency,
         "duration_seconds": args.duration,

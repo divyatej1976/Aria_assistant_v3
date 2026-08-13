@@ -173,6 +173,19 @@ class PushSubscription(OwnedModel, Base):
     auth: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class IdempotencyKey(OwnedModel, Base):
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "scope", "key", name="uq_idempotency_owner_scope_key"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    response_status: Mapped[int | None] = mapped_column(Integer)
+    response_json: Mapped[dict | None] = mapped_column(JSON)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class AudioArtifact(OwnedModel, Base):
     __tablename__ = "audio_artifacts"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
