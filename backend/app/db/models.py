@@ -162,6 +162,17 @@ class Notification(OwnedModel, Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class PushSubscription(OwnedModel, Base):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("endpoint", name="uq_push_subscription_endpoint"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    p256dh: Mapped[str] = mapped_column(Text, nullable=False)
+    auth: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class AudioArtifact(OwnedModel, Base):
     __tablename__ = "audio_artifacts"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)

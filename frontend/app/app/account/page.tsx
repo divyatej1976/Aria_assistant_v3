@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { api, clearToken } from "../../../lib/api";
 import { useAuth } from "../../../components/auth-provider";
+import { isPushSubscribed, pushAvailable, subscribeToPush, unsubscribeFromPush } from "../../../lib/push";
 
 type SessionRecord = { id: string; device_label: string | null; is_current: boolean; created_at: string };
 
@@ -17,6 +18,8 @@ export default function AccountPage() {
   const [newPassword, setNewPassword] = useState("");
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [emailReminders, setEmailReminders] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushConfigured, setPushConfigured] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -30,6 +33,10 @@ export default function AccountPage() {
       .catch(() => {
         // Preferences are optional for rendering.
       });
+    setPushConfigured(pushAvailable());
+    if (pushAvailable()) {
+      void isPushSubscribed().then(setPushEnabled).catch(() => setPushEnabled(false));
+    }
   }, []);
 
   async function loadSessions() {
@@ -106,6 +113,20 @@ export default function AccountPage() {
       setNotice(next ? "Email reminders enabled." : "Email reminders disabled.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to update preference");
+    }
+  }
+
+  async function togglePush() {
+    setError("");
+    setNotice("");
+    if (pushEnabled) {
+      const ok = await unsubscribeFromPush();
+      setPushEnabled(!ok);
+      setNotice(ok ? "Push notifications disabled." : "Unable to disable push notifications.");
+    } else {
+      const ok = await subscribeToPush();
+      setPushEnabled(ok);
+      setNotice(ok ? "Push notifications enabled." : "Unable to enable push notifications.");
     }
   }
 
@@ -226,6 +247,24 @@ export default function AccountPage() {
           >
             {emailReminders ? "Email reminders: ON" : "Email reminders: OFF"}
           </button>
+          <p className="text-body-md text-on-surface-variant mt-2">
+            Receive push notifications in this browser for assessment results and workflow
+            updates.
+          </p>
+          {pushConfigured ? (
+            <button
+              onClick={() => void togglePush()}
+              className={`self-start px-6 py-3 rounded-full text-label-md font-bold shadow-extruded btn-extruded ${
+                pushEnabled ? "bg-secondary text-on-secondary" : "bg-surface text-on-surface-variant"
+              }`}
+            >
+              {pushEnabled ? "Push notifications: ON" : "Push notifications: OFF"}
+            </button>
+          ) : (
+            <p className="text-label-sm text-on-surface-variant">
+              Push requires a configured VAPID key (NEXT_PUBLIC_VAPID_PUBLIC_KEY).
+            </p>
+          )}
         </div>
 
         <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-4">

@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
@@ -21,6 +22,8 @@ from app.db.models import (
 from app.services.concepts import list_concepts, sync_concepts
 from app.services.evidence import record_assessment_evidence
 from app.services.text import tokenize
+
+logger = logging.getLogger(__name__)
 
 
 def get_owned_assessment(
@@ -334,6 +337,21 @@ def submit_attempt(
         details=details,
     )
     db.commit()
+    from app.services.notifications import dispatch_notification
+
+    try:
+        dispatch_notification(
+            db,
+            owner_id=owner_id,
+            ntype="assessment_result",
+            title=f"Assessment complete: {score}/{len(questions)}",
+            body=(
+                f"You scored {score} of {len(questions)} on the assessment. "
+                "Open Progress to see how your learner model updated."
+            ),
+        )
+    except Exception:
+        logger.exception("assessment result notification failed")
     db.refresh(attempt)
     db.refresh(evaluation)
     return attempt, evaluation, details

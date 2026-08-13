@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     aria_scheduler_enabled: bool = True
     aria_reminder_check_interval_minutes: int = 60
     aria_audio_queue_interval_seconds: int = 30
+    aria_vapid_public_key: str | None = None
+    aria_vapid_private_key: str | None = Field(default=None, repr=False)
+    aria_vapid_subject: str = "mailto:noreply@aria.local"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

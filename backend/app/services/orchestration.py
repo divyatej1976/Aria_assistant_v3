@@ -6,6 +6,7 @@ stay outside the agents.
 """
 
 import inspect
+import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -27,6 +28,8 @@ from app.services.notes import generate_note
 from app.services.planner import upcoming_deadlines
 from app.services.progress import consistency
 from app.services.study import answer_question
+
+logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 2
 
@@ -193,6 +196,22 @@ async def _run_step(
     return False
 
 
+def _notify_terminal(db: Session, *, owner_id: UUID, workflow: Workflow) -> None:
+    from app.services.notifications import dispatch_notification
+
+    try:
+        dispatch_notification(
+            db,
+            owner_id=owner_id,
+            ntype="workflow",
+            title=f"Workflow '{workflow.name}' {workflow.status.lower()}",
+            body=workflow.error_detail
+            or f"The {workflow.name} workflow finished with status {workflow.status}.",
+        )
+    except Exception:
+        logger.exception("workflow completion notification failed")
+
+
 async def _advance(
     db: Session, *, owner_id: UUID, workflow: Workflow, payload: dict
 ) -> ApprovalRequest | None:
@@ -238,11 +257,13 @@ async def _advance(
             workflow.error_detail = task.error_detail
             db.add(workflow)
             db.commit()
+            _notify_terminal(db, owner_id=owner_id, workflow=workflow)
             return None
     workflow.status = "COMPLETED"
     workflow.current_step = len(steps)
     db.add(workflow)
     db.commit()
+    _notify_terminal(db, owner_id=owner_id, workflow=workflow)
     return None
 
 
@@ -293,6 +314,7 @@ async def decide_approval(
             action="rejected",
             detail={"workflow_id": str(workflow.id), "approval_id": str(approval.id)},
         )
+        _notify_terminal(db, owner_id=owner_id, workflow=workflow)
         return workflow, None
 
     workflow.status = "RUNNING"
@@ -333,6 +355,7 @@ async def decide_approval(
         workflow.error_detail = task.error_detail
         db.add(workflow)
         db.commit()
+        _notify_terminal(db, owner_id=owner_id, workflow=workflow)
         return workflow, None
     workflow.current_step += 1
     db.add(workflow)

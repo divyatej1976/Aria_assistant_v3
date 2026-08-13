@@ -136,6 +136,49 @@ def list_notifications(db: Session, *, owner_id: UUID) -> list[Notification]:
     )
 
 
+def mark_all_notifications_read(db: Session, *, owner_id: UUID) -> int:
+    unread = db.scalars(
+        select(Notification).where(
+            Notification.owner_id == owner_id, Notification.read_at.is_(None)
+        )
+    ).all()
+    for notification in unread:
+        notification.read_at = datetime.now(UTC)
+        db.add(notification)
+    db.commit()
+    return len(unread)
+
+
+def dispatch_notification(
+    db: Session, *, owner_id: UUID, ntype: str, title: str, body: str, send_email: bool = False
+) -> dict[str, int]:
+    """In-app + web push (and optionally email) delivery for a new notification."""
+    create_notification(db, owner_id=owner_id, ntype=ntype, title=title, body=body)
+    db.commit()
+    from app.services.push import send_push
+
+    push = send_push(db, owner_id=owner_id, title=title, body=body)
+    result = {
+        "push_sent": push["sent"],
+        "push_logged": push["logged"],
+        "push_failed": push["failed"],
+        "push_removed": push["removed"],
+        "email_sent": 0,
+        "email_logged": 0,
+        "email_failed": 0,
+    }
+    if send_email:
+        learner = db.get(Learner, owner_id)
+        if learner is not None and email_enabled(db, owner_id=owner_id):
+            status = _send_email(
+                get_email_provider(), email=learner.email, subject=title, body=body
+            )
+            key = f"email_{status}"
+            if key in result:
+                result[key] += 1
+    return result
+
+
 def mark_notification_read(
     db: Session, *, owner_id: UUID, notification_id: UUID
 ) -> Notification | None:

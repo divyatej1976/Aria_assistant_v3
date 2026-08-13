@@ -19,6 +19,7 @@ dependencies = [
   "reportlab>=4,<5",
   "pyttsx3>=2.9,<3",
   "apscheduler>=3.10,<4",
+  "pywebpush>=1.14,<2",
 ]
 
 [project.optional-dependencies]

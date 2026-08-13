@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { api } from "../lib/api";
 import { useAuth } from "./auth-provider";
 import { ThemeToggle } from "./theme-toggle";
+import { registerServiceWorker } from "../lib/push";
 
 type AppNotification = {
   id: string;
@@ -147,6 +148,10 @@ function NavList({ pathname }: { pathname: string }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { learner } = useAuth();
+
+  useEffect(() => {
+    void registerServiceWorker();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-on-background font-sans">

@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from app.db.dependencies import get_db
 from app.schemas.planner import NotificationResponse
 from app.security.dependencies import CurrentLearner
-from app.services.notifications import list_notifications, mark_notification_read
+from app.services.notifications import (
+    list_notifications,
+    mark_all_notifications_read,
+    mark_notification_read,
+)
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
 Db = Annotated[Session, Depends(get_db)]
@@ -36,6 +40,11 @@ def notifications(learner: CurrentLearner, db: Db) -> list[NotificationResponse]
 def unread_count(learner: CurrentLearner, db: Db) -> dict[str, int]:
     items = list_notifications(db, owner_id=learner.id)
     return {"unread": sum(1 for item in items if item.read_at is None)}
+
+
+@router.post("/read-all")
+def read_all(learner: CurrentLearner, db: Db) -> dict[str, int]:
+    return {"marked": mark_all_notifications_read(db, owner_id=learner.id)}
 
 
 @router.post("/{notification_id}/read")
