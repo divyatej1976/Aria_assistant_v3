@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 is in progress (tranche 12.1–12.4 done).
+**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 hardening tranches 12.1–12.10 are implemented, with evidence-gated items (Redis cache, SQL top-k retrieval, OTel dashboards, actual hosting) deferred.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
@@ -594,10 +594,10 @@ This phase is the R0 product milestone.
 
 # Phase 12 — Integrations, production hardening, and scale
 
-**Status:** `[~] In progress` — tranche 12.1–12.9 implemented; 12.10 (final security review) deferred.  
+**Status:** `[~] In progress` — tranche 12.1–12.10 implemented; explicitly deferred items remain.  
 **Goal:** Prepare ARIA for sustained real-world use.
 
-> **Tranche progress (12.1–12.9):** Security hardening (cookie sessions, CSRF,
+> **Tranche progress (12.1–12.10):** Security hardening (cookie sessions, CSRF,
 > rate limiting, headers, secret fail-fast), background workers (reminders +
 > audio queue), notifications with web push and new triggers, observability
 > (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse), AI
@@ -606,10 +606,11 @@ This phase is the R0 product milestone.
 > `reports/load_baseline.json`), generalized idempotency
 > (`Idempotency-Key` replay for workflows), the vector retrieval upgrade
 > (embedding provider factory, Postgres-only pgvector column + HNSW index,
-> migration 0011), and production deployment artifacts (multi-stage prod
+> migration 0011), production deployment artifacts (multi-stage prod
 > Dockerfiles, `docker-compose.prod.yml` with migration-at-deploy, verified
-> pg_dump backup/restore scripts). The remaining item below is the deferred
-> 12.10 tranche.
+> pg_dump backup/restore scripts), and the security review & threat model
+> (`docs/phase-12-security-review/`). Items below that remain unchecked are
+> intentionally deferred pending usage evidence or actual hosting.
 
 ## Work
 
@@ -625,7 +626,7 @@ This phase is the R0 product milestone.
 - [~] OpenTelemetry, metrics, and dashboards. (Prometheus `/metrics` done; OTel export + dashboards deferred)
 - [~] Load and stress testing. (load baseline done; stress at scale deferred to 12.9)
 - [x] Backup and disaster recovery. (pg_dump backup/restore scripts, DR restore verified)
-- [ ] Security review and threat modeling. (deferred)
+- [x] Security review and threat modeling. (docs/phase-12-security-review/01-threat-model-and-review.md)
 
 ## Definition of done
 
