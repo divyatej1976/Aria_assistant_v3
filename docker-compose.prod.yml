@@ -1,0 +1,80 @@
+# Production stack: PostgreSQL (pgvector) + migrate + backend + frontend.
+#
+# Usage:
+#   export DATABASE_URL=postgresql+psycopg://aria:aria@db:5432/aria
+#   export ARIA_SESSION_SECRET=<long-random>
+#   export ARIA_CORS_ORIGINS=https://app.example.com
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# A one-off `migrate` service applies alembic migrations before backend starts.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aria}
+      POSTGRES_USER: ${POSTGRES_USER:-aria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aria}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aria} -d ${POSTGRES_DB:-aria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aria:aria@db:5432/aria}
+      ARIA_ENV: production
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    environment:
+      ARIA_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aria:aria@db:5432/aria}
+      ARIA_CORS_ORIGINS: ${ARIA_CORS_ORIGINS:-https://app.example.com}
+      ARIA_SESSION_SECRET: ${ARIA_SESSION_SECRET:?ARIA_SESSION_SECRET is required}
+      ARIA_TRUSTED_HOSTS: ${ARIA_TRUSTED_HOSTS:-app.example.com,localhost,127.0.0.1}
+      ARIA_RATE_LIMIT_ENABLED: "true"
+      ARIA_SCHEDULER_ENABLED: "true"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-ARIA <noreply@example.com>}
+      ARIA_VAPID_PUBLIC_KEY: ${ARIA_VAPID_PUBLIC_KEY:-}
+      ARIA_VAPID_PRIVATE_KEY: ${ARIA_VAPID_PRIVATE_KEY:-}
+      ARIA_SENTRY_DSN: ${ARIA_SENTRY_DSN:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:

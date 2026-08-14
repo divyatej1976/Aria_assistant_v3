@@ -594,20 +594,22 @@ This phase is the R0 product milestone.
 
 # Phase 12 — Integrations, production hardening, and scale
 
-**Status:** `[~] In progress` — tranche 12.1–12.8 implemented; 12.9–12.10 deferred.  
+**Status:** `[~] In progress` — tranche 12.1–12.9 implemented; 12.10 (final security review) deferred.  
 **Goal:** Prepare ARIA for sustained real-world use.
 
-> **Tranche progress (12.1–12.8):** Security hardening (cookie sessions, CSRF,
+> **Tranche progress (12.1–12.9):** Security hardening (cookie sessions, CSRF,
 > rate limiting, headers, secret fail-fast), background workers (reminders +
 > audio queue), notifications with web push and new triggers, observability
 > (request logs, `/metrics`, real `/ready`, optional Sentry/Langfuse), AI
 > provider governance (provider registry, versioned prompts, cost budget, eval
 > harness), a load baseline (`scripts/load_baseline.py` →
 > `reports/load_baseline.json`), generalized idempotency
-> (`Idempotency-Key` replay for workflows), and the vector retrieval upgrade
-> (embedding provider factory with cloud + deterministic fallback,
-> Postgres-only pgvector column + HNSW index + backfill, migration 0011).
-> The remaining items below are the deferred 12.9–12.10 tranches.
+> (`Idempotency-Key` replay for workflows), the vector retrieval upgrade
+> (embedding provider factory, Postgres-only pgvector column + HNSW index,
+> migration 0011), and production deployment artifacts (multi-stage prod
+> Dockerfiles, `docker-compose.prod.yml` with migration-at-deploy, verified
+> pg_dump backup/restore scripts). The remaining item below is the deferred
+> 12.10 tranche.
 
 ## Work
 
@@ -618,11 +620,11 @@ This phase is the R0 product milestone.
 - [~] Caching and rate limiting. (rate limiting done; in-process TTL cache utility added but unwired, Redis deferred pending usage evidence)
 - [x] Generalized idempotency keys. (Idempotency-Key replay for workflows)
 - [~] Dedicated vector database if justified. (pgvector column + HNSW index + embedding seam added; SQL top-k retrieval deferred until usage evidence at scale)
-- [ ] Production deployment. (deferred until the app is verified working)
+- [~] Production deployment. (multi-stage prod images + compose with migration-at-deploy ready; actual hosting deferred until the app is verified working)
 - [x] Sentry/Langfuse or equivalent observability.
 - [~] OpenTelemetry, metrics, and dashboards. (Prometheus `/metrics` done; OTel export + dashboards deferred)
 - [~] Load and stress testing. (load baseline done; stress at scale deferred to 12.9)
-- [ ] Backup and disaster recovery. (deferred)
+- [x] Backup and disaster recovery. (pg_dump backup/restore scripts, DR restore verified)
 - [ ] Security review and threat modeling. (deferred)
 
 ## Definition of done

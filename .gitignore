@@ -24,6 +24,7 @@ e2e-smoke.db
 
 # Local services and tooling
 postgres-data/
+backups/
 aria*.db
 coverage.xml
 htmlcov/
