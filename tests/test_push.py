@@ -65,6 +65,44 @@ def test_push_subscriptions_are_isolated_between_learners(client: TestClient) ->
     assert listed == []
 
 
+def test_push_endpoint_reassignment_transfers_ownership(client: TestClient) -> None:
+    first = register(client, "push-reassign-a@example.com")
+    second = register(client, "push-reassign-b@example.com")
+
+    created = client.post(
+        "/api/v1/push/subscribe", headers=headers(first["access_token"]), json=SUB
+    )
+    assert created.status_code == 201
+    first_subscriptions = client.get(
+        "/api/v1/push/subscriptions", headers=headers(first["access_token"])
+    ).json()
+    assert len(first_subscriptions) == 1
+
+    reassigned = client.post(
+        "/api/v1/push/subscribe", headers=headers(second["access_token"]), json=SUB
+    )
+    assert reassigned.status_code == 201
+    assert reassigned.json()["endpoint"] == SUB["endpoint"]
+
+    first_after = client.get(
+        "/api/v1/push/subscriptions", headers=headers(first["access_token"])
+    ).json()
+    second_after = client.get(
+        "/api/v1/push/subscriptions", headers=headers(second["access_token"])
+    ).json()
+    assert first_after == []
+    assert len(second_after) == 1
+
+    removed = client.post(
+        "/api/v1/push/unsubscribe", headers=headers(second["access_token"]), json=SUB
+    ).json()
+    assert removed["unsubscribed"] is True
+    second_final = client.get(
+        "/api/v1/push/subscriptions", headers=headers(second["access_token"])
+    ).json()
+    assert second_final == []
+
+
 def test_dispatch_notification_creates_in_app_and_logs_push(client: TestClient, engine) -> None:
     session = register(client, "dispatch@example.com")
     token = session["access_token"]

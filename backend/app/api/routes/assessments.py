@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -190,14 +190,21 @@ def submit(
     request: AttemptSubmitRequest,
     learner: CurrentLearner,
     db: Db,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> AttemptResultResponse:
     assessment = get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
+    key = request.idempotency_key or idempotency_key
+    if not key:
+        raise HTTPException(
+            status_code=422,
+            detail="idempotency_key (body or Idempotency-Key header) is required",
+        )
     try:
         attempt, evaluation, details = submit_attempt(
             db,
             owner_id=learner.id,
             attempt_id=attempt_id,
-            idempotency_key=request.idempotency_key,
+            idempotency_key=key,
             answers=request.answers,
         )
     except ValidationError as exc:

@@ -196,6 +196,32 @@ def test_deterministic_score_and_idempotent_submit(client: TestClient) -> None:
     assert second_body["score"] == body["score"]
 
 
+def test_assessment_submit_accepts_idempotency_key_header(client: TestClient) -> None:
+    session = register(client, "header-key@example.com")
+    token = session["access_token"]
+    context_id = create_context(client, token)
+    add_material(client, token, context_id)
+    assessment_id = create_assessment(client, token, context_id, count=3).json()["id"]
+    attempt_id = start_attempt(client, token, assessment_id).json()["attempt_id"]
+    answers = {"not-a-real-question": "A"}
+
+    first = client.post(
+        f"/api/v1/assessments/{assessment_id}/attempts/{attempt_id}/submit",
+        headers={**headers(token), "Idempotency-Key": "header-key-0001"},
+        json={"answers": answers},
+    )
+    assert first.status_code == 200
+    body = first.json()
+
+    again = client.post(
+        f"/api/v1/assessments/{assessment_id}/attempts/{attempt_id}/submit",
+        headers={**headers(token), "Idempotency-Key": "header-key-0001"},
+        json={"answers": answers},
+    )
+    assert again.status_code == 200
+    assert again.json()["evaluation_id"] == body["evaluation_id"]
+
+
 def test_autosaved_answers_are_scored_on_submit(client: TestClient) -> None:
     session = register(client, "autosave@example.com")
     context_id = create_context(client, session["access_token"])

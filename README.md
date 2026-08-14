@@ -119,11 +119,27 @@ See [BUILD_PLAN.md](BUILD_PLAN.md) for the implementation sequence and completio
 
 ## Security & production notes
 
-This is a strong prototype, not yet a production service. Before public deployment:
+The app is feature-complete through Phase 12 hardening but still requires
+operational hardening before a public multi-instance deployment. Current status:
 
-- **Token storage.** The frontend stores the access token in `localStorage`, which any successful XSS payload can read. A production boundary should move sessions to HTTP-only cookies with CSRF protection (or a carefully designed token/session boundary).
-- **AI dependency.** Without `GROQ_API_KEY` the app runs on deterministic fallbacks (good for tests and reliability), but generated Study/assessment/notes quality is limited. Production should add provider evaluation, prompt/version tracking, cost budgets, and quality metrics before depending on generated content.
-- **Reminders are pull-triggered.** Exam reminders run when `POST /api/v1/planner/reminders/check` is called (dev tool). A background worker/cron with idempotency and retry is planned for production hardening (Phase 12).
-- **Email.** SMTP is optional; without `SMTP_HOST` emails are logged to the console instead of delivered.
-- **Generated artifacts.** `__pycache__`, `.pytest_cache`, `.next`, `node_modules`, and the design wireframe ZIPs in `design/wireframes/` are git-ignored and should not be shipped in release bundles.
+- **Authentication.** Sessions use HTTP-only, `SameSite=Strict` cookies with
+  double-submit CSRF protection; the frontend relies on cookies (no tokens in
+  `localStorage`). A legacy `Authorization: Bearer` path is still accepted for
+  compatibility but is deprecated and will be removed once the cookie contract
+  is the only client.
+- **AI dependency.** Without `GROQ_API_KEY` the app runs on deterministic
+  fallbacks (good for tests and reliability). When configured, AI calls are
+  versioned, budget-capped (persisted monthly spend), and cost/token-logged.
+- **Reminders.** Run automatically on a background scheduler (APScheduler) with
+  a PostgreSQL advisory-lock guard so only one replica executes each job; the
+  pull endpoint `POST /api/v1/planner/reminders/check` remains for dev/backfill.
+- **Email.** SMTP is optional; without `SMTP_HOST` emails are logged to the
+  console instead of delivered (the API reports `emails_logged` separately).
+- **Idempotency contract.** Retry-sensitive POST operations are idempotent.
+  Workflow creation honors the `Idempotency-Key` header; assessment submission
+  honors either the `Idempotency-Key` header or the body `idempotency_key`.
+  Other endpoints are not guaranteed idempotent.
+- **Generated artifacts.** `__pycache__`, `.pytest_cache`, `.next`,
+  `node_modules`, and the design wireframe ZIPs in `design/wireframes/` are
+  git-ignored and should not be shipped in release bundles.
 

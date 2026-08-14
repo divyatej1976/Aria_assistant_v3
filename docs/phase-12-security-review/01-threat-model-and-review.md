@@ -89,7 +89,9 @@ push services.
 
 ## 3. Residual-risk checklist for production (12.9 hosting)
 
-- [ ] Remove the legacy `Authorization: Bearer` path and `localStorage` token.
+- [ ] Remove the legacy `Authorization: Bearer` path (deprecated; the frontend
+      is cookie-only, and the security contract is documented in README).
+      Removing it requires migrating the test suite to cookie auth.
 - [ ] Harden CSP with nonces for scripts.
 - [ ] Add email verification and password-reset flows.
 - [ ] Add dependency scanning (`pip-audit`, `npm audit`) to CI.

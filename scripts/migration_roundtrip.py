@@ -2,7 +2,7 @@
 
 Runs `upgrade head` -> `downgrade base` -> `upgrade head` against a disposable
 database. Requires DATABASE_URL to point at a real (non-SQLite) database.
-Used by CI's Postgres job and locally to confirm migrations 0001-0006.
+Used by CI's Postgres job and locally to confirm migrations 0001-0013.
 """
 
 import os

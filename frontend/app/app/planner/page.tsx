@@ -184,13 +184,17 @@ export default function PlannerPage() {
     setError("");
     setCheckResult("");
     try {
-      const result = await api<{ notifications_created: number; emails_sent: number }>(
-        "/api/v1/planner/reminders/check",
-        { method: "POST" },
-      );
-      setCheckResult(
-        `${result.notifications_created} notification(s) created, ${result.emails_sent} email(s) sent.`,
-      );
+      const result = await api<{
+        notifications_created: number;
+        emails_delivered: number;
+        emails_logged: number;
+        emails_failed: number;
+      }>("/api/v1/planner/reminders/check", { method: "POST" });
+      const parts = [`${result.notifications_created} notification(s) created`];
+      if (result.emails_delivered > 0) parts.push(`${result.emails_delivered} email(s) delivered`);
+      if (result.emails_logged > 0) parts.push(`${result.emails_logged} logged (no SMTP configured)`);
+      if (result.emails_failed > 0) parts.push(`${result.emails_failed} failed`);
+      setCheckResult(parts.length > 1 ? parts.join(", ") + "." : `${parts[0]}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Reminder check failed");
     } finally {

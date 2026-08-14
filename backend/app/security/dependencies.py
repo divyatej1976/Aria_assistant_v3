@@ -18,6 +18,10 @@ def get_current_session(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     db: Annotated[Session, Depends(get_db)],
 ) -> LearnerSession:
+    # DEPRECATED: the Authorization: Bearer path is kept for compatibility with
+    # the test suite and older clients. The production contract is the HttpOnly
+    # session cookie (see security/csrf.py). Remove this path once cookie auth
+    # is the only client.
     token: str | None = None
     if credentials is not None:
         token = credentials.credentials
