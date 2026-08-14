@@ -1,13 +1,13 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-async function noCriticalViolations(page: Page, name: string) {
+async function noAxeViolations(page: Page, name: string) {
   const results = await new AxeBuilder({ page }).analyze();
-  const critical = results.violations.filter(
-    (violation) => violation.impact === "critical",
-  );
   const serious = results.violations.filter(
     (violation) => violation.impact === "serious",
+  );
+  const critical = results.violations.filter(
+    (violation) => violation.impact === "critical",
   );
   console.log(
     `${name}: ${results.violations.length} violations (${serious.length} serious, ${critical.length} critical)`,
@@ -16,24 +16,28 @@ async function noCriticalViolations(page: Page, name: string) {
     critical,
     `${name} critical violations: ${critical.map((v) => v.id).join(", ")}`,
   ).toEqual([]);
+  expect(
+    serious,
+    `${name} serious violations: ${serious.map((v) => v.id).join(", ")}`,
+  ).toEqual([]);
 }
 
 test("landing page loads and has no critical axe violations", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Master any subject/ })).toBeVisible();
-  await noCriticalViolations(page, "landing");
+  await noAxeViolations(page, "landing");
 });
 
 test("sign-in page has no critical axe violations", async ({ page }) => {
   await page.goto("/signin");
   await expect(page.getByRole("button", { name: /Sign in/ })).toBeVisible();
-  await noCriticalViolations(page, "signin");
+  await noAxeViolations(page, "signin");
 });
 
 test("sign-up page has no critical axe violations", async ({ page }) => {
   await page.goto("/signup");
   await expect(page.getByRole("button", { name: /Create account/ })).toBeVisible();
-  await noCriticalViolations(page, "signup");
+  await noAxeViolations(page, "signup");
 });
 
 test("signup -> onboarding -> app flow works", async ({ page }) => {
@@ -50,5 +54,5 @@ test("signup -> onboarding -> app flow works", async ({ page }) => {
   await page.waitForURL("**/app");
 
   await expect(page.getByRole("heading", { name: "Mission Control" })).toBeVisible();
-  await noCriticalViolations(page, "app");
+  await noAxeViolations(page, "app");
 });

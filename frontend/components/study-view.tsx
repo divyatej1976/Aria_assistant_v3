@@ -154,7 +154,12 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
   return (
     <div className="flex flex-col lg:flex-row gap-4 lg:gap-0 lg:h-[calc(100vh-7rem)] lg:overflow-hidden">
       {/* Left pane: source material + analysis */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-container-padding gap-6">
+      <div
+      tabIndex={0}
+      role="region"
+      aria-label="Conversation"
+      className="flex-1 flex flex-col overflow-y-auto p-container-padding gap-6"
+    >
         <header className="bg-surface p-container-padding rounded-3xl shadow-extruded flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="text-label-md text-secondary tracking-widest uppercase mb-1">Current Concept</p>
@@ -221,7 +226,13 @@ export function StudyView({ contextId, contextTitle }: { contextId: string; cont
           </div>
         </div>
 
-        <div className="flex-grow overflow-y-auto p-container-padding flex flex-col gap-6" ref={scrollRef}>
+        <div
+      tabIndex={0}
+      role="region"
+      aria-label="Conversation"
+      className="flex-grow overflow-y-auto p-container-padding flex flex-col gap-6"
+      ref={scrollRef}
+    >
           {focus.length > 0 && (
             <div className="p-5 rounded-2xl bg-secondary/5 border border-secondary/20 shadow-extruded flex flex-col gap-3">
               <div className="flex items-start gap-3">

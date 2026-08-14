@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { api } from "../../../lib/api";
 import { useActiveContext } from "../../../components/use-active-context";
+import { formatDateTime } from "../../../lib/format";
 
 type Preference = { key: string; value: string };
 type MemorySummary = {
@@ -301,7 +302,7 @@ export default function MemoryPage() {
                   <p className="text-body-md text-on-background">
                     {item.concept_name} — {item.signal === "CORRECT" && item.valid ? "correct" : item.valid ? "incorrect" : "challenged"}
                   </p>
-                  <p className="text-label-sm text-on-surface-variant mt-1">{new Date(item.created_at).toLocaleString()}</p>
+                  <p className="text-label-sm text-on-surface-variant mt-1">{formatDateTime(item.created_at)}</p>
                 </div>
                 {item.valid && (
                   <button onClick={() => void invalidateEvidence(item.id)} className="px-4 py-2 rounded-full text-label-md text-error hover:underline">

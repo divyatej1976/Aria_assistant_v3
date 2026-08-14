@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api, clearToken } from "../../../lib/api";
 import { useAuth } from "../../../components/auth-provider";
 import { isPushSubscribed, pushAvailable, subscribeToPush, unsubscribeFromPush } from "../../../lib/push";
+import { formatDateTime } from "../../../lib/format";
 
 type SessionRecord = { id: string; device_label: string | null; is_current: boolean; created_at: string };
 
@@ -221,7 +222,7 @@ export default function AccountPage() {
                       {session.device_label ?? "Unknown device"}
                       {session.is_current && <span className="text-secondary"> · this device</span>}
                     </p>
-                    <p className="text-label-sm text-on-surface-variant mt-1">Signed in {new Date(session.created_at).toLocaleString()}</p>
+                    <p className="text-label-sm text-on-surface-variant mt-1">Signed in {formatDateTime(session.created_at)}</p>
                   </div>
                   {!session.is_current && (
                     <button onClick={() => void revokeSession(session.id)} className="self-start px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-error">

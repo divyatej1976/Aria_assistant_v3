@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, apiBinary } from "../../../lib/api";
 import { AudioPlayer } from "../../../components/audio-player";
 import { useActiveContext } from "../../../components/use-active-context";
+import { formatDate } from "../../../lib/format";
 
 type AudioMeta = { id: string; status: string; error_detail: string | null };
 
@@ -286,7 +287,7 @@ export default function ResourcesPage() {
                       </span>
                     </div>
                     <p className="text-label-md text-on-surface-variant mt-1">
-                      {resource.resource_type === "PDF" ? "PDF" : "Pasted text"} · {resource.chunk_count} chunk{resource.chunk_count === 1 ? "" : "s"} · added {new Date(resource.created_at).toLocaleDateString()}
+                      {resource.resource_type === "PDF" ? "PDF" : "Pasted text"} · {resource.chunk_count} chunk{resource.chunk_count === 1 ? "" : "s"} · added {formatDate(resource.created_at)}
                     </p>
                     {resource.error_detail && (
                       <p className="text-label-md text-error mt-1">{resource.error_detail}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -21,6 +21,7 @@ type AppNotification = {
 function NotificationBell() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [open, setOpen] = useState(false);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   async function refresh() {
     try {
@@ -34,6 +35,20 @@ function NotificationBell() {
   useEffect(() => {
     void refresh();
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const unread = notifications.filter((item) => item.read_at === null).length;
 
@@ -49,7 +64,11 @@ function NotificationBell() {
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         aria-label={`Notifications (${unread} unread)`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="notifications-popup"
         onClick={() => {
           setOpen((value) => !value);
           if (!open) void refresh();
@@ -65,11 +84,19 @@ function NotificationBell() {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-12 z-50 w-80 bg-surface shadow-extruded rounded-3xl p-4 flex flex-col gap-3">
+          <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div
+            ref={popupRef}
+            id="notifications-popup"
+            role="dialog"
+            aria-label="Notifications"
+            className="absolute right-0 top-12 z-50 w-80 bg-surface shadow-extruded rounded-3xl p-4 flex flex-col gap-3"
+          >
             <p className="text-label-md text-secondary font-bold">Notifications</p>
             {notifications.length === 0 ? (
-              <p className="text-body-md text-on-surface-variant">No notifications yet.</p>
+              <p className="text-body-md text-on-surface-variant" role="status">
+                No notifications yet.
+              </p>
             ) : (
               notifications.slice(0, 10).map((item) => (
                 <button
@@ -100,13 +127,21 @@ type NavItem = {
 const NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard", active: (p) => p === "/app" },
   { href: "/app/learn", label: "Learn", icon: "school", active: (p) => p.startsWith("/app/learn") },
+  { href: "/app/assess", label: "Assess", icon: "fact_check", active: (p) => p.startsWith("/app/assess") },
   { href: "/app/resources", label: "Resources", icon: "library_books", active: (p) => p.startsWith("/app/resources") },
+  { href: "/app/notes", label: "Notes", icon: "sticky_note_2", active: (p) => p.startsWith("/app/notes") },
   { href: "/app/progress", label: "Progress", icon: "trending_up", active: (p) => p.startsWith("/app/progress") },
   { href: "/app/planner", label: "Planner", icon: "calendar_month", active: (p) => p.startsWith("/app/planner") },
   { href: "/app/account", label: "Settings", icon: "settings", active: (p) => p.startsWith("/app/account") },
 ];
 
-const BOTTOM_NAV = NAV.filter((item) => item.label !== "Resources");
+const BOTTOM_NAV: NavItem[] = [
+  { href: "/app", label: "Dashboard", icon: "dashboard", active: (p) => p === "/app" },
+  { href: "/app/learn", label: "Learn", icon: "school", active: (p) => p.startsWith("/app/learn") },
+  { href: "/app/assess", label: "Assess", icon: "fact_check", active: (p) => p.startsWith("/app/assess") },
+  { href: "/app/progress", label: "Progress", icon: "trending_up", active: (p) => p.startsWith("/app/progress") },
+  { href: "/app/account", label: "Settings", icon: "settings", active: (p) => p.startsWith("/app/account") },
+];
 
 function NavList({ pathname }: { pathname: string }) {
   return (
@@ -161,8 +196,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="hidden md:flex bg-surface h-screen w-64 rounded-r-xl fixed left-0 top-0 flex-col py-container-padding z-40 shadow-extruded"
       >
         <div className="px-container-padding mb-8">
-          <h1 className="text-headline-md text-secondary font-extrabold tracking-tight">ARIA AI</h1>
-          <p className="text-label-sm text-on-surface-variant mt-1">Learning Platform</p>
+          <h1 className="text-headline-md text-secondary font-extrabold tracking-tight">ARIA</h1>
+          <p className="text-label-sm text-on-surface-variant mt-1">AI Learning Operating System</p>
         </div>
         <div className="flex flex-col gap-2 flex-grow">
           <NavList pathname={pathname} />
@@ -173,7 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="w-full py-3 rounded-lg shadow-extruded btn-extruded bg-surface text-secondary text-label-md font-bold flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined">add</span>
-            Start New Lesson
+            Start assessment
           </Link>
           <div className="mt-6 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full shadow-extruded bg-surface-variant flex items-center justify-center text-secondary">

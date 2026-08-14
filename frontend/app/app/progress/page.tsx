@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { api } from "../../../lib/api";
 import { useActiveContext } from "../../../components/use-active-context";
+import { formatDate } from "../../../lib/format";
 
 type ConceptState = {
   concept_id: string;
@@ -252,7 +253,7 @@ export default function ProgressPage() {
                 className={`rounded-2xl p-5 flex flex-col items-center gap-2 text-center ${
                   badge.earned ? "bg-surface shadow-injected" : "bg-surface-container-low opacity-50"
                 }`}
-                title={badge.earned ? `Earned ${badge.earned_at ? new Date(badge.earned_at).toLocaleDateString() : ""}` : "Not yet earned"}
+                title={badge.earned ? `Earned ${badge.earned_at ? formatDate(badge.earned_at) : ""}` : "Not yet earned"}
               >
                 <span className={`material-symbols-outlined text-3xl ${badge.earned ? "text-secondary" : "text-on-surface-variant"}`}>
                   {badge.earned ? "workspace_premium" : "lock"}

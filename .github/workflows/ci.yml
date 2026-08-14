@@ -15,6 +15,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: ruff check backend tests scripts
+      - run: python scripts/check_mojibake.py
       - run: pytest
 
   backend-postgres:

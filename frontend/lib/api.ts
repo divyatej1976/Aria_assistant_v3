@@ -1,21 +1,9 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const CSRF_COOKIE = "aria_csrf";
-const TOKEN_KEY = "aria_access_token";
-
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
-}
-
-export function saveToken(token: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(TOKEN_KEY, token);
-}
 
 export function clearToken(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_KEY);
   window.document.cookie = `${CSRF_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict`;
 }
 
@@ -56,14 +44,13 @@ function isAuthPage(): boolean {
 }
 
 async function handleAuthFailure(status: number): Promise<void> {
-  if (status === 401 && getToken() && !isAuthPage()) {
+  if (status === 401 && !isAuthPage()) {
     clearToken();
     window.location.assign("/signin?reason=expired");
   }
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const method = init.method ?? "GET";
   let response: Response;
   try {
@@ -72,7 +59,6 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...csrfHeaders(method),
         ...(init.headers ?? {}),
       },
@@ -95,14 +81,12 @@ export async function apiBinary<T>(
   body: BodyInit,
   contentType: string,
 ): Promise<T> {
-  const token = getToken();
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       credentials: "include",
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...csrfHeaders(method),
         "Content-Type": contentType,
       },
@@ -121,16 +105,12 @@ export async function apiBinary<T>(
 }
 
 export async function apiFormData<T>(path: string, formData: FormData): Promise<T> {
-  const token = getToken();
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       credentials: "include",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...csrfHeaders("POST"),
-      },
+      headers: csrfHeaders("POST"),
       body: formData,
     });
   } catch {
@@ -146,12 +126,10 @@ export async function apiFormData<T>(path: string, formData: FormData): Promise<
 }
 
 export async function apiBlob(path: string): Promise<Blob> {
-  const token = getToken();
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       credentials: "include",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   } catch {
     throw new ApiError(0, "Network error — check your connection and try again.");

@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
 
 import { api, apiBlob } from "../../../lib/api";
 import { AudioPlayer } from "../../../components/audio-player";
 import { useActiveContext } from "../../../components/use-active-context";
+import { useApi } from "../../../lib/hooks";
 
 type AudioMeta = { id: string; status: string; error_detail: string | null };
 
@@ -25,8 +26,6 @@ type Note = {
 
 export default function NotesPage() {
   const { context, loading } = useActiveContext();
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [due, setDue] = useState<Note[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,21 +35,22 @@ export default function NotesPage() {
   const [audio, setAudio] = useState<Record<string, AudioMeta>>({});
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    if (!context) return;
-    const [noteList, dueList] = await Promise.all([
-      api<Note[]>(`/api/v1/notes?context_id=${context.id}`),
-      api<Note[]>(`/api/v1/notes/due?context_id=${context.id}`),
-    ]);
-    setNotes(noteList);
-    setDue(dueList);
-  }, [context]);
-
-  useEffect(() => {
-    load().catch((requestError: unknown) =>
-      setError(requestError instanceof Error ? requestError.message : "Unable to load notes")
-    );
-  }, [load]);
+  const listApi = useApi<Note[]>(
+    context ? `/api/v1/notes?context_id=${context.id}` : "",
+    [context?.id],
+    { skip: !context },
+  );
+  const dueApi = useApi<Note[]>(
+    context ? `/api/v1/notes/due?context_id=${context.id}` : "",
+    [context?.id],
+    { skip: !context },
+  );
+  const notes = listApi.data ?? [];
+  const due = dueApi.data ?? [];
+  function load() {
+    listApi.reload();
+    dueApi.reload();
+  }
 
   if (loading) {
     return (

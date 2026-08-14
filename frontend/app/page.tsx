@@ -161,12 +161,12 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-surface-container-low text-on-surface-variant text-label-sm w-full py-8 border-t border-outline-variant flex flex-col md:flex-row justify-between items-center px-container-padding gap-element-gap">
-        <div className="text-label-md font-bold text-secondary">ARIA AI</div>
+        <div className="text-label-md font-bold text-secondary">ARIA</div>
         <div className="flex flex-wrap justify-center gap-6">
           <Link href="/signin" className="hover:text-primary transition-colors">Sign In</Link>
           <Link href="/signup" className="hover:text-primary transition-colors">Sign Up</Link>
         </div>
-        <div className="text-on-surface-variant">© {new Date().getFullYear()} ARIA AI Learning. All rights reserved.</div>
+        <div className="text-on-surface-variant">© {new Date().getFullYear()} ARIA. All rights reserved.</div>
       </footer>
     </div>
   );

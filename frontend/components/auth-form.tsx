@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { api, deviceLabel, saveToken } from "../lib/api";
+import { api, deviceLabel } from "../lib/api";
 
 type SessionResponse = { access_token: string; learner_id: string };
 
@@ -32,11 +32,10 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         mode === "signup"
           ? { email, password, display_name: displayName, device_label: deviceLabel() }
           : { email, password, device_label: deviceLabel() };
-      const session = await api<SessionResponse>(path, {
+      await api<SessionResponse>(path, {
         method: "POST",
         body: JSON.stringify(body),
       });
-      saveToken(session.access_token);
       router.push(mode === "signup" ? "/onboarding" : "/app");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to authenticate");

@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { api } from "../../../lib/api";
 import { useActiveContext } from "../../../components/use-active-context";
+import { formatDate } from "../../../lib/format";
 
 type Deadline = {
   id: string;
@@ -265,7 +266,7 @@ export default function PlannerPage() {
                   <div>
                     <p className="text-body-md text-on-background font-semibold">{deadline.title}</p>
                     <p className="text-label-md text-on-surface-variant mt-1">
-                      {new Date(deadline.due_at).toLocaleDateString()} · in {days} day{days === 1 ? "" : "s"} · remind {deadline.reminder_days_before} days before
+                      {formatDate(deadline.due_at)} · in {days} day{days === 1 ? "" : "s"} · remind {deadline.reminder_days_before} days before
                       {deadline.reminder_sent_days_before !== null && " · reminder sent"}
                     </p>
                   </div>

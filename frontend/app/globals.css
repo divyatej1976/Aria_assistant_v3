@@ -127,6 +127,24 @@
       linear-gradient(to bottom, rgba(209, 217, 230, 0.3) 1px, transparent 1px);
     background-size: 40px 40px;
   }
+  .dark .shadow-extruded {
+    box-shadow: -6px -6px 12px rgba(0, 0, 0, 0.45), 6px 6px 12px rgba(0, 0, 0, 0.7);
+  }
+  .dark .shadow-extruded-sm {
+    box-shadow: -4px -4px 8px rgba(0, 0, 0, 0.45), 4px 4px 8px rgba(0, 0, 0, 0.7);
+  }
+  .dark .shadow-injected {
+    box-shadow: inset 4px 4px 6px rgba(0, 0, 0, 0.55), inset -4px -4px 6px rgba(255, 255, 255, 0.04);
+  }
+  .dark .shadow-injected-lg {
+    box-shadow: inset 6px 6px 8px rgba(0, 0, 0, 0.6), inset -6px -6px 8px rgba(255, 255, 255, 0.05);
+  }
+  .dark .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
 }
 
 @layer components {
@@ -137,14 +155,44 @@
     box-shadow: inset 4px 4px 6px rgba(209, 217, 230, 1), inset -4px -4px 6px rgba(255, 255, 255, 0.8);
     transform: translateY(1px);
   }
+  .dark .btn-extruded:active {
+    box-shadow: inset 4px 4px 6px rgba(0, 0, 0, 0.55), inset -4px -4px 6px rgba(255, 255, 255, 0.04);
+  }
   .input-injected {
     box-shadow: inset 4px 4px 6px rgba(209, 217, 230, 1), inset -4px -4px 6px rgba(255, 255, 255, 0.8);
     background-color: transparent;
     border: none;
   }
+  .dark .input-injected {
+    box-shadow: inset 4px 4px 6px rgba(0, 0, 0, 0.55), inset -4px -4px 6px rgba(255, 255, 255, 0.04);
+  }
   .input-injected:focus {
-    outline: none;
+    outline: 2px solid rgb(var(--color-secondary) / 0.7);
+    outline-offset: 2px;
     box-shadow: inset 6px 6px 8px rgba(209, 217, 230, 1), inset -6px -6px 8px rgba(255, 255, 255, 0.9);
+  }
+  .dark .input-injected:focus {
+    box-shadow: inset 6px 6px 8px rgba(0, 0, 0, 0.6), inset -6px -6px 8px rgba(255, 255, 255, 0.05);
+  }
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgb(var(--color-secondary) / 0.7);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
