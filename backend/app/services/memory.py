@@ -103,11 +103,14 @@ def memory_summary(db: Session, *, owner_id: UUID) -> dict[str, object]:
     }
 
 
-def delete_message(db: Session, *, owner_id: UUID, message_id: UUID) -> bool:
+def delete_message(
+    db: Session, *, owner_id: UUID, session_id: UUID, message_id: UUID
+) -> bool:
     result = db.execute(
         delete(ConversationMessage).where(
             ConversationMessage.id == message_id,
             ConversationMessage.owner_id == owner_id,
+            ConversationMessage.study_session_id == session_id,
         )
     )
     db.commit()

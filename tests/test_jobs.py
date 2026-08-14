@@ -127,3 +127,47 @@ def test_scheduler_noop_when_disabled(monkeypatch) -> None:
     monkeypatch.setattr("app.jobs.scheduler.get_settings", lambda: Settings())
     start_scheduler()
     assert scheduler_instance().running is False
+
+
+def test_advisory_lock_guards_against_replicas(engine) -> None:
+    from app.jobs.scheduler import _release_advisory_lock, _try_advisory_lock
+
+    first = engine.connect()
+    second = engine.connect()
+    key = 4242
+    try:
+        assert _try_advisory_lock(first, key) is True
+        held_by_second = _try_advisory_lock(second, key)
+        if engine.dialect.name == "postgresql":
+            assert held_by_second is False
+        else:
+            assert held_by_second is True  # SQLite: single-instance fallback
+    finally:
+        _release_advisory_lock(first, key)
+        _release_advisory_lock(second, key)
+        first.close()
+        second.close()
+
+
+def test_run_locked_skips_when_lock_held(engine) -> None:
+    from app.jobs.scheduler import _release_advisory_lock, _run_locked, _try_advisory_lock
+
+    key = 4243
+    holder = engine.connect()
+    try:
+        assert _try_advisory_lock(holder, key) is True
+        calls: list[str] = []
+
+        def work() -> None:
+            calls.append("ran")
+
+        if engine.dialect.name == "postgresql":
+            assert _run_locked(engine, key=key, work=work) is False
+            assert calls == []
+        else:
+            # SQLite cannot hold a real advisory lock; the job always runs.
+            assert _run_locked(engine, key=key, work=work) is True
+            assert calls == ["ran"]
+    finally:
+        _release_advisory_lock(holder, key)
+        holder.close()

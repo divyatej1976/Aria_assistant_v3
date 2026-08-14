@@ -102,6 +102,26 @@ def test_unlimited_budget_never_blocks(monkeypatch) -> None:
     reset_budget()
 
 
+def test_budget_spend_records(engine) -> None:
+    reset_budget()
+    record_usage(model="llama-3.3-70b-versatile", prompt_tokens=1000, completion_tokens=0)
+    assert spend_usd() > 0
+    if engine.dialect.name == "postgresql":
+        from sqlalchemy import select
+
+        from app.db.models import AiUsage
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            row = db.scalar(select(AiUsage))
+            assert row is not None
+            assert row.spend_usd > 0
+        finally:
+            db.close()
+    reset_budget()
+
+
 def test_log_call_records_prompt_version_metric() -> None:
     from app.core.metrics import ai_calls_total
 

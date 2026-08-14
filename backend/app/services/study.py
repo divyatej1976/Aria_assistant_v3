@@ -87,6 +87,16 @@ def list_messages(
     )
 
 
+def _next_position(db: Session, *, owner_id: UUID, session_id: UUID) -> int:
+    message_count = db.scalar(
+        select(func.count(ConversationMessage.id)).where(
+            ConversationMessage.study_session_id == session_id,
+            ConversationMessage.owner_id == owner_id,
+        )
+    )
+    return (message_count or 0) + 1
+
+
 def persist_conversation_turn(
     db: Session,
     *,
@@ -96,33 +106,35 @@ def persist_conversation_turn(
     assistant_content: str,
     assistant_refs: list[dict],
 ) -> None:
-    message_count = db.scalar(
-        select(func.count(ConversationMessage.id)).where(
-            ConversationMessage.study_session_id == session.id,
-            ConversationMessage.owner_id == owner_id,
+    from sqlalchemy.exc import IntegrityError
+
+    for _attempt in range(3):
+        user_position = _next_position(db, owner_id=owner_id, session_id=session.id)
+        db.add(
+            ConversationMessage(
+                owner_id=owner_id,
+                study_session_id=session.id,
+                role="user",
+                content=user_content,
+                position=user_position,
+            )
         )
-    )
-    user_position = (message_count or 0) + 1
-    db.add(
-        ConversationMessage(
-            owner_id=owner_id,
-            study_session_id=session.id,
-            role="user",
-            content=user_content,
-            position=user_position,
+        db.add(
+            ConversationMessage(
+                owner_id=owner_id,
+                study_session_id=session.id,
+                role="assistant",
+                content=assistant_content,
+                source_refs=assistant_refs,
+                position=user_position + 1,
+            )
         )
-    )
-    db.add(
-        ConversationMessage(
-            owner_id=owner_id,
-            study_session_id=session.id,
-            role="assistant",
-            content=assistant_content,
-            source_refs=assistant_refs,
-            position=user_position + 1,
-        )
-    )
-    db.commit()
+        try:
+            db.commit()
+            return
+        except IntegrityError:
+            db.rollback()
+    raise RuntimeError("Could not persist conversation turn after concurrent retries")
 
 
 @dataclass(frozen=True)

@@ -186,6 +186,41 @@ def test_delete_conversation_message(client: TestClient) -> None:
     assert gone.status_code == 404
 
 
+def test_delete_message_is_scoped_to_its_session(client: TestClient) -> None:
+    session = register(client, "cross-session@example.com")
+    token = session["access_token"]
+    context_id = create_context(client, token)
+    add_material(client, token, context_id)
+
+    first = client.post(
+        "/api/v1/study/sessions", headers=headers(token), json={"context_id": context_id}
+    ).json()
+    second = client.post(
+        "/api/v1/study/sessions", headers=headers(token), json={"context_id": context_id}
+    ).json()
+
+    client.post(
+        f"/api/v1/study/sessions/{first['id']}/messages",
+        headers=headers(token),
+        json={"content": "A message in the first session"},
+    )
+    first_messages = client.get(
+        f"/api/v1/study/sessions/{first['id']}/messages", headers=headers(token)
+    ).json()
+    target = next(message for message in first_messages if message["role"] == "user")
+
+    blocked = client.delete(
+        f"/api/v1/study/sessions/{second['id']}/messages/{target['id']}",
+        headers=headers(token),
+    )
+    assert blocked.status_code == 404
+
+    still_there = client.get(
+        f"/api/v1/study/sessions/{first['id']}/messages", headers=headers(token)
+    ).json()
+    assert any(message["id"] == target["id"] for message in still_there)
+
+
 def test_prerequisite_crud_and_isolation(client: TestClient) -> None:
     first = register(client, "prereq-a@example.com")
     second = register(client, "prereq-b@example.com")

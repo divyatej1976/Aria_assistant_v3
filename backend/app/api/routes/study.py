@@ -76,7 +76,9 @@ def delete_message(
         get_owned_session(db, owner_id=learner.id, session_id=session_id)
     except ValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if not delete_message_service(db, owner_id=learner.id, message_id=message_id):
+    if not delete_message_service(
+        db, owner_id=learner.id, session_id=session_id, message_id=message_id
+    ):
         raise HTTPException(status_code=404, detail="Message not found")
     return {"deleted": True}
 

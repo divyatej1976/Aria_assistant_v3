@@ -1,8 +1,11 @@
 # Full local development dependency set (runtime + dev).
 # Prefer this on Windows when `pip install -e ".[dev]"` fails to build the
 # editable wheel (UnicodeEncodeError on non-ASCII repository paths).
+# Keep this in sync with the `[project].dependencies` list in pyproject.toml.
+# tests/test_dependencies.py asserts that parity.
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
+python-multipart>=0.0.9,<1
 pydantic-settings>=2.6,<3
 sqlalchemy>=2.0,<3
 alembic>=1.14,<2
@@ -11,6 +14,11 @@ pymupdf>=1.24,<2
 litellm>=1.60,<2
 reportlab>=4,<5
 pyttsx3>=2.9,<3
+apscheduler>=3.10,<4
+pywebpush>=1.14,<2
+prometheus-client>=0.20,<1
+sentry-sdk>=2.0,<3
+pgvector>=0.3,<1
 httpx>=0.27,<1
 pytest>=8.3,<9
 pytest-asyncio>=0.24,<1

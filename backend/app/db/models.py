@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     LargeBinary,
@@ -186,6 +187,13 @@ class IdempotencyKey(OwnedModel, Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class AiUsage(TimestampMixin, Base):
+    __tablename__ = "ai_usage"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    period: Mapped[str] = mapped_column(String(7), nullable=False, unique=True)
+    spend_usd: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
 class AudioArtifact(OwnedModel, Base):
     __tablename__ = "audio_artifacts"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
@@ -301,6 +309,11 @@ class StudySession(OwnedModel, Base):
 
 class ConversationMessage(OwnedModel, Base):
     __tablename__ = "conversation_messages"
+    __table_args__ = (
+        UniqueConstraint(
+            "study_session_id", "position", name="uq_conversation_message_position"
+        ),
+    )
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     study_session_id: Mapped[UUID] = mapped_column(ForeignKey("study_sessions.id"), index=True)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
