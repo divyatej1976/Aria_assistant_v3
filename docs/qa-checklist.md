@@ -43,4 +43,5 @@ Run through it before treating a release as UI-complete.
 - [ ] Study follow-up keeps context; topology map renders.
 - [ ] Progress: consistency/heatmap/badges update after an assessment + study + note review.
 - [ ] Notes: create/edit/generate; revision queue; PDF download opens on phone + desktop.
-- [ ] Planner: add an exam; reminder check creates a notification; bell shows unread.
+- [x] Planner: add an exam; add a task (collapsible forms). (automated `planner.spec.ts`);
+      reminder check → notification → bell unread still manual.

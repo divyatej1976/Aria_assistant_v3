@@ -36,12 +36,43 @@ function daysUntil(dueAt: string): number {
   return Math.max(0, Math.ceil((due.getTime() - now.getTime()) / 86_400_000));
 }
 
+function groupTasks(tasks: Task[]): Array<{ label: string; items: Task[] }> {
+  const pending = tasks.filter((task) => task.status === "PENDING");
+  const done = tasks.filter((task) => task.status === "DONE");
+  const buckets: Array<{ label: string; items: Task[] }> = [
+    { label: "Today", items: [] },
+    { label: "Tomorrow", items: [] },
+    { label: "This week", items: [] },
+    { label: "Later", items: [] },
+    { label: "No date", items: [] },
+  ];
+  const now = new Date();
+  for (const task of pending) {
+    if (!task.due_at) {
+      buckets[4].items.push(task);
+      continue;
+    }
+    const due = new Date(task.due_at);
+    const days = Math.ceil((due.getTime() - now.getTime()) / 86_400_000);
+    if (days < 0) continue; // overdue tasks are shown in the Missed section
+    if (days === 0) buckets[0].items.push(task);
+    else if (days === 1) buckets[1].items.push(task);
+    else if (days <= 7) buckets[2].items.push(task);
+    else buckets[3].items.push(task);
+  }
+  const result = buckets.filter((bucket) => bucket.items.length > 0);
+  if (done.length > 0) result.push({ label: "Completed", items: done });
+  return result;
+}
+
 export default function PlannerPage() {
   const { context, loading } = useActiveContext();
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [missed, setMissed] = useState<Task[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
+const [showDeadlineForm, setShowDeadlineForm] = useState(false);
+const [showTaskForm, setShowTaskForm] = useState(false);
   const [deadlineTitle, setDeadlineTitle] = useState("");
   const [deadlineDate, setDeadlineDate] = useState("");
   const [reminderDays, setReminderDays] = useState(5);
@@ -242,19 +273,37 @@ export default function PlannerPage() {
 
       {/* Exams */}
       <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-6">
-        <h3 className="text-headline-md text-on-surface">Exams &amp; deadlines</h3>
-        <form onSubmit={addDeadline} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4">
-          <input required className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface placeholder:text-outline-variant" placeholder="Exam title (e.g. DBMS End Sem)" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} />
-          <input required type="date" className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} />
-          <input type="number" min={1} max={60} className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" placeholder="Remind (days)" value={reminderDays} onChange={(event) => setReminderDays(Number(event.target.value))} />
-          <select className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" value={syllabusId} onChange={(event) => setSyllabusId(event.target.value)}>
-            <option value="">No syllabus</option>
-            {resources.filter((r) => r.processing_status === "READY").map((resource) => (
-              <option key={resource.id} value={resource.id}>{resource.title}</option>
-            ))}
-          </select>
-          <button className="h-12 px-6 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary">Add</button>
-        </form>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-headline-md text-on-surface">Exams &amp; deadlines</h3>
+          <button
+            type="button"
+            onClick={() => setShowDeadlineForm((value) => !value)}
+            aria-expanded={showDeadlineForm}
+            aria-controls="deadline-form"
+            className="px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined">{showDeadlineForm ? "close" : "add"}</span>
+            {showDeadlineForm ? "Close" : "Add exam"}
+          </button>
+        </div>
+        {showDeadlineForm && (
+          <form id="deadline-form" onSubmit={addDeadline} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4">
+            <label className="sr-only" htmlFor="deadline-title">Exam title</label>
+            <input id="deadline-title" required className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface placeholder:text-outline-variant" placeholder="Exam title (e.g. DBMS End Sem)" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} />
+            <label className="sr-only" htmlFor="deadline-date">Due date</label>
+            <input id="deadline-date" required type="date" className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} />
+            <label className="sr-only" htmlFor="deadline-remind">Remind days before</label>
+            <input id="deadline-remind" type="number" min={1} max={60} className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" placeholder="Remind (days)" value={reminderDays} onChange={(event) => setReminderDays(Number(event.target.value))} />
+            <label className="sr-only" htmlFor="deadline-syllabus">Syllabus resource</label>
+            <select id="deadline-syllabus" className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" value={syllabusId} onChange={(event) => setSyllabusId(event.target.value)}>
+              <option value="">No syllabus</option>
+              {resources.filter((r) => r.processing_status === "READY").map((resource) => (
+                <option key={resource.id} value={resource.id}>{resource.title}</option>
+              ))}
+            </select>
+            <button className="h-12 px-6 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary">Add</button>
+          </form>
+        )}
         {deadlines.length === 0 ? (
           <p className="text-body-md text-on-surface-variant">No exams yet. Add one to get reminders before it arrives.</p>
         ) : (
@@ -289,32 +338,57 @@ export default function PlannerPage() {
 
       {/* Planned tasks */}
       <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-6">
-        <h3 className="text-headline-md text-on-surface">Planned tasks</h3>
-        <form onSubmit={addTask} className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_auto] gap-4">
-          <input required className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface placeholder:text-outline-variant" placeholder="e.g. Revise serializability" value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} />
-          <input type="date" className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} />
-          <button className="h-12 px-6 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary">Add</button>
-        </form>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-headline-md text-on-surface">Planned tasks</h3>
+          <button
+            type="button"
+            onClick={() => setShowTaskForm((value) => !value)}
+            aria-expanded={showTaskForm}
+            aria-controls="task-form"
+            className="px-5 py-2 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined">{showTaskForm ? "close" : "add"}</span>
+            {showTaskForm ? "Close" : "Add task"}
+          </button>
+        </div>
+        {showTaskForm && (
+          <form id="task-form" onSubmit={addTask} className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_auto] gap-4">
+            <label className="sr-only" htmlFor="task-title">Task title</label>
+            <input id="task-title" required className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface placeholder:text-outline-variant" placeholder="e.g. Revise serializability" value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} />
+            <label className="sr-only" htmlFor="task-date">Due date</label>
+            <input id="task-date" type="date" className="h-12 bg-surface-container rounded-xl input-injected px-4 text-on-surface" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} />
+            <button className="h-12 px-6 rounded-full shadow-extruded btn-extruded bg-surface text-label-md text-secondary">Add</button>
+          </form>
+        )}
         {tasks.length === 0 ? (
           <p className="text-body-md text-on-surface-variant">No planned tasks. Completing one counts toward your learning streak.</p>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {tasks.map((task) => (
-              <li key={task.id} className={`bg-surface shadow-injected rounded-xl p-4 flex items-center justify-between gap-4 ${task.status === "DONE" ? "opacity-60" : ""}`}>
-                <span className="text-body-md text-on-background">{task.title}</span>
-                <div className="flex gap-3">
-                  {task.status === "PENDING" && (
-                    <button onClick={() => void completeTask(task.id)} className="px-4 py-2 rounded-full bg-secondary text-on-secondary text-label-md font-bold shadow-extruded btn-extruded">
-                      Complete
-                    </button>
-                  )}
-                  <button onClick={() => void removeTask(task.id)} className="px-4 py-2 rounded-full text-label-md text-error">
-                    Delete
-                  </button>
-                </div>
-              </li>
+          <div className="flex flex-col gap-5">
+            {groupTasks(tasks).map((group) => (
+              <div key={group.label} className="flex flex-col gap-3">
+                <h4 className="text-label-md text-secondary font-bold uppercase tracking-widest">
+                  {group.label}
+                </h4>
+                <ul className="flex flex-col gap-3">
+                  {group.items.map((task) => (
+                    <li key={task.id} className={`bg-surface shadow-injected rounded-xl p-4 flex items-center justify-between gap-4 ${task.status === "DONE" ? "opacity-60" : ""}`}>
+                      <span className="text-body-md text-on-background">{task.title}</span>
+                      <div className="flex gap-3">
+                        {task.status === "PENDING" && (
+                          <button onClick={() => void completeTask(task.id)} className="px-4 py-2 rounded-full bg-secondary text-on-secondary text-label-md font-bold shadow-extruded btn-extruded">
+                            Complete
+                          </button>
+                        )}
+                        <button onClick={() => void removeTask(task.id)} className="px-4 py-2 rounded-full text-label-md text-error">
+                          Delete
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
