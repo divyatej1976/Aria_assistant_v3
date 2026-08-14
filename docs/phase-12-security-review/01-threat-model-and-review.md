@@ -94,7 +94,8 @@ push services.
       Removing it requires migrating the test suite to cookie auth.
 - [ ] Harden CSP with nonces for scripts.
 - [ ] Add email verification and password-reset flows.
-- [ ] Add dependency scanning (`pip-audit`, `npm audit`) to CI.
+- [x] Add dependency scanning (`npm audit` gated in CI; `pip-audit` +
+      `pip check` steps in CI). npm findings resolved via `overrides`.
 - [ ] Enforce TLS at the reverse proxy; HSTS already emitted in production.
 - [ ] Move rate limiting and cache to a shared store for multi-instance deploy.
 - [ ] Request-body size limits and an edge rate limiter.
