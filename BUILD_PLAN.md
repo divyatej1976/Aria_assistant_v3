@@ -3,7 +3,7 @@
 **Product:** ARIA — AI Learning Operating System  
 **Document status:** Implementation tracking baseline  
 **Last reviewed:** 2026-08-12  
-**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 hardening tranches 12.1–12.10 are implemented, with evidence-gated items (Redis cache, SQL top-k retrieval, OTel dashboards, actual hosting) deferred.
+**Current implementation status:** Phases 0–11 are implemented (including the Extruded Light frontend rebuild and multi-agent orchestration); Phase 12 hardening tranches 12.1–12.10 are implemented, with evidence-gated items (Redis cache, SQL top-k retrieval, OTel dashboards, actual hosting) deferred. A post-Phase-12 review-hardening round resolved the review findings: dependency sync + drift guard, session-scoped message deletion, concurrency-safe conversation ordering, replica-safe scheduler (advisory lock), persistent AI budget, idempotency contract, cross-owner/push tests, email counter UI, cookie-only frontend auth, dark-theme shadows + focus ring + reduced motion, nav (Assess/Notes), notification a11y, expanded E2E with strict axe, shared hooks/formatters, and an encoding guard.
 
 > **Encoding note:** This file is valid UTF-8. Text such as `â€"` in some viewers is a
 > Latin-1 mis-decoding of the em-dash character (U+2014), not file corruption.
