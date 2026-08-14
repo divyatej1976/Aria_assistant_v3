@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 
 import { api } from "../../../lib/api";
+import { formatDateTime } from "../../../lib/format";
 
 type Approval = {
   id: string;
@@ -184,7 +185,7 @@ function WorkflowRow({ workflow }: { workflow: Workflow }) {
         <div className="min-w-0">
           <p className="text-label-md text-on-background font-semibold">{workflow.name}</p>
           <p className="text-label-sm text-on-surface-variant mt-0.5">
-            {new Date(workflow.created_at).toLocaleString()}
+            {formatDateTime(workflow.created_at)}
             {workflow.error_detail ? ` · ${workflow.error_detail}` : ""}
           </p>
         </div>
@@ -302,7 +303,7 @@ function AuditSection() {
                   <span className="text-secondary">{entry.agent}</span> · {entry.action}
                 </p>
                 <p className="text-label-sm text-on-surface-variant mt-0.5">
-                  {new Date(entry.created_at).toLocaleString()}
+                  {formatDateTime(entry.created_at)}
                   {entry.request_id ? ` · request ${entry.request_id}` : ""}
                 </p>
               </div>
