@@ -1,41 +1,65 @@
-# ARIA
+# ARIA — AI Learning Operating System
 
-ARIA is an AI Learning Operating System. This repository is the working implementation of the product, UX, architecture, AI, memory, API, agent, prompt, and technology planning captured in `docs/` (see `docs/theme-system.md` for the frozen visual baseline and `design/README.md` for the wireframe design assets).
+ARIA is a learner-controlled, context-aware AI learning system designed to coordinate the parts of studying that are usually fragmented across multiple tools.
 
-## Current implementation scope
+Instead of forcing every learner into the same subjects, exam formats, resources, or roadmap, ARIA builds the learning environment around **what the learner is actually preparing for**.
 
-Phases 0–9 of the R0 adaptive-learning loop are implemented:
+This repository contains the complete working implementation of the product, UX, architecture, AI, memory, API, agent, prompt, security, and technology planning captured in `docs/` (see `docs/theme-system.md` for the frozen visual baseline, `design/README.md` for wireframe design assets, and [DEMO.md](DEMO.md) for a comprehensive demo guide).
 
-- Next.js frontend (Extruded Light design system, dark default + light theme);
-- FastAPI backend with learner-owned domain model;
-- PostgreSQL + Alembic migrations (single metadata-driven baseline through `0006`);
-- server-side session registry (sign in/out, active devices, data reset);
-- resources (text/PDF ingestion with retry and replace);
-- grounded Study and topology knowledge map;
-- deterministic MCQ assessment with idempotent submission;
-- evidence → learner-state → adaptation loop with explainable decisions;
-- memory: preferences, context assembly, prerequisites, memory inspector;
-- notes: generation fallback, revision scheduling, due queues, PDF export;
-- progress: meaningful-activity streaks, heatmap, badges;
-- planner: exam deadlines, planned tasks, missed-work recovery, in-app notifications, email reminders (SMTP with log fallback);
-- Docker Compose development environment;
-- CI that runs formatting, lint, type checks, tests (SQLite and Postgres), migration round trips, frontend build/lint, and a Playwright browser + accessibility smoke.
+---
 
-The R0 loop:
+## 1. Product Vision & Learning Loop
 
 ```text
-Learning Context → Resources → Study → Assessment → Evaluation
-→ Evidence → Learner State → Adapted Study → Reassessment
-→ Memory → Notes/Revision → Progress → Planner
+Learner Goal / Ingested Material
+    ↓
+Personalized Roadmap & Context Breakdown
+    ↓
+Resources + Grounded Socratic Study
+    ↓
+Notes + Spaced Revision Queue + PDF Export
+    ↓
+Learner-configured Diagnostic Assessments
+    ↓
+Evaluation + Structured Learning Evidence
+    ↓
+Evidence-backed Learner State Model
+    ↓
+Progress Heatmap, Streaks & Motivation Milestones
+    ↓
+Adaptive Roadmap, Exam Planner & Reminders
+    ↓
+Multi-Agent Orchestration & Governance
+    ↺
 ```
 
-Audio and MAO remain planned product areas. They are deliberately represented in the domain and workflow boundaries so they can be added without creating parallel systems.
+---
 
-## Local development
+## 2. Current Implementation Scope
 
-### Backend
+Phases 0–12 of the adaptive-learning operating system and post-Phase-12 security/operational hardening are fully implemented:
 
-The recommended setup is a repo-local virtual environment (hermetic, interpreter-independent):
+- **Next.js Frontend**: Extruded Light design system, dark default + light theme, responsive layouts, accessible focus management, Playwright + Axe-core accessibility testing.
+- **FastAPI Backend**: Learner-owned domain model, asynchronous SQLAlchemy with PostgreSQL and `pgvector` similarity search.
+- **Database & Migrations**: Complete Alembic migration sequence (`0001` through `0014`), including email verification and account security.
+- **Authentication & Security**: HttpOnly `SameSite=Strict` cookie sessions, double-submit CSRF tokens, sliding-window rate limiting, and secure password-reset / email-verification flows.
+- **Resource Ingestion**: Text and PDF ingestion pipeline with concept extraction, chunking, and vector embeddings.
+- **Grounded Study**: Multimodal Socratic study interface, voice speech-to-text input, and concept topology knowledge map.
+- **Adaptive Assessments**: Deterministic & AI-generated MCQ assessments with idempotent submission, immediate scoring, and concept-linked evidence logs.
+- **Learner Memory & Evidence**: Dynamic learner mastery modeling, preferences, context assembly, prerequisite detection, and memory inspector.
+- **Notes & Spaced Revision**: Automated note generation, spaced repetition queues, revision tracking, and client-side PDF export.
+- **Progress & Consistency**: Meaningful-learning streaks, GitHub/contribution-style activity heatmap, and achievement badges.
+- **Planner & Reminders**: Exam milestones, study tasks, missed-work recovery, in-app notifications, and scheduled email reminders (APScheduler with PostgreSQL advisory-lock guards).
+- **Multi-Agent Orchestration**: Workflow orchestration with human approval gates, audit trails, idempotent execution replay, and AI cost budget management.
+- **Deployment & Production Ready**: Production Dockerfiles, `docker-compose.prod.yml`, automated `pg_dump` backup/restore scripts, and Prometheus `/metrics` monitoring.
+
+---
+
+## 3. Local Development & Setup
+
+For a full interactive walkthrough and test guide, refer to **[DEMO.md](DEMO.md)**.
+
+### Backend Setup
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup_local.ps1
@@ -44,37 +68,18 @@ powershell -ExecutionPolicy Bypass -File scripts\setup_local.ps1
 ```
 
 Manual alternative:
-
 ```powershell
 python -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --app-dir backend
 ```
 
-> **Windows notes**
-> - The WindowsApps `python` launcher can fail in some sessions with a "terminated logon session"
->   error. `scripts\setup_local.ps1` discovers a real interpreter and provisions `.venv` from it,
->   so tests never depend on the launcher. Run tests with
->   `.\.venv\Scripts\python.exe -m pytest` (or `scripts\test.ps1`).
-> - Non-ASCII repository paths can trip the cp1252 console encoding. Set `$env:PYTHONUTF8="1"`
->   before install/test commands if you see `UnicodeEncodeError` or mojibake — `check_deps.py` is
->   encoding-safe either way.
-> - On Linux/macOS you may prefer `pip install -e ".[dev]"`; `pytest` resolves `app` via
->   `pythonpath` regardless of install method.
+- Backend API: <http://localhost:8000>
+- Health check: <http://localhost:8000/health>
+- OpenAPI Documentation: <http://localhost:8000/docs>
 
-> If the test suite fails on imports, run `python scripts/check_deps.py` (or
-> `.\.venv\Scripts\python.exe scripts\check_deps.py`). It prints the active interpreter and a
-> `PASS`/`MISSING` line per dependency. If `fitz`/`pymupdf` or `litellm` show `MISSING`, the
-> interpreter running the tests was not the one you provisioned — another Python on `PATH` (for
-> example a leftover virtual environment) is being picked up. Provision with
-> `scripts\setup_local.ps1` and use the `.venv` interpreter.
-
-Backend API: <http://localhost:8000>  
-Health check: <http://localhost:8000/health>  
-OpenAPI: <http://localhost:8000/docs>
-
-### Frontend
+### Frontend Setup
 
 ```powershell
 cd frontend
@@ -82,30 +87,24 @@ npm install
 npm run dev
 ```
 
-Frontend: <http://localhost:3000>
+- Frontend App: <http://localhost:3000>
 
-### Database migrations
+### Database Migrations
 
 ```powershell
 docker compose up -d db          # start PostgreSQL
-alembic upgrade head             # apply the metadata-driven baseline migration
+alembic upgrade head             # apply all database migrations
 ```
 
-### Tests
+### Docker Compose (Production Setup)
 
 ```powershell
-pytest                          # SQLite (in-memory, default)
-pytest                          # same suite against Postgres when TEST_DATABASE_URL is set:
-$env:TEST_DATABASE_URL="postgresql+psycopg://aria:aria@localhost:5432/aria_test"
+docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
-### Docker Compose
+---
 
-```powershell
-docker compose up --build
-```
-
-## Architecture rules
+## 4. Architecture Rules
 
 1. Route handlers coordinate; domain services own business rules.
 2. Repositories own persistence access.
@@ -115,14 +114,11 @@ docker compose up --build
 6. Memory, evidence, learner state, and mastery claims are separate concepts.
 7. Deterministic logic stays deterministic; AI does not decide authorization or MCQ correctness.
 
-See [BUILD_PLAN.md](BUILD_PLAN.md) for the implementation sequence and completion checklist.
+---
 
-## Security & production notes
+## 5. Security & Production Notes
 
-### Required production environment variables
-
-A manual deployment (outside `docker-compose.prod.yml`) will fail or generate
-unusable email links if any of these are missed:
+### Required Production Environment Variables
 
 | Variable | Purpose | Failure if missing |
 | --- | --- | --- |
@@ -130,47 +126,9 @@ unusable email links if any of these are missed:
 | `DATABASE_URL` | Backend + migrations connection | Backend/migrate cannot connect |
 | `ARIA_CORS_ORIGINS` | Allowed browser origins | Frontend API calls rejected by CORS |
 | `ARIA_TRUSTED_HOSTS` | Host allowlist (prod only) | Requests with other `Host` headers rejected |
-| `NEXT_PUBLIC_API_URL` | Frontend API base URL (also drives CSP `connect-src`) | API calls target `http://localhost:8000` |
+| `NEXT_PUBLIC_API_URL` | Frontend API base URL (drives CSP `connect-src`) | API calls target `http://localhost:8000` |
 | `ARIA_PUBLIC_URL` | Base URL for links in emails (reset/verify) | Emails link to `http://localhost:3000` |
 
-`docker-compose.prod.yml` wires these with sensible defaults; verify them when
-deploying to a real host.
+---
 
-Deployment checklist before exposing publicly:
-
-- Reverse proxy must terminate TLS and **redact query strings from access
-  logs** — password-reset and email-verification tokens travel in the URL
-  (`/reset-password?email=…&token=…`, `/verify-email?email=…&token=…`).
-- `ARIA_PUBLIC_URL` must be the public app origin so email links resolve.
-- `NEXT_PUBLIC_API_URL` must be the public API origin (it also drives the
-  CSP `connect-src`).
-- Keep `ARIA_SESSION_SECRET` in a managed secret store and rotate it.
-
-The app is feature-complete through Phase 12 hardening but still requires
-operational hardening before a public multi-instance deployment. Current status:
-
-- **Authentication.** Sessions use HTTP-only, `SameSite=Strict` cookies with
-  double-submit CSRF protection; the frontend relies on cookies (no tokens in
-  `localStorage`). A legacy `Authorization: Bearer` path is **deprecated** but
-  still accepted for compatibility; it will be removed once the test suite is
-  migrated to cookie auth. Password-reset/verify tokens travel in the URL query
-  string (signed, short-lived) — keep query strings out of production access logs.
-- **AI dependency.** Without `GROQ_API_KEY` the app runs on deterministic
-  fallbacks (good for tests and reliability). When configured, AI calls are
-  versioned, budget-capped (persisted monthly spend via atomic updates), and
-  cost/token-logged.
-- **Reminders.** Run automatically on a background scheduler (APScheduler) with
-  a PostgreSQL advisory-lock guard so only one replica executes each job; the
-  pull endpoint `POST /api/v1/planner/reminders/check` remains for dev/backfill.
-- **Email.** SMTP is optional; without `SMTP_HOST` emails are logged to the
-  console instead of delivered (the API reports `emails_logged` separately).
-- **Idempotency contract.** Retry-sensitive POST operations are idempotent.
-  Workflow creation honors the `Idempotency-Key` header; assessment submission
-  honors either the `Idempotency-Key` header or the body `idempotency_key`.
-  A workflow request whose key is already in progress returns `409 Conflict`
-  so a duplicate cannot execute the workflow twice; retry after it completes.
-  Other endpoints are not guaranteed idempotent.
-- **Generated artifacts.** `__pycache__`, `.pytest_cache`, `.next`,
-  `node_modules`, and the design wireframe ZIPs in `design/wireframes/` are
-  git-ignored and should not be shipped in release bundles.
-
+*For detailed demo scenarios, test commands, and architectural notes, see [DEMO.md](DEMO.md).*
