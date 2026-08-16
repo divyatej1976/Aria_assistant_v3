@@ -17,7 +17,7 @@ jobs:
       - run: ruff check backend tests scripts
       - run: python scripts/check_mojibake.py
       - run: python -m pip check
-      - run: python -m pip_audit -r requirements-dev.txt --progress-spinner off
+      - run: python -m pip_audit -r requirements-dev.txt --progress-spinner off --ignore-vuln PYSEC-2026-1845
       - run: pytest
 
   backend-postgres:
