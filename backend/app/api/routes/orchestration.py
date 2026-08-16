@@ -18,6 +18,7 @@ from app.security.dependencies import CurrentLearner
 from app.services.idempotency import find as find_idempotency
 from app.services.idempotency import record as record_idempotency
 from app.services.idempotency import replayable
+from app.services.idempotency import reserve as reserve_idempotency
 from app.services.orchestration import (
     decide_approval,
     get_workflow,
@@ -105,6 +106,17 @@ async def start(
 
             return JSONResponse(
                 status_code=existing.response_status, content=existing.response_json
+            )
+        state = reserve_idempotency(
+            db, owner_id=learner.id, scope=scope, key=idempotency_key
+        )
+        if state == "in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "A request with this Idempotency-Key is already in progress; "
+                    "retry after it completes"
+                ),
             )
     try:
         workflow, approval = await run_workflow(

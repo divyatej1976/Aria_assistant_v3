@@ -364,3 +364,17 @@ def test_study_sessions_are_context_scoped(client: TestClient) -> None:
         headers=headers(session["access_token"]),
     )
     assert other_listed.json() == []
+
+
+def test_pdf_upload_over_size_limit_is_rejected(client: TestClient) -> None:
+    from app.api.routes.resources import MAX_UPLOAD_BYTES
+
+    session = register(client, "oversize@example.com")
+    context_id = create_context(client, session["access_token"])
+    response = upload_pdf(
+        client,
+        session["access_token"],
+        context_id,
+        content=b"%PDF" + b"\x00" * (MAX_UPLOAD_BYTES + 1),
+    )
+    assert response.status_code == 413

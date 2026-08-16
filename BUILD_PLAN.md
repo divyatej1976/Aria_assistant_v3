@@ -655,15 +655,20 @@ These apply throughout the build:
 
 ## Known limitations / production readiness
 
-- **Session tokens** are stored in `localStorage` in the frontend (XSS-exposed). Production should
-  move to HTTP-only cookies + CSRF protection.
+- **Authentication** is cookie-based: `HttpOnly` + `SameSite=Strict` session cookie with a
+  double-submit CSRF token. A legacy `Authorization: Bearer` path is still accepted by the
+  backend for compatibility and is deprecated; it is scheduled for removal once the test
+  suite is migrated to cookie auth.
 - **AI is fallback-oriented** without a configured provider: deterministic fallbacks keep the loop
   reliable and tested, but generated Study/assessment/notes quality and semantic retrieval are
   limited until a real provider is configured and evaluated (provider eval, prompt/version
   tracking, cost budgets, quality metrics).
-- **Reminder checks are pull-triggered** via `POST /api/v1/planner/reminders/check`; a background
-  worker/cron with idempotency and retry is deferred to Phase 12.
+- **Reminder checks** run on a background scheduler (APScheduler) with a PostgreSQL
+  advisory-lock guard so only one replica executes a job; the pull endpoint
+  `POST /api/v1/planner/reminders/check` remains for dev/backfill.
 - **Email** is delivered via SMTP when configured, otherwise logged to the console.
+- **Account actions** (password reset + email verification) use signed, short-lived,
+  email-bound tokens in query strings; production access logs should redact query strings.
 - Generated artifacts (`__pycache__`, `.next`, `node_modules`, design ZIPs) are git-ignored.
 
 ---

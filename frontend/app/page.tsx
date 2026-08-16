@@ -11,8 +11,8 @@ const capabilities = [
   },
   {
     icon: "fact_check",
-    title: "Real-time Evidence Collection",
-    body: "As you learn, ARIA actively scours curated academic databases to validate claims, provide context, and supply you with real-world examples to anchor theoretical concepts.",
+    title: "Evidence from Your Study",
+    body: "ARIA records your assessments, notes, and reviews as evidence, then adapts what you study next. External academic-database research is a planned future capability.",
     span: "md:col-span-2",
     evidence: true,
   },
@@ -33,22 +33,8 @@ export default function HomePage() {
         <div className="flex items-center gap-4">
           <span className="text-headline-md font-extrabold text-secondary tracking-tight">ARIA</span>
         </div>
-        <div className="hidden md:flex flex-1 justify-center max-w-md mx-8 relative shadow-injected rounded-full px-4 py-2 bg-surface-container-low items-center">
-          <span className="material-symbols-outlined text-outline mr-2 text-lg">search</span>
-          <input
-            className="bg-transparent border-none focus:ring-0 outline-none w-full text-label-md text-on-surface"
-            placeholder="Search knowledge base..."
-            type="text"
-          />
-        </div>
         <div className="flex items-center gap-element-gap">
           <ThemeToggle />
-          <button
-            aria-label="Notifications"
-            className="interactive-extruded w-10 h-10 rounded-full shadow-extruded flex items-center justify-center text-on-surface-variant hover:opacity-80 transition-opacity bg-surface"
-          >
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
           <Link href="/app" className="interactive-extruded w-10 h-10 rounded-full shadow-extruded flex items-center justify-center text-on-surface-variant hover:opacity-80 transition-opacity bg-surface">
             <span className="material-symbols-outlined">account_circle</span>
           </Link>
@@ -66,8 +52,8 @@ export default function HomePage() {
               Master any subject with AI that adapts to your unique learning path.
             </h1>
             <p className="text-body-lg text-on-surface-variant max-w-xl">
-              ARIA observes your cognitive patterns, instantly restructures complex information, and
-              builds a customized topology of knowledge designed specifically for how your brain works.
+              ARIA adapts to your study history: it grounds answers in your own material,
+              checks understanding with assessments, and shows you what to review next.
             </p>
             <div className="flex flex-col sm:flex-row gap-6 pt-4">
               <Link
@@ -129,8 +115,8 @@ export default function HomePage() {
                   <div className="mt-auto h-32 rounded-2xl shadow-injected bg-surface-container-lowest p-4 flex items-center">
                     <div className="flex gap-4 w-full justify-between items-center z-10 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-secondary text-sm">search</span>
-                        <span className="text-label-sm text-on-surface-variant">Scanning sources...</span>
+                        <span className="material-symbols-outlined text-secondary text-sm">fact_check</span>
+                        <span className="text-label-sm text-on-surface-variant">Recording evidence from your sessions…</span>
                       </div>
                       <div className="flex gap-2">
                         <div className="w-8 h-8 rounded-full shadow-extruded-sm flex items-center justify-center bg-surface text-green-600">

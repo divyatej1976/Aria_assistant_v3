@@ -66,6 +66,7 @@ def update_profile(
         if existing is not None and existing.id != learner.id:
             raise ValidationError("Email is already registered")
         learner.email = email
+        learner.verified_at = None  # the new address must be verified again
     if display_name is not None:
         learner.display_name = display_name
     db.add(learner)

@@ -35,8 +35,12 @@ push services.
   session cookie; password change and data reset revoke other/current sessions;
   session list + revoke endpoints; hard expiry (24 h).
 - **Residual:** The legacy `Authorization: Bearer` path (from the localStorage
-  era) is still accepted for compatibility; it should be removed once the
-  cookie path is the only client.
+  era) is still accepted for compatibility and is **deprecated**; the cookie
+  session is the production contract and bearer is scheduled for removal once
+  the test suite is migrated to cookie auth.
+- **Note:** password-reset and email-verification tokens travel in the URL
+  query string (signed, short-lived). Production access logs must redact query
+  strings so tokens are not recorded.
 
 ### T3 — CSRF
 - **Controls:** double-submit CSRF token (`aria_csrf` cookie + `X-CSRF-Token`
@@ -51,7 +55,8 @@ push services.
   `X-Frame-Options` served via `frontend/next.config.ts`; React escapes text.
 - **Residual:** `script-src 'unsafe-inline'` is required by the Next.js runtime
   (documented tradeoff). Recommendation: introduce nonce/hash-based CSP when the
-  frontend runtime allows it, and remove the legacy localStorage token storage.
+  frontend runtime allows it. Frontend auth is cookie-only (no token in
+  `localStorage`).
 
 ### T5 — Injection (SQL / prompt / resource)
 - **Controls:** SQLAlchemy ORM (parameterized); Pydantic input validation;
@@ -93,7 +98,10 @@ push services.
       is cookie-only, and the security contract is documented in README).
       Removing it requires migrating the test suite to cookie auth.
 - [ ] Harden CSP with nonces for scripts.
-- [ ] Add email verification and password-reset flows.
+- [x] Add email verification and password-reset flows (signed, short-lived,
+      email-bound tokens; single-use password-reset tokens; absolute + URL-encoded
+      links via `ARIA_PUBLIC_URL`).
+- [ ] Redact query strings in production access logs (reset/verify tokens).
 - [x] Add dependency scanning (`npm audit` gated in CI; `pip-audit` +
       `pip check` steps in CI). npm findings resolved via `overrides`.
 - [ ] Enforce TLS at the reverse proxy; HSTS already emitted in production.

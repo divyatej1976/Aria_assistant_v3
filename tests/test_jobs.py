@@ -171,3 +171,26 @@ def test_run_locked_skips_when_lock_held(engine) -> None:
     finally:
         _release_advisory_lock(holder, key)
         holder.close()
+
+
+def test_advisory_lock_postgres_failure_is_not_bypassed(engine, monkeypatch) -> None:
+    import pytest
+
+    from app.jobs.scheduler import _try_advisory_lock
+
+    if engine.dialect.name != "postgresql":
+        return  # SQLite is always-acquired by design (single instance)
+
+    connection = engine.connect()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(connection, "execute", boom)
+    try:
+        # A real DB failure must propagate (fail closed) rather than silently
+        # treating the lock as acquired and running the job on every replica.
+        with pytest.raises(RuntimeError):
+            _try_advisory_lock(connection, 4244)
+    finally:
+        connection.close()

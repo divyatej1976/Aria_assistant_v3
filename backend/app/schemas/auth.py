@@ -39,6 +39,7 @@ class LearnerResponse(BaseModel):
     id: str
     email: str
     display_name: str | None
+    verified: bool = False
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -66,3 +67,33 @@ class SessionRecord(BaseModel):
     device_label: str | None
     is_current: bool
     created_at: datetime
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class PasswordResetConfirm(BaseModel):
+    email: str
+    token: str = Field(min_length=10, max_length=400)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class EmailVerifyConfirm(BaseModel):
+    email: str
+    token: str = Field(min_length=10, max_length=400)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()

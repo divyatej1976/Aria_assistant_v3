@@ -27,14 +27,13 @@ AUDIO_QUEUE_LOCK_KEY = 7002
 def _try_advisory_lock(connection, key: int) -> bool:
     from sqlalchemy import text
 
-    try:
-        value = connection.execute(
-            text("SELECT pg_try_advisory_lock(:key)"), {"key": key}
-        ).scalar()
-        return bool(value)
-    except Exception:
+    if connection.dialect.name != "postgresql":
         # Non-Postgres (e.g., SQLite): single instance, always "acquired".
         return True
+    value = connection.execute(
+        text("SELECT pg_try_advisory_lock(:key)"), {"key": key}
+    ).scalar()
+    return bool(value)
 
 
 def _release_advisory_lock(connection, key: int) -> None:

@@ -2,11 +2,14 @@
 
 Spend is estimated from reported token usage using a per-model rate table and
 accumulated per calendar month. Accounting is persisted to the `ai_usage`
-table so the total survives restarts and is shared across replicas; when the
-database is unavailable (e.g., SQLite without the table), a process-local
-fallback accumulator is used so local development and tests still enforce the
-budget. A budget of zero means unlimited. When the configured monthly budget
-is reached, generation is blocked (call sites fall back to deterministic
+table so the total survives restarts and is shared across replicas.
+
+When the database is unavailable in development (e.g., SQLite without the
+table), a process-local fallback accumulator keeps the budget binding locally.
+In production the app fails closed: if persistent accounting cannot be read or
+written, generation is blocked rather than allowed to overspend the configured
+limit. A budget of zero means unlimited. When the configured monthly budget is
+reached, generation is blocked (call sites fall back to deterministic
 behavior).
 """
 
@@ -33,10 +36,37 @@ class BudgetExceeded(RuntimeError):
 
 _lock = threading.Lock()
 _fallback_spend_usd = 0.0
+# True once persistent accounting has failed in production; generation is
+# blocked until a DB probe succeeds again (self-healing).
+_accounting_unavailable = False
 
 
 def monthly_budget_usd() -> float:
     return get_settings().aria_ai_monthly_budget_usd
+
+
+def _mark_db_failure() -> None:
+    """Fail closed only in production; dev/tests keep the in-memory fallback."""
+    global _accounting_unavailable
+    if getattr(get_settings(), "aria_env", "development") == "production":
+        _accounting_unavailable = True
+
+
+def _probe_db() -> bool:
+    """Lightweight connectivity probe; False when persistent accounting is down."""
+    try:
+        from sqlalchemy import text
+
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
+        return True
+    except Exception:
+        return False
 
 
 def _rates(model: str) -> tuple[float, float]:
@@ -54,24 +84,34 @@ def _period() -> str:
 
 def _db_record_cost(cost: float, period: str) -> bool:
     try:
-        from sqlalchemy import select
-
         from app.db.models import AiUsage
         from app.db.session import SessionLocal
 
         db = SessionLocal()
         try:
-            row = db.scalar(select(AiUsage).where(AiUsage.period == period))
-            if row is None:
-                db.add(AiUsage(period=period, spend_usd=cost))
+            dialect = db.get_bind().dialect.name
+            if dialect == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                stmt = pg_insert(AiUsage).values(period=period, spend_usd=cost)
             else:
-                row.spend_usd += cost
-                db.add(row)
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+                stmt = sqlite_insert(AiUsage).values(period=period, spend_usd=cost)
+            # Atomic upsert: the increment happens in SQL, so concurrent
+            # replicas cannot lose an update (read-modify-write in Python did).
+            db.execute(
+                stmt.on_conflict_do_update(
+                    index_elements=[AiUsage.period],
+                    set_={"spend_usd": AiUsage.spend_usd + cost},
+                )
+            )
             db.commit()
             return True
         finally:
             db.close()
     except Exception:
+        _mark_db_failure()
         return False
 
 
@@ -89,6 +129,7 @@ def _db_spend(period: str) -> float:
         finally:
             db.close()
     except Exception:
+        _mark_db_failure()
         return 0.0
 
 
@@ -128,9 +169,10 @@ def spend_usd() -> float:
 
 
 def reset_budget() -> None:
-    global _fallback_spend_usd
+    global _fallback_spend_usd, _accounting_unavailable
     with _lock:
         _fallback_spend_usd = 0.0
+    _accounting_unavailable = False
     _db_reset(_period())
 
 
@@ -138,6 +180,18 @@ def assert_within_budget() -> None:
     budget = monthly_budget_usd()
     if budget <= 0:
         return
+    global _accounting_unavailable
+    # Fail closed only in production; the flag is never set outside production.
+    in_production = getattr(get_settings(), "aria_env", "development") == "production"
+    if _accounting_unavailable and in_production:
+        # Self-heal: try the database again; clear the flag if it recovers.
+        healthy = _probe_db()
+        if not healthy:
+            raise BudgetExceeded(
+                "Persistent AI budget accounting is unavailable; blocking "
+                "generation to avoid exceeding the configured budget"
+            )
+        _accounting_unavailable = False
     if spend_usd() >= budget:
         raise BudgetExceeded(
             f"Monthly AI budget of ${budget:.2f} has been reached"

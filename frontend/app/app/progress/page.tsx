@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { api } from "../../../lib/api";
 import { useActiveContext } from "../../../components/use-active-context";
-import { formatDate } from "../../../lib/format";
+import { formatDate, formatDateTime } from "../../../lib/format";
 
 type ConceptState = {
   concept_id: string;
@@ -361,7 +361,7 @@ export default function ProgressPage() {
                       <p className="text-body-md text-on-background">
                         {item.concept_name} — {isCorrect ? "answered correctly" : item.valid ? "incorrect (review)" : "challenged result"}
                       </p>
-                      <p className="text-label-sm text-on-surface-variant mt-1">{new Date(item.created_at).toLocaleString()}</p>
+                      <p className="text-label-sm text-on-surface-variant mt-1">{formatDateTime(item.created_at)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

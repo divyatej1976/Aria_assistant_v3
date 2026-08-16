@@ -2,9 +2,9 @@
 
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { api, clearToken } from "../lib/api";
+import { ApiError, api, clearToken } from "../lib/api";
 
-export type Learner = { id: string; email: string; display_name: string | null };
+export type Learner = { id: string; email: string; display_name: string | null; verified: boolean };
 
 type AuthContextValue = {
   learner: Learner | null;
@@ -39,8 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const me = await api<Learner>("/api/v1/auth/me");
         if (active) setLearner(me);
-      } catch {
-        clearToken();
+      } catch (error) {
+        // Only treat an explicit 401 as a real sign-out; transient network
+        // errors must not log the user out or redirect them.
+        if (error instanceof ApiError && error.status === 401) clearToken();
       } finally {
         if (active) setLoading(false);
       }

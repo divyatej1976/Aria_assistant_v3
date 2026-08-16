@@ -330,7 +330,7 @@ export default function MemoryPage() {
                     className="w-full flex items-center justify-between p-4 text-left"
                   >
                     <span className="text-body-md text-on-background">
-                      Session · {new Date(session.created_at).toLocaleString()}
+                      Session · {formatDateTime(session.created_at)}
                     </span>
                     <span className="material-symbols-outlined text-on-surface-variant">
                       {expanded[session.id] ? "expand_less" : "expand_more"}

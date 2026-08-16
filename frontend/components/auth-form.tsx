@@ -119,6 +119,12 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       >
         {mode === "signup" ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
       </a>
+
+      {mode === "signin" && (
+        <a href="/reset-password" className="text-center text-label-md text-secondary hover:underline">
+          Forgot password?
+        </a>
+      )}
     </form>
   );
 }

@@ -45,6 +45,7 @@ services:
       ARIA_ENV: production
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aria:aria@db:5432/aria}
       ARIA_CORS_ORIGINS: ${ARIA_CORS_ORIGINS:-https://app.example.com}
+      ARIA_PUBLIC_URL: ${ARIA_PUBLIC_URL:-https://app.example.com}
       ARIA_SESSION_SECRET: ${ARIA_SESSION_SECRET:?ARIA_SESSION_SECRET is required}
       ARIA_TRUSTED_HOSTS: ${ARIA_TRUSTED_HOSTS:-app.example.com,localhost,127.0.0.1}
       ARIA_RATE_LIMIT_ENABLED: "true"

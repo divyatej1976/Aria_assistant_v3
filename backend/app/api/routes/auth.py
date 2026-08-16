@@ -6,12 +6,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.errors import ValidationError
 from app.db.dependencies import get_db
 from app.db.models import Learner
 from app.schemas.auth import (
+    EmailVerifyConfirm,
     LearnerResponse,
     LoginRequest,
     PasswordChangeRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     ProfileUpdateRequest,
     RegisterRequest,
     SessionRecord,
@@ -30,6 +34,12 @@ from app.services.account import (
     revoke_session,
     update_profile,
 )
+from app.services.account_actions import (
+    confirm_email_verification,
+    confirm_password_reset,
+    request_email_verification,
+    request_password_reset,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 Db = Annotated[Session, Depends(get_db)]
@@ -44,7 +54,10 @@ def _auth_rate_limit():
 
 def learner_response(learner: Learner) -> LearnerResponse:
     return LearnerResponse(
-        id=str(learner.id), email=learner.email, display_name=learner.display_name
+        id=str(learner.id),
+        email=learner.email,
+        display_name=learner.display_name,
+        verified=learner.verified_at is not None,
     )
 
 
@@ -159,3 +172,38 @@ def revoke(
         )
     db.commit()
     return {"detail": "Session signed out"}
+
+
+@router.post("/password-reset/request")
+def password_reset_request(request: PasswordResetRequest, db: Db) -> dict[str, str]:
+    request_password_reset(db, email=request.email)
+    return {"detail": "If that email is registered, a reset link has been sent"}
+
+
+@router.post("/password-reset/confirm")
+def password_reset_confirm(request: PasswordResetConfirm, db: Db) -> dict[str, str]:
+    try:
+        confirm_password_reset(
+            db,
+            email=request.email,
+            token=request.token,
+            new_password=request.new_password,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"detail": "Password updated. All devices signed out."}
+
+
+@router.post("/verify-email/request")
+def email_verify_request(learner: CurrentLearner, db: Db) -> dict[str, str]:
+    request_email_verification(db, owner_id=learner.id)
+    return {"detail": "If your email is not yet verified, a verification link has been sent"}
+
+
+@router.post("/verify-email/confirm")
+def email_verify_confirm(request: EmailVerifyConfirm, db: Db) -> dict[str, str]:
+    try:
+        confirm_email_verification(db, email=request.email, token=request.token)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"detail": "Email verified"}

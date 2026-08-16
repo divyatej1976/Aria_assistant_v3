@@ -27,6 +27,23 @@ from app.services.resource_ingestion import (
 router = APIRouter(prefix="/api/v1/resources", tags=["resources"])
 Db = Annotated[Session, Depends(get_db)]
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB PDF cap
+
+
+async def read_upload_body(request: Request) -> bytes:
+    """Read the request body streaming, enforcing the upload size cap."""
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"PDF upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
 
 def ensure_context(db: Session, *, context_id: UUID, owner_id: UUID) -> LearningContext:
     context = db.scalar(
@@ -86,7 +103,9 @@ async def add_pdf_resource(
 ) -> ResourceResponse:
     context_uuid = UUID(context_id)
     ensure_context(db, context_id=context_uuid, owner_id=learner.id)
-    content = await request.body()
+    content = await read_upload_body(request)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty PDF upload")
     resource = await create_pdf_resource(
         db,
         owner_id=learner.id,
@@ -174,7 +193,9 @@ async def replace_pdf(
     title: str = "Uploaded PDF",
 ) -> ResourceResponse:
     resource = get_resource(db, resource_id=resource_id, owner_id=learner.id)
-    content = await request.body()
+    content = await read_upload_body(request)
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty PDF upload")
     replaced = await replace_pdf_resource(
         db, resource=resource, title=title, content=content
     )

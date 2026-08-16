@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
@@ -7,7 +9,7 @@ const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
   "media-src 'self' blob: data:",
-  "connect-src 'self' http://localhost:8000",
+  `connect-src 'self' ${API_URL}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

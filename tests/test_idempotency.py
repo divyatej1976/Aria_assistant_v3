@@ -98,3 +98,158 @@ def test_idempotency_key_is_scoped_per_learner(client: TestClient) -> None:
     )
     assert second_started.status_code == 201
     assert second_started.json()["workflow_id"] != first_started.json()["workflow_id"]
+
+
+def test_idempotency_record_recovers_from_concurrent_insert(
+    engine, session_factory, monkeypatch
+) -> None:
+    from uuid import uuid4
+
+    from sqlalchemy import select
+
+    from app.db.models import IdempotencyKey
+    from app.services import idempotency
+
+    owner_id = uuid4()
+    db = session_factory()
+    try:
+        # Pre-insert the winning row so the first insert attempt collides.
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id,
+                scope="wf",
+                key="race-1",
+                response_status=200,
+                response_json={"v": 1},
+            )
+        )
+        db.commit()
+
+        real_find = idempotency.find
+        calls = {"n": 0}
+
+        def stale_find(db, *, owner_id, scope, key):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None  # simulate a concurrent writer winning between find and insert
+            return real_find(db, owner_id=owner_id, scope=scope, key=key)
+
+        monkeypatch.setattr(idempotency, "find", stale_find)
+
+        entry = idempotency.record(
+            db, owner_id=owner_id, scope="wf", key="race-1", status=201, response={"v": 2}
+        )
+        assert calls["n"] >= 2
+        assert entry.response_json == {"v": 2}
+
+        stored = db.scalar(
+            select(IdempotencyKey).where(
+                IdempotencyKey.owner_id == owner_id, IdempotencyKey.key == "race-1"
+            )
+        )
+        assert stored is not None
+        assert stored.response_json == {"v": 2}
+    finally:
+        db.close()
+
+
+def test_reserve_reports_in_progress_for_duplicate(engine, session_factory) -> None:
+    from uuid import uuid4
+
+    from app.services import idempotency
+
+    owner_id = uuid4()
+    db = session_factory()
+    try:
+        assert (
+            idempotency.reserve(db, owner_id=owner_id, scope="wf", key="reserve-1")
+            == "ok"
+        )
+        # A second request with the same key sees the in-flight reservation.
+        second = session_factory()
+        try:
+            assert (
+                idempotency.reserve(second, owner_id=owner_id, scope="wf", key="reserve-1")
+                == "in_progress"
+            )
+        finally:
+            second.close()
+    finally:
+        db.close()
+
+
+def test_reserve_takes_over_expired_completed_row(engine, session_factory) -> None:
+    from uuid import uuid4
+
+    from sqlalchemy import select
+
+    from app.db.models import IdempotencyKey
+    from app.services import idempotency
+
+    owner_id = uuid4()
+    db = session_factory()
+    try:
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id,
+                scope="wf",
+                key="reserve-2",
+                response_status=200,
+                response_json={"v": 1},
+            )
+        )
+        db.commit()
+        assert (
+            idempotency.reserve(db, owner_id=owner_id, scope="wf", key="reserve-2")
+            == "ok"
+        )
+        row = db.scalar(
+            select(IdempotencyKey).where(
+                IdempotencyKey.owner_id == owner_id, IdempotencyKey.key == "reserve-2"
+            )
+        )
+        assert row is not None
+        assert row.response_json is None  # reservation cleared for a fresh run
+    finally:
+        db.close()
+
+
+def test_in_flight_duplicate_returns_409(client: TestClient, session_factory) -> None:
+    from uuid import UUID
+
+    from app.db.models import IdempotencyKey
+
+    session = register(client, "idem-flight@example.com")
+    learner_id = UUID(session["learner_id"])
+    client.post(
+        "/api/v1/contexts",
+        headers=headers(session["access_token"]),
+        json={"title": "DBMS"},
+    )
+
+    # Simulate a concurrent request that already reserved the key.
+    db = session_factory()
+    try:
+        db.add(
+            IdempotencyKey(
+                owner_id=learner_id,
+                scope="workflow:generate_notes",
+                key="in-flight-key",
+                response_status=None,
+                response_json=None,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    duplicate = client.post(
+        "/api/v1/orchestration/workflows/generate_notes",
+        headers={
+            **headers(session["access_token"]),
+            "Idempotency-Key": "in-flight-key",
+        },
+        json={"payload": {}},
+    )
+    assert duplicate.status_code == 409
+    assert "already in progress" in duplicate.json()["detail"]

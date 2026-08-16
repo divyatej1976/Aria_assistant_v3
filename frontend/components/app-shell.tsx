@@ -42,9 +42,25 @@ function NotificationBell() {
       if (event.key === "Escape") {
         setOpen(false);
         triggerRef.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab" || !popupRef.current) return;
+      const focusable = popupRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
     window.addEventListener("keydown", onKeyDown);
+    popupRef.current?.focus();
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
@@ -90,7 +106,8 @@ function NotificationBell() {
             id="notifications-popup"
             role="dialog"
             aria-label="Notifications"
-            className="absolute right-0 top-12 z-50 w-80 bg-surface shadow-extruded rounded-3xl p-4 flex flex-col gap-3"
+            tabIndex={-1}
+            className="absolute right-0 top-12 z-50 w-80 bg-surface shadow-extruded rounded-3xl p-4 flex flex-col gap-3 outline-none"
           >
             <p className="text-label-md text-secondary font-bold">Notifications</p>
             {notifications.length === 0 ? (
@@ -122,6 +139,7 @@ type NavItem = {
   icon: string;
   active: (pathname: string) => boolean;
   coming?: boolean;
+  more?: boolean;
 };
 
 const NAV: NavItem[] = [
@@ -139,8 +157,15 @@ const BOTTOM_NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard", active: (p) => p === "/app" },
   { href: "/app/learn", label: "Learn", icon: "school", active: (p) => p.startsWith("/app/learn") },
   { href: "/app/assess", label: "Assess", icon: "fact_check", active: (p) => p.startsWith("/app/assess") },
+  { href: "/app/notes", label: "Notes", icon: "sticky_note_2", active: (p) => p.startsWith("/app/notes") },
   { href: "/app/progress", label: "Progress", icon: "trending_up", active: (p) => p.startsWith("/app/progress") },
   { href: "/app/account", label: "Settings", icon: "settings", active: (p) => p.startsWith("/app/account") },
+  { href: "/app/more", label: "More", icon: "more_horiz", active: (p) => p.startsWith("/app/resources") || p.startsWith("/app/planner"), more: true },
+];
+
+const MORE_NAV: NavItem[] = [
+  { href: "/app/resources", label: "Resources", icon: "library_books", active: (p) => p.startsWith("/app/resources") },
+  { href: "/app/planner", label: "Planner", icon: "calendar_month", active: (p) => p.startsWith("/app/planner") },
 ];
 
 function NavList({ pathname }: { pathname: string }) {
@@ -183,10 +208,46 @@ function NavList({ pathname }: { pathname: string }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { learner } = useAuth();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreSheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void registerServiceWorker();
   }, []);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMoreOpen(false);
+        moreButtonRef.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab" || !moreSheetRef.current) return;
+      const focusable = moreSheetRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    moreSheetRef.current?.focus();
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen]);
+
+  function closeMore() {
+    setMoreOpen(false);
+    moreButtonRef.current?.focus();
+  }
 
   return (
     <div className="min-h-screen bg-background text-on-background font-sans">
@@ -244,6 +305,24 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="md:hidden fixed bottom-0 w-full bg-surface z-50 flex justify-around py-2 border-t border-outline-variant pb-[env(safe-area-inset-bottom)]">
         {BOTTOM_NAV.map((item) => {
           const active = item.active(pathname);
+          if (item.more) {
+            return (
+              <button
+                key={item.label}
+                ref={moreButtonRef}
+                type="button"
+                aria-expanded={moreOpen}
+                aria-controls="more-nav-sheet"
+                aria-haspopup="dialog"
+                aria-label={active ? "More (currently active)" : "More navigation"}
+                onClick={() => setMoreOpen((value) => !value)}
+                className={`flex flex-col items-center py-1 ${active || moreOpen ? "text-secondary font-bold" : "text-on-surface-variant"}`}
+              >
+                <span className="material-symbols-outlined">{item.icon}</span>
+                <span className="text-[10px] mt-0.5">{item.label}</span>
+              </button>
+            );
+          }
           return (
             <span key={item.label}>
               {item.coming ? (
@@ -252,7 +331,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <span className="text-[10px] mt-0.5">{item.label}</span>
                 </span>
               ) : (
-                <Link href={item.href} className={`flex flex-col items-center py-1 ${active ? "text-secondary font-bold" : "text-on-surface-variant"}`}>
+                <Link
+                  href={item.href}
+                  onClick={() => setMoreOpen(false)}
+                  className={`flex flex-col items-center py-1 ${active ? "text-secondary font-bold" : "text-on-surface-variant"}`}
+                >
                   <span className={`material-symbols-outlined ${active ? "ms-fill" : ""}`}>{item.icon}</span>
                   <span className="text-[10px] mt-0.5">{item.label}</span>
                 </Link>
@@ -261,6 +344,54 @@ export function AppShell({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
+
+      {/* Mobile "More" sheet: Resources + Planner */}
+      {moreOpen && (
+        <div
+          ref={moreSheetRef}
+          id="more-nav-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="More navigation"
+          tabIndex={-1}
+          className="md:hidden fixed inset-0 z-50 flex items-end outline-none"
+        >
+          <div className="absolute inset-0 bg-black/30" aria-hidden="true" onClick={closeMore} />
+          <div className="relative w-full bg-surface rounded-t-3xl shadow-extruded p-6 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-label-md text-secondary font-bold">More</p>
+              <button
+                type="button"
+                aria-label="Close more navigation"
+                onClick={closeMore}
+                className="w-10 h-10 rounded-full shadow-extruded flex items-center justify-center text-on-surface-variant bg-surface"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {MORE_NAV.map((item) => {
+                const active = item.active(pathname);
+                return (
+                  <li key={item.label}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex items-center gap-3 py-3 px-4 rounded-lg text-label-md ${
+                        active ? "bg-surface text-secondary font-bold shadow-injected" : "text-on-surface-variant hover:bg-surface-container-low"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

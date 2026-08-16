@@ -131,6 +131,17 @@ export default function AccountPage() {
     }
   }
 
+  async function requestVerification() {
+    setError("");
+    setNotice("");
+    try {
+      await api("/api/v1/auth/verify-email/request", { method: "POST" });
+      setNotice("Verification link sent. It expires in 1 hour.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to send verification");
+    }
+  }
+
   async function resetData() {
     setError("");
     setNotice("");
@@ -190,6 +201,14 @@ export default function AccountPage() {
               Save profile
             </button>
           </form>
+          {learner && !learner.verified && (
+            <button
+              onClick={() => void requestVerification()}
+              className="self-start px-6 py-3 rounded-full text-label-md text-secondary"
+            >
+              Verify email
+            </button>
+          )}
         </div>
 
         <div className="bg-surface shadow-extruded rounded-3xl p-8 flex flex-col gap-6">

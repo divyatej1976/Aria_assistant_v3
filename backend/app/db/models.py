@@ -30,6 +30,7 @@ class Learner(OwnedModel, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(120))
     password_hash: Mapped[str | None] = mapped_column(String(255))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class LearnerSession(OwnedModel, Base):

@@ -102,6 +102,73 @@ def test_unlimited_budget_never_blocks(monkeypatch) -> None:
     reset_budget()
 
 
+def _prod_settings(budget: float):
+    class _Settings:
+        aria_env = "production"
+        aria_ai_monthly_budget_usd = budget
+
+    return _Settings()
+
+
+def test_production_accounting_failure_blocks_generation(monkeypatch) -> None:
+    import app.ai.budget as budget
+
+    monkeypatch.setattr(budget, "get_settings", lambda: _prod_settings(0.001))
+    monkeypatch.setattr(budget, "_probe_db", lambda: False)
+    budget._accounting_unavailable = True
+    try:
+        try:
+            assert_within_budget()
+        except BudgetExceeded:
+            pass
+        else:
+            raise AssertionError("expected BudgetExceeded when accounting is down in production")
+    finally:
+        budget._accounting_unavailable = False
+        budget.reset_budget()
+
+
+def test_production_accounting_self_heals_when_db_returns(monkeypatch) -> None:
+    import app.ai.budget as budget
+
+    monkeypatch.setattr(budget, "get_settings", lambda: _prod_settings(0.001))
+    monkeypatch.setattr(budget, "_probe_db", lambda: True)
+    monkeypatch.setattr(budget, "_db_spend", lambda period: 0.0)
+    budget._accounting_unavailable = True
+    try:
+        assert_within_budget()  # probe succeeds -> flag cleared, spend 0 < budget
+        assert budget._accounting_unavailable is False
+    finally:
+        budget.reset_budget()
+
+
+def test_development_accounting_failure_never_blocks(monkeypatch) -> None:
+    import app.ai.budget as budget
+
+    monkeypatch.setattr(budget, "get_settings", lambda: _settings_with_budget(0.001))
+    monkeypatch.setattr(budget, "_probe_db", lambda: False)
+    monkeypatch.setattr(budget, "_db_spend", lambda period: 0.0)
+    budget._accounting_unavailable = True  # even if set, dev must not fail closed
+    try:
+        assert_within_budget()  # must not raise
+    finally:
+        budget._accounting_unavailable = False
+        budget.reset_budget()
+
+
+def test_reset_budget_clears_accounting_failure(monkeypatch) -> None:
+    import app.ai.budget as budget
+
+    monkeypatch.setattr(budget, "get_settings", lambda: _prod_settings(0.001))
+    budget._mark_db_failure()
+    assert budget._accounting_unavailable is True
+    reset_budget()
+    assert budget._accounting_unavailable is False
+    monkeypatch.setattr(budget, "get_settings", lambda: _settings_with_budget(0.0))
+    budget._mark_db_failure()  # dev never sets the flag
+    assert budget._accounting_unavailable is False
+
+
 def test_budget_spend_records(engine) -> None:
     reset_budget()
     record_usage(model="llama-3.3-70b-versatile", prompt_tokens=1000, completion_tokens=0)
@@ -117,6 +184,35 @@ def test_budget_spend_records(engine) -> None:
             row = db.scalar(select(AiUsage))
             assert row is not None
             assert row.spend_usd > 0
+        finally:
+            db.close()
+    reset_budget()
+
+
+def test_budget_accumulates_without_lost_updates(engine) -> None:
+    from app.ai.budget import estimate_cost_usd
+
+    reset_budget()
+    calls = 5
+    for _ in range(calls):
+        record_usage(
+            model="llama-3.3-70b-versatile", prompt_tokens=1000, completion_tokens=0
+        )
+    expected = calls * estimate_cost_usd(
+        model="llama-3.3-70b-versatile", prompt_tokens=1000, completion_tokens=0
+    )
+    assert abs(spend_usd() - expected) < 1e-9
+    if engine.dialect.name == "postgresql":
+        from sqlalchemy import select
+
+        from app.db.models import AiUsage
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            row = db.scalar(select(AiUsage))
+            assert row is not None
+            assert abs(row.spend_usd - expected) < 1e-9
         finally:
             db.close()
     reset_budget()

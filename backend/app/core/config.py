@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     aria_log_level: str = "INFO"
     aria_api_prefix: str = "/api/v1"
     aria_cors_origins: str = "http://localhost:3000"
+    aria_public_url: str = "http://localhost:3000"
     database_url: str = "postgresql+psycopg://aria:aria@localhost:5432/aria"
     supabase_url: str | None = None
     supabase_anon_key: str | None = None

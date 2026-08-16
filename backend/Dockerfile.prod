@@ -1,4 +1,7 @@
 # Production backend image: runtime dependencies only, multi-worker uvicorn.
+#
+# Also ships the Alembic config + migration scripts so the `migrate` service in
+# docker-compose.prod.yml can run `alembic upgrade head` from this same image.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -7,10 +10,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml /app/pyproject.toml
+COPY pyproject.toml alembic.ini /app/
 COPY backend /app/backend
+COPY database /app/database
 
 RUN pip install --no-cache-dir -e "."
+
+# NOTE: rate limiting and the in-memory AI budget fallback are per-process
+# state. With multiple workers the effective login/register rate limit scales
+# with worker count and is not shared. Run a single worker, or replace the
+# limiter with a shared store, when that matters for the deployment.
 
 EXPOSE 8000
 

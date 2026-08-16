@@ -119,17 +119,46 @@ See [BUILD_PLAN.md](BUILD_PLAN.md) for the implementation sequence and completio
 
 ## Security & production notes
 
+### Required production environment variables
+
+A manual deployment (outside `docker-compose.prod.yml`) will fail or generate
+unusable email links if any of these are missed:
+
+| Variable | Purpose | Failure if missing |
+| --- | --- | --- |
+| `ARIA_SESSION_SECRET` | Signs session/action tokens | Backend refuses to start (`ARIA_ENV=production`) |
+| `DATABASE_URL` | Backend + migrations connection | Backend/migrate cannot connect |
+| `ARIA_CORS_ORIGINS` | Allowed browser origins | Frontend API calls rejected by CORS |
+| `ARIA_TRUSTED_HOSTS` | Host allowlist (prod only) | Requests with other `Host` headers rejected |
+| `NEXT_PUBLIC_API_URL` | Frontend API base URL (also drives CSP `connect-src`) | API calls target `http://localhost:8000` |
+| `ARIA_PUBLIC_URL` | Base URL for links in emails (reset/verify) | Emails link to `http://localhost:3000` |
+
+`docker-compose.prod.yml` wires these with sensible defaults; verify them when
+deploying to a real host.
+
+Deployment checklist before exposing publicly:
+
+- Reverse proxy must terminate TLS and **redact query strings from access
+  logs** — password-reset and email-verification tokens travel in the URL
+  (`/reset-password?email=…&token=…`, `/verify-email?email=…&token=…`).
+- `ARIA_PUBLIC_URL` must be the public app origin so email links resolve.
+- `NEXT_PUBLIC_API_URL` must be the public API origin (it also drives the
+  CSP `connect-src`).
+- Keep `ARIA_SESSION_SECRET` in a managed secret store and rotate it.
+
 The app is feature-complete through Phase 12 hardening but still requires
 operational hardening before a public multi-instance deployment. Current status:
 
 - **Authentication.** Sessions use HTTP-only, `SameSite=Strict` cookies with
   double-submit CSRF protection; the frontend relies on cookies (no tokens in
-  `localStorage`). A legacy `Authorization: Bearer` path is still accepted for
-  compatibility but is deprecated and will be removed once the cookie contract
-  is the only client.
+  `localStorage`). A legacy `Authorization: Bearer` path is **deprecated** but
+  still accepted for compatibility; it will be removed once the test suite is
+  migrated to cookie auth. Password-reset/verify tokens travel in the URL query
+  string (signed, short-lived) — keep query strings out of production access logs.
 - **AI dependency.** Without `GROQ_API_KEY` the app runs on deterministic
   fallbacks (good for tests and reliability). When configured, AI calls are
-  versioned, budget-capped (persisted monthly spend), and cost/token-logged.
+  versioned, budget-capped (persisted monthly spend via atomic updates), and
+  cost/token-logged.
 - **Reminders.** Run automatically on a background scheduler (APScheduler) with
   a PostgreSQL advisory-lock guard so only one replica executes each job; the
   pull endpoint `POST /api/v1/planner/reminders/check` remains for dev/backfill.
@@ -138,6 +167,8 @@ operational hardening before a public multi-instance deployment. Current status:
 - **Idempotency contract.** Retry-sensitive POST operations are idempotent.
   Workflow creation honors the `Idempotency-Key` header; assessment submission
   honors either the `Idempotency-Key` header or the body `idempotency_key`.
+  A workflow request whose key is already in progress returns `409 Conflict`
+  so a duplicate cannot execute the workflow twice; retry after it completes.
   Other endpoints are not guaranteed idempotent.
 - **Generated artifacts.** `__pycache__`, `.pytest_cache`, `.next`,
   `node_modules`, and the design wireframe ZIPs in `design/wireframes/` are
