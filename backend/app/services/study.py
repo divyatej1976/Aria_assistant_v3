@@ -1,3 +1,4 @@
+﻿import logging
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -6,9 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
 from app.ai.providers import DeterministicEmbeddingProvider, RetrievedChunk
-from app.ai.registry import get_embedding_provider, get_llm_provider
+from app.ai.registry import (
+    get_embedding_provider,
+    get_llm_provider,  # noqa: F401  (kept for backwards-compat monkeypatch targets)
+    get_llm_provider_for_owner,
+)
 from app.core.errors import ValidationError
 from app.db.models import (
+    Concept,
     ConceptChunk,
     ConversationMessage,
     LearnerConceptState,
@@ -25,7 +31,9 @@ from app.services.context_assembly import (
 )
 from app.services.contexts import get_owned_context
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW
-from app.services.text import content_terms
+from app.services.text import bm25_scores, content_terms
+
+logger = logging.getLogger(__name__)
 
 WEAK_BOOST = 1.3
 
@@ -71,6 +79,20 @@ def get_owned_session(
         raise ValidationError("Study session not found")
     return session
 
+
+
+def delete_session(db: Session, *, owner_id: UUID, session_id: UUID) -> bool:
+    """Delete a study session and its messages (owner-scoped)."""
+    session = get_owned_session(db, owner_id=owner_id, session_id=session_id)
+    if session is None:
+        return False
+    db.query(ConversationMessage).filter(
+        ConversationMessage.study_session_id == session.id,
+        ConversationMessage.owner_id == owner_id,
+    ).delete(synchronize_session=False)
+    db.delete(session)
+    db.commit()
+    return True
 
 def list_messages(
     db: Session, *, owner_id: UUID, session_id: UUID
@@ -161,6 +183,12 @@ def lexical_score(query_terms: set[str], content: str) -> float:
 
 
 def semantic_scoring_available(provider: object) -> bool:
+    """Deterministic provider is test-stable (SHA256 hashing) not semantic.
+
+    Semantic scoring + pgvector HNSW require a cloud embedding provider.
+    When this returns False, retrieval falls back to lexical scoring +
+    weak-concept boosts only.
+    """
     return not isinstance(provider, DeterministicEmbeddingProvider)
 
 
@@ -168,9 +196,12 @@ def weak_chunk_boosts(db: Session, *, owner_id: UUID, context_id: UUID) -> dict[
     rows = db.execute(
         select(ConceptChunk.chunk_id, LearnerConceptState.state)
         .join(LearnerConceptState, LearnerConceptState.concept_id == ConceptChunk.concept_id)
+        .join(Concept, Concept.id == ConceptChunk.concept_id)
         .where(
             ConceptChunk.owner_id == owner_id,
             LearnerConceptState.owner_id == owner_id,
+            Concept.owner_id == owner_id,
+            Concept.context_id == context_id,
         )
     ).all()
     boosts: dict[str, float] = {}
@@ -180,32 +211,96 @@ def weak_chunk_boosts(db: Session, *, owner_id: UUID, context_id: UUID) -> dict[
     return boosts
 
 
+def _dedupe_chunks(scored: list[RetrievedChunk]) -> list[RetrievedChunk]:
+    """Drop near-duplicate chunks (same normalized prefix), keeping the
+    higher-scored copy so top-5 slots carry distinct material."""
+    seen: set[str] = set()
+    kept: list[RetrievedChunk] = []
+    for item in sorted(scored, key=lambda c: c.score, reverse=True):
+        key = " ".join(item.content.lower().split())[:200]
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(item)
+    return kept
+
+
 async def retrieve_chunks(
     db: Session, *, owner_id: UUID, context_id: UUID, query: str
 ) -> list[RetrievedChunk]:
-    rows = db.execute(
-        select(ResourceChunk, Resource)
-        .join(Resource, Resource.id == ResourceChunk.resource_id)
-        .where(
-            ResourceChunk.owner_id == owner_id,
-            Resource.owner_id == owner_id,
-            Resource.context_id == context_id,
-            Resource.processing_status == "READY",
-        )
-    ).all()
+    from app.core.config import get_settings
+
     boosts = weak_chunk_boosts(db, owner_id=owner_id, context_id=context_id)
     query_terms = {term for term in content_terms(query) if len(term) > 2}
     provider = get_embedding_provider()
     semantic = semantic_scoring_available(provider)
-    query_embedding = (await provider.embed([query]))[0] if semantic else None
+    query_embedding: list[float] | None = None
+    if semantic:
+        query_embedding = (await provider.embed([query]))[0]
+        expected_dim = get_settings().aria_embedding_dim
+        if len(query_embedding) != expected_dim:
+            msg = f"Query embedding dimension {len(query_embedding)} != expected {expected_dim}"
+            raise ValueError(msg)
+
+    base = select(ResourceChunk, Resource).join(
+        Resource, Resource.id == ResourceChunk.resource_id
+    )
+    filters = [
+        ResourceChunk.owner_id == owner_id,
+        Resource.owner_id == owner_id,
+        Resource.context_id == context_id,
+        Resource.processing_status == "READY",
+    ]
+
+    rows: list = []
+    bind = db.get_bind()
+    if (
+        bind is not None
+        and bind.dialect.name == "postgresql"
+        and semantic
+        and query_embedding is not None
+    ):
+        # pgvector HNSW narrows candidates on Postgres with cloud embeddings;
+        # non-embedded READY chunks are still included so no material is
+        # silently ignored. Any pgvector failure falls through to a full scan.
+        # KNOWN PARITY NOTE: the HNSW top-20 pre-cut happens before weak-concept
+        # boosts are applied, so a weak-boosted chunk outside the raw top-20
+        # cannot be rescued here (the Python path scores all chunks). The same
+        # query may therefore rank slightly differently on Postgres vs SQLite.
+        # Acceptable while semantic retrieval is optional; revisit if boosts
+        # become a product-critical signal on Postgres deployments.
+        try:
+            rows = list(
+                db.execute(
+                    base.where(*filters, ResourceChunk.embedding.is_not(None))
+                    .order_by(ResourceChunk.embedding.cosine_distance(query_embedding))  # type: ignore[attr-defined]
+                    .limit(20)
+                ).all()
+            )
+            existing_ids = {chunk.id for chunk, _ in rows}
+            extra = db.execute(
+                base.where(*filters, ResourceChunk.embedding.is_(None))
+            ).all()
+            rows.extend(
+                (chunk, resource) for chunk, resource in extra if chunk.id not in existing_ids
+            )
+        except Exception:
+            rows = []
+    if not rows:
+        rows = db.execute(base.where(*filters)).all()
+
+    # BM25 IDF weighting replaces naive set overlap: rare matching terms now
+    # dominate common ones (see app.services.text.bm25_scores).
+    bm25 = bm25_scores(query_terms, [chunk.content for chunk, _ in rows])
     scored: list[RetrievedChunk] = []
-    for chunk, resource in rows:
-        lexical = lexical_score(query_terms, chunk.content)
-        if semantic:
-            similarity = cosine_similarity(query_embedding, chunk.embedding_json or [])
-            score = 0.5 * lexical + 0.5 * similarity
+    for (chunk, resource), bm in zip(rows, bm25, strict=True):
+        if semantic and query_embedding is not None:
+            pg_emb = getattr(chunk, "embedding", None)
+            emb = pg_emb if pg_emb is not None else chunk.embedding_json or []  # type: ignore[assignment]
+            similarity = cosine_similarity(query_embedding, emb)
+            score = 0.5 * bm + 0.5 * similarity
         else:
-            score = lexical
+            score = bm
         score *= boosts.get(str(chunk.id), 1.0)
         scored.append(
             RetrievedChunk(
@@ -216,7 +311,7 @@ async def retrieve_chunks(
                 score=score,
             )
         )
-    return sorted(scored, key=lambda item: item.score, reverse=True)[:5]
+    return _dedupe_chunks(scored)[:5]
 
 
 async def answer_question(
@@ -227,7 +322,19 @@ async def answer_question(
     question: str,
     session_id: UUID | None = None,
 ) -> StudyResult:
-    sources = await retrieve_chunks(db, owner_id=owner_id, context_id=context_id, query=question)
+    try:
+        sources = await retrieve_chunks(db, owner_id=owner_id, context_id=context_id, query=question)
+    except Exception:
+        # Retrieval (e.g., embedding endpoint) failed: safe fallback, no leakage.
+        logger.exception("study retrieval failed; serving fallback")
+        return StudyResult(
+            content=(
+                "The AI provider is temporarily unavailable. Review the cited excerpts "
+                "and try again later."
+            ),
+            sources=[],
+            fallback_used=True,
+        )
     context_text = build_study_context(sources)
     if not context_text:
         return StudyResult(
@@ -238,7 +345,7 @@ async def answer_question(
             sources=sources,
             fallback_used=True,
         )
-    if get_llm_provider() is None:
+    if get_llm_provider_for_owner(db, owner_id=owner_id) is None:
         return StudyResult(
             content=(
                 "Provider fallback: here are the most relevant excerpts from your material. "
@@ -256,11 +363,34 @@ async def answer_question(
             sources=sources,
         )
         system, user = build_prompt(question, package)
-        answer = await get_llm_provider().generate_text(
+        provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+        if provider is None:
+            return StudyResult(
+                content=(
+                    "Provider fallback: here are the most relevant excerpts from your material. "
+                    "Configure GROQ_API_KEY to enable generated explanations.\n\n" + context_text
+                ),
+                sources=sources,
+                fallback_used=True,
+            )
+        answer = await provider.generate_text(
             system=system, user=user, prompt_version=get_prompt("study_answer").label()
         )
+        if not answer or not answer.strip():
+            logger.warning("study llm returned an empty response; serving fallback")
+            return StudyResult(
+                content=(
+                    "The AI provider returned an empty response. Review the cited excerpts "
+                    "and try again later."
+                ),
+                sources=sources,
+                fallback_used=True,
+            )
         return StudyResult(content=answer, sources=sources, fallback_used=False)
     except Exception:
+        # Intentionally generic on the wire: never echo provider errors, keys,
+        # or prompts. The full exception goes to server logs only.
+        logger.exception("study llm call failed; serving fallback")
         return StudyResult(
             content=(
                 "The AI provider is temporarily unavailable. Review the cited excerpts "

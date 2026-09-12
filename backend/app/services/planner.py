@@ -77,20 +77,21 @@ def list_deadlines(db: Session, *, owner_id: UUID, context_id: UUID) -> list[Dea
 
 
 def upcoming_deadlines(
-    db: Session, *, owner_id: UUID, days: int = 14
+    db: Session, *, owner_id: UUID, days: int = 14, context_id: UUID | None = None
 ) -> list[Deadline]:
     now = _now()
     window_end = now + timedelta(days=days)
+    query = select(Deadline).where(
+        Deadline.owner_id == owner_id,
+        Deadline.status == "ACTIVE",
+        Deadline.due_at >= now,
+        Deadline.due_at <= window_end,
+    )
+    if context_id is not None:
+        query = query.where(Deadline.context_id == context_id)
     return list(
         db.scalars(
-            select(Deadline)
-            .where(
-                Deadline.owner_id == owner_id,
-                Deadline.status == "ACTIVE",
-                Deadline.due_at >= now,
-                Deadline.due_at <= window_end,
-            )
-            .order_by(Deadline.due_at)
+            query.order_by(Deadline.due_at)
         )
     )
 
@@ -182,16 +183,17 @@ def delete_task(db: Session, *, owner_id: UUID, task_id: UUID) -> None:
     db.commit()
 
 
-def missed_tasks(db: Session, *, owner_id: UUID) -> list[PlannedTask]:
+def missed_tasks(db: Session, *, owner_id: UUID, context_id: UUID | None = None) -> list[PlannedTask]:
+    query = select(PlannedTask).where(
+        PlannedTask.owner_id == owner_id,
+        PlannedTask.status == "PENDING",
+        PlannedTask.due_at.is_not(None),
+        PlannedTask.due_at < _now(),
+    )
+    if context_id is not None:
+        query = query.where(PlannedTask.context_id == context_id)
     return list(
         db.scalars(
-            select(PlannedTask)
-            .where(
-                PlannedTask.owner_id == owner_id,
-                PlannedTask.status == "PENDING",
-                PlannedTask.due_at.is_not(None),
-                PlannedTask.due_at < _now(),
-            )
-            .order_by(PlannedTask.due_at)
+            query.order_by(PlannedTask.due_at)
         )
     )

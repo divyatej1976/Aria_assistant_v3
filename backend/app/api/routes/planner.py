@@ -71,18 +71,15 @@ def task_response(task) -> TaskResponse:
 def create_deadline_route(
     request: DeadlineCreateRequest, learner: CurrentLearner, db: Db
 ) -> DeadlineResponse:
-    context_id = UUID(request.context_id)
-    ensure_context(db, context_id=context_id, owner_id=learner.id)
+    ensure_context(db, context_id=request.context_id, owner_id=learner.id)
     try:
         deadline = create_deadline(
             db,
             owner_id=learner.id,
-            context_id=context_id,
+            context_id=request.context_id,
             title=request.title,
             due_at=request.due_at,
-            syllabus_resource_id=UUID(request.syllabus_resource_id)
-            if request.syllabus_resource_id
-            else None,
+            syllabus_resource_id=request.syllabus_resource_id,
             reminder_days_before=request.reminder_days_before,
         )
     except ValidationError as exc:
@@ -92,23 +89,24 @@ def create_deadline_route(
 
 @router.get("/deadlines", response_model=list[DeadlineResponse])
 def list_deadlines_route(
-    context_id: str, learner: CurrentLearner, db: Db
+    context_id: UUID, learner: CurrentLearner, db: Db
 ) -> list[DeadlineResponse]:
-    context_uuid = UUID(context_id)
-    ensure_context(db, context_id=context_uuid, owner_id=learner.id)
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
     return [
         deadline_response(item)
-        for item in list_deadlines(db, owner_id=learner.id, context_id=context_uuid)
+        for item in list_deadlines(db, owner_id=learner.id, context_id=context_id)
     ]
 
 
 @router.get("/upcoming", response_model=list[DeadlineResponse])
 def upcoming(
-    learner: CurrentLearner, db: Db, days: int = 14
+    learner: CurrentLearner, db: Db, days: int = 14, context_id: UUID | None = None
 ) -> list[DeadlineResponse]:
     return [
         deadline_response(item)
-        for item in upcoming_deadlines(db, owner_id=learner.id, days=days)
+        for item in upcoming_deadlines(
+            db, owner_id=learner.id, days=days, context_id=context_id
+        )
     ]
 
 
@@ -138,15 +136,14 @@ def delete_deadline_route(
 def create_task_route(
     request: TaskCreateRequest, learner: CurrentLearner, db: Db
 ) -> TaskResponse:
-    context_id = UUID(request.context_id)
-    ensure_context(db, context_id=context_id, owner_id=learner.id)
+    ensure_context(db, context_id=request.context_id, owner_id=learner.id)
     try:
         task = create_task(
             db,
             owner_id=learner.id,
-            context_id=context_id,
+            context_id=request.context_id,
             title=request.title,
-            deadline_id=UUID(request.deadline_id) if request.deadline_id else None,
+            deadline_id=request.deadline_id,
             due_at=request.due_at,
         )
     except ValidationError as exc:
@@ -156,19 +153,21 @@ def create_task_route(
 
 @router.get("/tasks", response_model=list[TaskResponse])
 def list_tasks_route(
-    context_id: str, learner: CurrentLearner, db: Db
+    context_id: UUID, learner: CurrentLearner, db: Db
 ) -> list[TaskResponse]:
-    context_uuid = UUID(context_id)
-    ensure_context(db, context_id=context_uuid, owner_id=learner.id)
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
     return [
         task_response(item)
-        for item in list_tasks(db, owner_id=learner.id, context_id=context_uuid)
+        for item in list_tasks(db, owner_id=learner.id, context_id=context_id)
     ]
 
 
 @router.get("/missed", response_model=list[TaskResponse])
-def missed(learner: CurrentLearner, db: Db) -> list[TaskResponse]:
-    return [task_response(item) for item in missed_tasks(db, owner_id=learner.id)]
+def missed(learner: CurrentLearner, db: Db, context_id: UUID | None = None) -> list[TaskResponse]:
+    return [
+        task_response(item)
+        for item in missed_tasks(db, owner_id=learner.id, context_id=context_id)
+    ]
 
 
 @router.post("/tasks/{task_id}/complete", response_model=TaskResponse)

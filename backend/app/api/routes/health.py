@@ -34,6 +34,8 @@ async def readiness(response: Response) -> dict[str, str]:
 
     settings = get_settings()
     checks["ai_provider"] = "configured" if settings.groq_api_key else "not_configured"
+    if settings.groq_api_key:
+        checks["ai_model"] = settings.llm_model
 
     from app.jobs.scheduler import scheduler_instance
 

@@ -1,4 +1,4 @@
-from typing import Annotated
+﻿from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,6 +20,7 @@ from app.services.progress import record_activity
 from app.services.study import (
     answer_question,
     create_session,
+    delete_session,
     get_owned_session,
     list_messages,
     list_sessions,
@@ -41,10 +42,9 @@ def session_response(session) -> StudySessionResponse:
 
 
 @router.get("/sessions", response_model=list[StudySessionResponse])
-def sessions(learner: CurrentLearner, db: Db, context_id: str) -> list[StudySessionResponse]:
-    context_uuid = UUID(context_id)
+def sessions(learner: CurrentLearner, db: Db, context_id: UUID) -> list[StudySessionResponse]:
     try:
-        items = list_sessions(db, owner_id=learner.id, context_id=context_uuid)
+        items = list_sessions(db, owner_id=learner.id, context_id=context_id)
     except ValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return [session_response(item) for item in items]
@@ -83,14 +83,20 @@ def delete_message(
     return {"deleted": True}
 
 
+
+@router.delete("/sessions/{session_id}")
+def delete_session_route(session_id: UUID, learner: CurrentLearner, db: Db) -> dict[str, bool]:
+    if not delete_session(db, owner_id=learner.id, session_id=session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"deleted": True}
+
 @router.post("/sessions", status_code=201)
 def create(
     request: StudySessionCreate, learner: CurrentLearner, db: Db
 ) -> StudySessionResponse:
-    context_id = UUID(request.context_id)
     try:
         session = create_session(
-            db, owner_id=learner.id, context_id=context_id, mode=request.mode
+            db, owner_id=learner.id, context_id=request.context_id, mode=request.mode
         )
     except ValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

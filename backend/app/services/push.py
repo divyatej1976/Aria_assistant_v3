@@ -70,8 +70,13 @@ def subscribe(
         subscription = PushSubscription(
             owner_id=owner_id, endpoint=endpoint, p256dh=p256dh, auth=auth
         )
+    elif subscription.owner_id != owner_id:
+        # Endpoints are globally unique: never let one learner take over
+        # another learner's subscription.
+        from app.core.errors import ValidationError
+
+        raise ValidationError("This notification endpoint is already registered")
     else:
-        subscription.owner_id = owner_id
         subscription.p256dh = p256dh
         subscription.auth = auth
     db.add(subscription)

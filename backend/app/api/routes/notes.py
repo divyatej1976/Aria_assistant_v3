@@ -66,36 +66,33 @@ def note_response(db: Session, *, owner_id: UUID, note: Note) -> NoteResponse:
 def create(
     request: NoteCreateRequest, learner: CurrentLearner, db: Db
 ) -> NoteResponse:
-    context_id = UUID(request.context_id)
-    get_owned_context(db, context_id=context_id, owner_id=learner.id)
+    get_owned_context(db, context_id=request.context_id, owner_id=learner.id)
     note = create_note(
         db,
         owner_id=learner.id,
-        context_id=context_id,
+        context_id=request.context_id,
         title=request.title,
         body=request.body,
-        concept_id=UUID(request.concept_id) if request.concept_id else None,
+        concept_id=request.concept_id,
     )
     return note_response(db, owner_id=learner.id, note=note)
 
 
 @router.get("", response_model=list[NoteResponse])
-def list_notes_route(context_id: str, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
-    context_uuid = UUID(context_id)
-    get_owned_context(db, context_id=context_uuid, owner_id=learner.id)
+def list_notes_route(context_id: UUID, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
+    get_owned_context(db, context_id=context_id, owner_id=learner.id)
     return [
         note_response(db, owner_id=learner.id, note=note)
-        for note in list_notes(db, owner_id=learner.id, context_id=context_uuid)
+        for note in list_notes(db, owner_id=learner.id, context_id=context_id)
     ]
 
 
 @router.get("/due", response_model=list[NoteResponse])
-def due(context_id: str, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
-    context_uuid = UUID(context_id)
-    get_owned_context(db, context_id=context_uuid, owner_id=learner.id)
+def due(context_id: UUID, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
+    get_owned_context(db, context_id=context_id, owner_id=learner.id)
     return [
         note_response(db, owner_id=learner.id, note=note)
-        for note in due_notes(db, owner_id=learner.id, context_id=context_uuid)
+        for note in due_notes(db, owner_id=learner.id, context_id=context_id)
     ]
 
 
@@ -103,14 +100,13 @@ def due(context_id: str, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
 async def generate(
     request: GenerateRequest, learner: CurrentLearner, db: Db
 ) -> NoteResponse:
-    context_id = UUID(request.context_id)
-    get_owned_context(db, context_id=context_id, owner_id=learner.id)
+    get_owned_context(db, context_id=request.context_id, owner_id=learner.id)
     try:
         note = await generate_note(
             db,
             owner_id=learner.id,
-            context_id=context_id,
-            study_session_id=UUID(request.study_session_id) if request.study_session_id else None,
+            context_id=request.context_id,
+            study_session_id=request.study_session_id,
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

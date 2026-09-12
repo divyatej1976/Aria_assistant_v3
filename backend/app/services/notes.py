@@ -9,9 +9,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
-from app.ai.registry import get_llm_provider
+from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.schema import NoteDraftSchema
-from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.models import (
     ConversationMessage,
@@ -168,19 +167,15 @@ async def generate_note(
     if not material:
         raise ValidationError("No study material or conversation to generate from")
 
-    settings = get_settings()
-    if settings.groq_api_key:
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    if provider is not None:
         try:
             prompt_version = get_prompt("note_draft")
-            provider = get_llm_provider()
-            if provider is not None:
-                draft = await provider.generate_structured(
-                    prompt=prompt_version.render(material=material),
-                    schema=NoteDraftSchema,
-                    prompt_version=prompt_version.label(),
-                )
-            else:
-                draft = _deterministic_draft(material, context.title)
+            draft = await provider.generate_structured(
+                prompt=prompt_version.render(material=material),
+                schema=NoteDraftSchema,
+                prompt_version=prompt_version.label(),
+            )
         except Exception:
             draft = _deterministic_draft(material, context.title)
     else:

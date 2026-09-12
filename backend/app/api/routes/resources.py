@@ -85,10 +85,9 @@ def resource_response(db: Session, resource: Resource) -> ResourceResponse:
 async def add_text_resource(
     request: TextResourceCreate, learner: CurrentLearner, db: Db
 ) -> ResourceResponse:
-    context_id = UUID(request.context_id)
-    ensure_context(db, context_id=context_id, owner_id=learner.id)
+    ensure_context(db, context_id=request.context_id, owner_id=learner.id)
     resource = await create_text_resource(
-        db, owner_id=learner.id, context_id=context_id, title=request.title, text=request.text
+        db, owner_id=learner.id, context_id=request.context_id, title=request.title, text=request.text
     )
     return resource_response(db, resource)
 
@@ -98,18 +97,17 @@ async def add_pdf_resource(
     learner: CurrentLearner,
     db: Db,
     request: Request,
-    context_id: str,
+    context_id: UUID,
     title: str = "Uploaded PDF",
 ) -> ResourceResponse:
-    context_uuid = UUID(context_id)
-    ensure_context(db, context_id=context_uuid, owner_id=learner.id)
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
     content = await read_upload_body(request)
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty PDF upload")
     resource = await create_pdf_resource(
         db,
         owner_id=learner.id,
-        context_id=context_uuid,
+        context_id=context_id,
         title=title,
         content=content,
     )
@@ -117,11 +115,10 @@ async def add_pdf_resource(
 
 
 @router.get("", response_model=list[ResourceResponse])
-def list_resources(learner: CurrentLearner, db: Db, context_id: str) -> list[ResourceResponse]:
-    context_uuid = UUID(context_id)
-    ensure_context(db, context_id=context_uuid, owner_id=learner.id)
+def list_resources(learner: CurrentLearner, db: Db, context_id: UUID) -> list[ResourceResponse]:
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
     resources = db.scalars(
-        select(Resource).where(Resource.owner_id == learner.id, Resource.context_id == context_uuid)
+        select(Resource).where(Resource.owner_id == learner.id, Resource.context_id == context_id)
     ).all()
     return [resource_response(db, resource) for resource in resources]
 

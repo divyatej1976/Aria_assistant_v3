@@ -99,9 +99,13 @@ def _agent_data_reset(db, *, owner_id: UUID, context_id: UUID | None, payload: d
 
 def _agent_evidence(db, *, owner_id: UUID, context_id: UUID | None, payload: dict) -> dict:
     evidence_id = UUID(payload["evidence_id"])
-    invalidate_evidence(db, owner_id=owner_id, evidence_id=evidence_id)
-    if context_id is not None:
-        run_learner_loop(db, owner_id=owner_id, context_id=context_id)
+    effective_context_id = context_id
+    if effective_context_id is None and payload.get("context_id"):
+        effective_context_id = UUID(str(payload["context_id"]))
+    if effective_context_id is None:
+        raise ValidationError("context_id is required for evidence invalidation")
+    invalidate_evidence(db, owner_id=owner_id, evidence_id=evidence_id, context_id=effective_context_id)
+    run_learner_loop(db, owner_id=owner_id, context_id=effective_context_id)
     return {"evidence_id": str(evidence_id), "invalidated": True}
 
 
@@ -317,9 +321,9 @@ async def decide_approval(
         _notify_terminal(db, owner_id=owner_id, workflow=workflow)
         return workflow, None
 
-    workflow.status = "RUNNING"
-    db.add(workflow)
-    db.commit()
+    # Validate the waiting task BEFORE consuming the approval, so a mismatch
+    # leaves the approval pending and the workflow retryable instead of
+    # committing an irreversible state and stranding the workflow RUNNING.
     task = db.scalar(
         select(AgentTask).where(
             AgentTask.workflow_id == workflow.id,
@@ -329,6 +333,9 @@ async def decide_approval(
     )
     if task is None:
         raise ValidationError("Waiting task not found")
+    workflow.status = "RUNNING"
+    db.add(workflow)
+    db.commit()
     record_audit(
         db,
         owner_id=owner_id,

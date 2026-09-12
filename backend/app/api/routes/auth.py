@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -89,6 +90,14 @@ def register(request: RegisterRequest, response: Response, db: Db) -> SessionRes
     learner.password_hash = hash_password(request.password)
     db.add(learner)
     db.flush()
+    # kick off email verification right away (provider logs when SMTP unset)
+    from app.services.account_actions import request_email_verification
+
+    try:
+        request_email_verification(db, owner_id=learner.id)
+    except Exception:
+        logger = logging.getLogger(__name__)
+        logger.exception("post-registration verification email failed")
     return issue_token(response, db, learner=learner, device_label=request.device_label)
 
 

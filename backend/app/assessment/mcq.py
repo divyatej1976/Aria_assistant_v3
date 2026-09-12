@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
-from app.ai.registry import get_llm_provider
+from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.schema import MCQSet
 from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
@@ -28,12 +28,13 @@ def _sentences(content: str) -> list[str]:
 
 
 def _chunk_id_filter(
-    db: Session, *, owner_id: UUID, concept_ids: list[str] | None
+    db: Session, *, owner_id: UUID, concept_ids: list[UUID | str] | None
 ) -> set[UUID] | None:
     if not concept_ids:
         return None
+    uuids = [value if isinstance(value, UUID) else UUID(str(value)) for value in concept_ids]
     return chunk_ids_for_concepts(
-        db, owner_id=owner_id, concept_ids=[UUID(value) for value in concept_ids]
+        db, owner_id=owner_id, concept_ids=uuids
     )
 
 
@@ -120,7 +121,7 @@ def generate_mcqs_deterministic(
     context_id: UUID,
     count: int,
     difficulty: str,
-    concept_ids: list[str] | None = None,
+    concept_ids: list[UUID | str] | None = None,
 ) -> list[GeneratedMCQ]:
     chunk_filter = _chunk_id_filter(db, owner_id=owner_id, concept_ids=concept_ids)
     chunk_ids, chunk_sentences = _load_chunk_sentences(
@@ -192,7 +193,7 @@ async def generate_mcqs_structured(
     context_id: UUID,
     count: int,
     difficulty: str,
-    concept_ids: list[str] | None = None,
+    concept_ids: list[UUID | str] | None = None,
 ) -> list[GeneratedMCQ]:
     chunk_filter = _chunk_id_filter(db, owner_id=owner_id, concept_ids=concept_ids)
     material = _material_preview(
@@ -202,7 +203,7 @@ async def generate_mcqs_structured(
         raise ValidationError(
             "Add ready study material before creating an assessment"
         )
-    provider = get_llm_provider()
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
     if provider is None:
         raise RuntimeError("LLM provider is not configured")
     prompt_version = get_prompt("mcq_generation")

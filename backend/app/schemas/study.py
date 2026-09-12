@@ -1,10 +1,11 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class StudySessionCreate(BaseModel):
-    context_id: str
+    context_id: UUID
     mode: str = Field(default="BASELINE", max_length=32)
 
 

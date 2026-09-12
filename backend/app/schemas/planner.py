@@ -1,13 +1,14 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class DeadlineCreateRequest(BaseModel):
-    context_id: str
+    context_id: UUID
     title: str = Field(min_length=1, max_length=255)
     due_at: datetime
-    syllabus_resource_id: str | None = None
+    syllabus_resource_id: UUID | None = None
     reminder_days_before: int = Field(default=5, ge=1, le=60)
 
 
@@ -23,9 +24,9 @@ class DeadlineResponse(BaseModel):
 
 
 class TaskCreateRequest(BaseModel):
-    context_id: str
+    context_id: UUID
     title: str = Field(min_length=1, max_length=255)
-    deadline_id: str | None = None
+    deadline_id: UUID | None = None
     due_at: datetime | None = None
 
 

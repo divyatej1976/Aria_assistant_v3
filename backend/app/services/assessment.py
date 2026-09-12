@@ -4,13 +4,13 @@ from uuid import UUID, uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.formats import format_registry
 from app.assessment.mcq import (
     GeneratedMCQ,
     generate_mcqs_deterministic,
     generate_mcqs_structured,
 )
-from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.models import (
     Assessment,
@@ -55,14 +55,13 @@ async def create_assessment(
     question_count: int,
     difficulty: str,
     mode: str,
-    concept_ids: list[str],
+    concept_ids: list[UUID | str],
 ) -> Assessment:
     definition = format_registry.get(format_name)
     if definition.name != "mcq":
         raise ValidationError(f"Format registry entry has no R0 generator: {definition.name}")
     await sync_concepts(db, owner_id=owner_id, context_id=context_id)
-    settings = get_settings()
-    if settings.groq_api_key:
+    if get_llm_provider_for_owner(db, owner_id=owner_id) is not None:
         try:
             questions = await generate_mcqs_structured(
                 db,
@@ -103,7 +102,7 @@ async def create_assessment(
         configuration={
             "question_count": question_count,
             "difficulty": difficulty,
-            "concept_ids": concept_ids,
+            "concept_ids": [str(c) for c in (concept_ids or [])],
         },
     )
     db.add(assessment)
@@ -227,6 +226,25 @@ def _question_ids(db: Session, *, owner_id: UUID, assessment_id: UUID) -> set[UU
     return {row[0] for row in rows}
 
 
+def _answer_is_correct(question: AssessmentQuestion, selected: str | None) -> bool:
+    """Compare a submitted answer with the correct option.
+
+    Accepts both contracts: the option LETTER (A-D, stored in correct_option,
+    used by API probes) and the option TEXT (what the UI and E2E helpers
+    submit, e.g. "Loops repeat a block while a condition holds"). Comparing
+    raw text to the letter scored every UI answer wrong on lenient SQLite.
+    """
+    if selected is None:
+        return False
+    if selected == question.correct_option:
+        return True
+    try:
+        letter = "ABCD"[question.options.index(selected)]
+    except (ValueError, IndexError):
+        return False
+    return letter == question.correct_option
+
+
 def _replace_answers(
     db: Session,
     *,
@@ -290,6 +308,7 @@ def submit_attempt(
             assessment_id=attempt.assessment_id,
             answers=answers,
         )
+        db.flush()
 
     questions = list_assessment_questions(
         db, assessment_id=attempt.assessment_id, owner_id=owner_id
@@ -306,7 +325,7 @@ def submit_attempt(
     score = 0
     for question in questions:
         selected = saved.get(question.id)
-        correct = selected == question.correct_option
+        correct = _answer_is_correct(question, selected)
         score += int(correct)
         details.append(
             {

@@ -1,4 +1,4 @@
-from typing import Annotated
+﻿from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +13,7 @@ from app.services.contexts import (
     get_owned_context,
     list_contexts,
 )
+from app.services.data_management import delete_context_cascade
 
 router = APIRouter(prefix="/api/v1/contexts", tags=["learning-contexts"])
 Db = Annotated[Session, Depends(get_db)]
@@ -49,6 +50,12 @@ def list(learner: CurrentLearner, db: Db) -> list[ContextResponse]:
         context_response(item) for item in list_contexts(db, owner_id=learner.id)
     ]
 
+
+@router.delete("/{context_id}")
+def delete_context(context_id: UUID, learner: CurrentLearner, db: Db) -> dict[str, bool]:
+    if not delete_context_cascade(db, owner_id=learner.id, context_id=context_id):
+        raise HTTPException(status_code=404, detail="Learning context not found")
+    return {"deleted": True}
 
 @router.get("/{context_id}", response_model=ContextResponse)
 def get(context_id: UUID, learner: CurrentLearner, db: Db) -> ContextResponse:

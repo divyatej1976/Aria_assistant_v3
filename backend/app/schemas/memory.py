@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -21,7 +23,7 @@ class MemorySummary(BaseModel):
 
 
 class PrerequisiteAddRequest(BaseModel):
-    prerequisite_concept_id: str
+    prerequisite_concept_id: UUID
 
 
 class PrerequisiteResponse(BaseModel):

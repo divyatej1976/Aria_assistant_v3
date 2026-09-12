@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
 from app.schemas.audio import (
+    AudioListItem,
     AudioResponse,
     ProgressResponse,
     ProgressUpdateRequest,
@@ -20,6 +22,7 @@ from app.services.audio import (
     generate_audio,
     get_owned_artifact,
     get_progress,
+    list_audio,
     mark_reviewed,
     save_progress,
     transcribe_audio,
@@ -27,6 +30,8 @@ from app.services.audio import (
 
 router = APIRouter(prefix="/api/v1/audio", tags=["audio"])
 Db = Annotated[Session, Depends(get_db)]
+
+logger = logging.getLogger(__name__)
 
 
 def audio_response(artifact) -> AudioResponse:
@@ -41,6 +46,14 @@ def audio_response(artifact) -> AudioResponse:
         duration_seconds=artifact.duration_seconds,
         created_at=artifact.created_at,
     )
+
+
+@router.get("", response_model=list[AudioListItem])
+def list_artifacts(
+    learner: CurrentLearner, db: Db, context_id: UUID | None = None
+) -> list[AudioListItem]:
+    """Durable audio listing for the account (optionally per learning context)."""
+    return [AudioListItem(**item) for item in list_audio(db, owner_id=learner.id, context_id=context_id)]
 
 
 @router.post("/notes/{note_id}/generate", response_model=AudioResponse, status_code=201)
@@ -145,9 +158,22 @@ def delete(artifact_id: UUID, learner: CurrentLearner, db: Db) -> dict[str, obje
 def transcribe(
     file: Annotated[UploadFile, File(...)], learner: CurrentLearner
 ) -> TranscribeResponse:
-    content = file.file.read()
+    # Bound memory usage: reject oversized uploads before reading into RAM.
+    max_bytes = 10 * 1024 * 1024
+    if file.size is not None and file.size > max_bytes:
+        raise HTTPException(status_code=413, detail="Audio upload exceeds 10 MB")
+    content = file.file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail="Audio upload exceeds 10 MB")
     try:
         text = transcribe_audio(audio=content, content_type=file.content_type or "audio/webm")
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        # Provider failures (e.g. cloud STT rejects the payload with 400)
+        # must degrade to 422, never leak as a 500. Details stay server-side.
+        logger.exception("transcription provider failed")
+        raise HTTPException(
+            status_code=422, detail="Speech-to-text provider rejected the audio"
+        ) from None
     return TranscribeResponse(text=text)

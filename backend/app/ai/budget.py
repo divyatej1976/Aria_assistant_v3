@@ -24,6 +24,10 @@ MODEL_RATES: dict[str, tuple[float, float]] = {
     "llama-3.3-70b-versatile": (0.00059, 0.00079),
     "llama-3.1-8b-instant": (0.00005, 0.00008),
     "gemma2-9b-it": (0.00020, 0.00020),
+    # Groq list prices (per 1M tokens) for the gpt-oss family; unknown models
+    # fall back to the conservative DEFAULT rates so budgets still bind.
+    "openai/gpt-oss-120b": (0.00015, 0.00075),
+    "openai/gpt-oss-20b": (0.00010, 0.00050),
     "whisper-large-v3": (0.0000, 0.0000),  # audio; charged per second elsewhere
 }
 DEFAULT_INPUT_RATE = 0.00059
@@ -52,8 +56,10 @@ def _mark_db_failure() -> None:
         _accounting_unavailable = True
 
 
-def _probe_db() -> bool:
-    """Lightweight connectivity probe; False when persistent accounting is down."""
+def _probe_db(table: str = "ai_usage") -> bool:
+    """Probe reads *from the accounting table itself*, not bare connectivity:
+    a healthy connection with a missing/broken table must still fail closed
+    (spend reads would otherwise silently return 0.0 and disable the budget)."""
     try:
         from sqlalchemy import text
 
@@ -61,7 +67,10 @@ def _probe_db() -> bool:
 
         db = SessionLocal()
         try:
-            db.execute(text("SELECT 1"))
+            if table == "learner_ai_usage":
+                db.execute(text("SELECT spend_usd FROM learner_ai_usage LIMIT 1"))
+            else:
+                db.execute(text("SELECT spend_usd FROM ai_usage LIMIT 1"))
         finally:
             db.close()
         return True
@@ -177,6 +186,12 @@ def reset_budget() -> None:
 
 
 def assert_within_budget() -> None:
+    """Global pre-call gate (best-effort under concurrency).
+
+    Spend increments are atomic SQL upserts so concurrent replicas cannot lose
+    updates, but in-flight requests admitted just before the cap is reached
+    can still overshoot by a bounded amount. Keep caps conservative.
+    """
     budget = monthly_budget_usd()
     if budget <= 0:
         return
@@ -184,8 +199,8 @@ def assert_within_budget() -> None:
     # Fail closed only in production; the flag is never set outside production.
     in_production = getattr(get_settings(), "aria_env", "development") == "production"
     if _accounting_unavailable and in_production:
-        # Self-heal: try the database again; clear the flag if it recovers.
-        healthy = _probe_db()
+        # Self-heal: try the accounting table again; clear the flag if it recovers.
+        healthy = _probe_db("ai_usage")
         if not healthy:
             raise BudgetExceeded(
                 "Persistent AI budget accounting is unavailable; blocking "
@@ -196,3 +211,182 @@ def assert_within_budget() -> None:
         raise BudgetExceeded(
             f"Monthly AI budget of ${budget:.2f} has been reached"
         )
+
+
+# --- Per-learner budgets (Step 4: BYO keys) ---
+
+_learner_fallback_spend: dict[tuple[str, str], float] = {}
+
+
+def learner_budget_usd() -> float:
+    return float(getattr(get_settings(), "aria_llm_per_user_budget_usd", 0.0) or 0.0)
+
+
+def _learner_apply_cost(owner_id: object, cost: float, period: str) -> bool:
+    """Atomic spend adjustment; negative deltas (refunds) are supported."""
+    try:
+        from app.db.models import LearnerAiUsage
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            dialect = db.get_bind().dialect.name
+            if dialect == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                stmt = pg_insert(LearnerAiUsage).values(
+                    owner_id=owner_id, period=period, spend_usd=cost
+                )
+            else:
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+                stmt = sqlite_insert(LearnerAiUsage).values(
+                    owner_id=owner_id, period=period, spend_usd=cost
+                )
+            db.execute(
+                stmt.on_conflict_do_update(
+                    index_elements=[LearnerAiUsage.owner_id, LearnerAiUsage.period],
+                    set_={"spend_usd": LearnerAiUsage.spend_usd + cost},
+                )
+            )
+            db.commit()
+            return True
+        finally:
+            db.close()
+    except Exception:
+        _mark_db_failure()
+        return False
+
+
+def _learner_db_spend(owner_id: object, period: str) -> float:
+    try:
+        from sqlalchemy import select
+
+        from app.db.models import LearnerAiUsage
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            row = db.scalar(
+                select(LearnerAiUsage).where(
+                    LearnerAiUsage.owner_id == owner_id,
+                    LearnerAiUsage.period == period,
+                )
+            )
+            return row.spend_usd if row else 0.0
+        finally:
+            db.close()
+    except Exception:
+        _mark_db_failure()
+        return 0.0
+
+
+def record_learner_usage(
+    *, owner_id: object, model: str, prompt_tokens: int, completion_tokens: int
+) -> float:
+    cost = estimate_cost_usd(
+        model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+    )
+    period = _period()
+    if not _learner_apply_cost(owner_id, cost, period):
+        with _lock:
+            key = (str(owner_id), period)
+            _learner_fallback_spend[key] = _learner_fallback_spend.get(key, 0.0) + cost
+    return learner_spend_usd(owner_id)
+
+
+def reserve_learner_usage(
+    *, owner_id: object, model: str, prompt_tokens: int, completion_tokens: int
+) -> None:
+    """Charge an upfront cost estimate *before* the provider call.
+
+    Concurrent in-flight requests each pay their estimated maximum upfront,
+    so `assert_learner_within_budget` sees their reservations immediately —
+    the hard-cap overshoot shrinks from a whole request to the difference
+    between estimate and actual usage.
+    """
+    record_learner_usage(
+        owner_id=owner_id,
+        model=model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
+
+
+def settle_learner_usage(
+    *,
+    owner_id: object,
+    model: str,
+    prompt_tokens_delta: int,
+    completion_tokens_delta: int,
+) -> None:
+    """Reconcile final usage against the reservation (deltas may be negative).
+
+    Called after the provider response with (actual - reserved) tokens, so
+    the learner's recorded spend converges to actual usage. Refunds the full
+    reservation when a call fails before completion (deltas = -reserved).
+    """
+    if prompt_tokens_delta == 0 and completion_tokens_delta == 0:
+        return
+    cost = estimate_cost_usd(
+        model=model,
+        prompt_tokens=prompt_tokens_delta,
+        completion_tokens=completion_tokens_delta,
+    )
+    period = _period()
+    if not _learner_apply_cost(owner_id, cost, period):
+        with _lock:
+            key = (str(owner_id), period)
+            _learner_fallback_spend[key] = _learner_fallback_spend.get(key, 0.0) + cost
+
+
+def learner_spend_usd(owner_id: object) -> float:
+    period = _period()
+    with _lock:
+        fallback = _learner_fallback_spend.get((str(owner_id), period), 0.0)
+    return _learner_db_spend(owner_id, period) + fallback
+
+
+def assert_learner_within_budget(owner_id: object) -> None:
+    """Per-learner pre-call gate (best-effort under concurrency; see above)."""
+    global _accounting_unavailable
+    in_production = getattr(get_settings(), "aria_env", "development") == "production"
+    if _accounting_unavailable and in_production:
+        healthy = _probe_db("learner_ai_usage")
+        if not healthy:
+            raise BudgetExceeded(
+                "Persistent AI budget accounting is unavailable; blocking "
+                "generation to avoid exceeding the configured budget"
+            )
+        _accounting_unavailable = False
+    budget = learner_budget_usd()
+    if budget <= 0:
+        return
+    if learner_spend_usd(owner_id) >= budget:
+        raise BudgetExceeded("Monthly personal AI budget has been reached")
+
+
+def reset_learner_budget(owner_id: object | None = None) -> None:
+    with _lock:
+        if owner_id is None:
+            _learner_fallback_spend.clear()
+        else:
+            for key in [k for k in _learner_fallback_spend if k[0] == str(owner_id)]:
+                del _learner_fallback_spend[key]
+    try:
+        from sqlalchemy import delete
+
+        from app.db.models import LearnerAiUsage
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            stmt = delete(LearnerAiUsage).where(LearnerAiUsage.period == _period())
+            if owner_id is not None:
+                stmt = stmt.where(LearnerAiUsage.owner_id == owner_id)
+            db.execute(stmt)
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        pass

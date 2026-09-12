@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routes.account import router as account_router
@@ -19,8 +20,10 @@ from app.api.routes.planner import router as planner_router
 from app.api.routes.progress import router as progress_router
 from app.api.routes.push import router as push_router
 from app.api.routes.resources import router as resources_router
+from app.api.routes.settings import router as settings_router
 from app.api.routes.study import router as study_router
 from app.core.config import get_settings
+from app.core.errors import ValidationError
 from app.core.logging import configure_logging
 from app.core.metrics import init_sentry
 from app.core.request_context import RequestContextMiddleware
@@ -41,6 +44,28 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title="ARIA API", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(ValidationError)
+async def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
+    """Domain validation/not-found failures map to 422 everywhere.
+
+    Routes that do not wrap lookups in try/except previously leaked an
+    uncaught ValidationError as HTTP 500; this keeps the documented contract
+    (validation failures are 422) consistent across every route.
+    """
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@app.middleware("http")
+async def no_store_api_responses(request, call_next):
+    """Never let browsers heuristically cache API GETs (stale /auth/me after login)."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.add_middleware(CSRFMiddleware)
 if settings.aria_env == "production":
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
@@ -66,6 +91,7 @@ app.include_router(push_router)
 app.include_router(orchestration_router)
 app.include_router(audio_router)
 app.include_router(resources_router)
+app.include_router(settings_router)
 app.include_router(study_router)
 app.include_router(assessments_router)
 

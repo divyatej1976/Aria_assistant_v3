@@ -107,13 +107,12 @@ def list_formats() -> list[dict[str, str]]:
 
 @router.get("", response_model=list[AssessmentSummary])
 def list_assessments(
-    learner: CurrentLearner, db: Db, context_id: str
+    learner: CurrentLearner, db: Db, context_id: UUID
 ) -> list[AssessmentSummary]:
-    context_uuid = UUID(context_id)
-    get_owned_context(db, context_id=context_uuid, owner_id=learner.id)
+    get_owned_context(db, context_id=context_id, owner_id=learner.id)
     assessments = db.scalars(
         select(Assessment)
-        .where(Assessment.owner_id == learner.id, Assessment.context_id == context_uuid)
+        .where(Assessment.owner_id == learner.id, Assessment.context_id == context_id)
         .order_by(Assessment.created_at)
     ).all()
     return [summary_response(db, assessment) for assessment in assessments]
@@ -131,13 +130,12 @@ def get_assessment_detail(
 async def create(
     request: AssessmentCreateRequest, learner: CurrentLearner, db: Db
 ) -> AssessmentResponse:
-    context_id = UUID(request.context_id)
-    get_owned_context(db, context_id=context_id, owner_id=learner.id)
+    get_owned_context(db, context_id=request.context_id, owner_id=learner.id)
     try:
         assessment = await create_assessment(
             db,
             owner_id=learner.id,
-            context_id=context_id,
+            context_id=request.context_id,
             format_name=request.format,
             question_count=request.question_count,
             difficulty=request.difficulty,
@@ -173,13 +171,15 @@ def save_answers_route(
     learner: CurrentLearner,
     db: Db,
 ) -> dict[str, object]:
-    get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
+    assessment = get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
     try:
         attempt = save_answers(
             db, owner_id=learner.id, attempt_id=attempt_id, answers=request.answers
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if attempt.assessment_id != assessment.id:
+        raise HTTPException(status_code=404, detail="Attempt does not belong to assessment")
     return {"attempt_id": str(attempt.id), "status": attempt.status}
 
 
@@ -209,6 +209,8 @@ def submit(
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if attempt.assessment_id != assessment.id:
+        raise HTTPException(status_code=404, detail="Attempt does not belong to assessment")
     run_learner_loop(db, owner_id=learner.id, context_id=assessment.context_id)
     record_activity(db, owner_id=learner.id, activity_type="assessment", source_id=attempt.id)
     return AttemptResultResponse(

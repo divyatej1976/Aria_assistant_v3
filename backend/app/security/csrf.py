@@ -111,7 +111,10 @@ class CSRFMiddleware:
             method in MUTATING_METHODS
             and path not in PUBLIC_MUTATING_PATHS
             and SESSION_COOKIE in cookies
-            and "authorization" not in headers
+            # Exempt only genuine Bearer credentials: the auth dependency
+            # falls back to cookie auth for any other Authorization scheme,
+            # and those requests still require a CSRF token.
+            and not headers.get("authorization", "").startswith("Bearer ")
         ):
             token = cookies.get(CSRF_COOKIE, "")
             if not token or token != headers.get("x-csrf-token", ""):

@@ -39,16 +39,29 @@ def reserve(
     """Atomically reserve an idempotency key before executing the work.
 
     Returns ``"ok"`` when the caller may proceed, or ``"in_progress"`` when
-    another request already holds a reservation for the same key (so the
-    caller must not re-execute the work). A completed or expired row is taken
-    over for a fresh execution. In-progress is inferred from
-    ``response_json IS NULL``, so no schema change is required.
+    another request holds a *live* reservation for the same key. A completed
+    row is taken over for a fresh execution; an in-progress row whose TTL has
+    expired (e.g., the original request crashed before recording a response)
+    is reclaimed instead of blocking retries forever. In-progress is inferred
+    from ``response_json IS NULL``, so no schema change is required.
     """
-    expires_at = _now() + timedelta(seconds=get_settings().aria_idempotency_ttl_seconds)
+    settings = get_settings()
+    ttl_seconds = settings.aria_idempotency_ttl_seconds
+    expires_at = _now() + timedelta(seconds=ttl_seconds)
     for _attempt in range(3):
         entry = find(db, owner_id=owner_id, scope=scope, key=key)
         if entry is not None:
             if entry.response_json is None:
+                entry_expires = entry.expires_at
+                if entry_expires is not None and entry_expires.tzinfo is None:
+                    entry_expires = entry_expires.replace(tzinfo=UTC)
+                if entry_expires is not None and entry_expires < _now():
+                    # Stale reservation: the original execution never recorded
+                    # a response. Reclaim it so the retry is not poisoned.
+                    entry.expires_at = expires_at
+                    db.add(entry)
+                    db.commit()
+                    return "ok"
                 return "in_progress"
             entry.response_status = None
             entry.response_json = None
@@ -60,6 +73,12 @@ def reserve(
             except Exception:
                 db.rollback()
                 continue
+        # Housekeeping on the rare insert path: drop rows long past their TTL
+        # so the table cannot grow without bound.
+        purge_before = _now() - timedelta(seconds=ttl_seconds)
+        db.query(IdempotencyKey).filter(IdempotencyKey.expires_at < purge_before).delete(
+            synchronize_session=False
+        )
         entry = IdempotencyKey(
             owner_id=owner_id,
             scope=scope,
@@ -77,6 +96,39 @@ def reserve(
             db.rollback()
             continue
     return "in_progress"
+
+
+def release(
+    db: Session, *, owner_id: UUID, scope: str, key: str
+) -> None:
+    """Drop a live reservation when execution failed before recording a
+    response, so the key is immediately retryable instead of stuck at 409."""
+    entry = find(db, owner_id=owner_id, scope=scope, key=key)
+    if entry is not None and entry.response_json is None:
+        db.delete(entry)
+        db.commit()
+
+
+def purge_expired(db: Session, *, now: datetime | None = None) -> int:
+    """Delete every key whose TTL has passed. Standalone sweeper.
+
+    Removal criteria match the read semantics exactly:
+    - completed rows with expired TTL can no longer be replayed
+      (``replayable`` already ignores them);
+    - in-progress rows with expired TTL are stale reservations from crashed
+      executions (``reserve`` reclaims them anyway).
+    Live reservations (expires_at in the future) are never touched. Returns
+    the number of rows removed. The scheduler runs this under the usual
+    advisory lock so concurrent replicas never sweep simultaneously.
+    """
+    reference = now or _now()
+    result = (
+        db.query(IdempotencyKey)
+        .filter(IdempotencyKey.expires_at < reference)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return result
 
 
 def record(

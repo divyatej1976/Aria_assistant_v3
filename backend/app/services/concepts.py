@@ -5,9 +5,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
-from app.ai.registry import get_llm_provider
+from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.schema import ConceptSet
-from app.core.config import get_settings
 from app.db.models import Concept, ConceptChunk, Resource, ResourceChunk
 from app.services.text import tokenize
 
@@ -49,12 +48,21 @@ def extract_concepts_deterministic(
 
 
 async def extract_concepts_structured(
-    chunks: list[ResourceChunk], *, limit: int = 10
+    chunks: list[ResourceChunk],
+    *,
+    limit: int = 10,
+    db=None,
+    owner_id=None,
 ) -> list[str]:
     material = "\n\n".join(
         f"[{index + 1}] {chunk.content[:400]}" for index, chunk in enumerate(chunks)
     )
-    provider = get_llm_provider()
+    if db is not None and owner_id is not None:
+        provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    else:
+        from app.ai.registry import get_llm_provider
+
+        provider = get_llm_provider()
     if provider is None:
         raise RuntimeError("LLM provider is not configured")
     prompt_version = get_prompt("concept_extraction")
@@ -71,10 +79,13 @@ async def sync_concepts(
     chunks = context_chunks(db, owner_id=owner_id, context_id=context_id)
     if not chunks:
         return []
-    settings = get_settings()
-    if settings.groq_api_key:
+    from app.ai.registry import get_llm_provider_for_owner
+
+    if get_llm_provider_for_owner(db, owner_id=owner_id) is not None:
         try:
-            names = await extract_concepts_structured(chunks, limit=limit)
+            names = await extract_concepts_structured(
+                chunks, limit=limit, db=db, owner_id=owner_id
+            )
         except Exception:
             names = extract_concepts_deterministic(chunks, limit=limit)
     else:
@@ -141,7 +152,11 @@ def concept_id_for_chunk(db: Session, *, owner_id: UUID, chunk_id: UUID) -> UUID
     The best concept is the one whose name occurs most often in the chunk
     content (deterministic), falling back to alphabetical order.
     """
-    chunk = db.get(ResourceChunk, chunk_id)
+    chunk = db.scalar(
+        select(ResourceChunk).where(
+            ResourceChunk.id == chunk_id, ResourceChunk.owner_id == owner_id
+        )
+    )
     if chunk is None:
         return None
     rows = db.execute(

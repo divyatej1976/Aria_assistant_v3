@@ -19,6 +19,23 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 
+try:
+    from pgvector.sqlalchemy import Vector as _PgVector  # type: ignore[import-not-found]
+
+    def _embedding_column_type() -> object:
+        from app.core.config import get_settings
+
+        try:
+            dim = get_settings().aria_embedding_dim
+        except Exception:
+            dim = 768
+        # Store as pgvector on Postgres, JSON fallback for SQLite/tests
+        return _PgVector(dim).with_variant(JSON, "sqlite")  # type: ignore[attr-defined]
+
+    _EMBEDDING_TYPE = _embedding_column_type()
+except ImportError:
+    _EMBEDDING_TYPE = JSON  # type: ignore[assignment]
+
 
 class OwnedModel(TimestampMixin):
     owner_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, nullable=False)
@@ -113,6 +130,17 @@ class RevisionItem(OwnedModel, Base):
 
 class LearningActivity(OwnedModel, Base):
     __tablename__ = "learning_activities"
+    __table_args__ = (
+        # Dedupe guard for the same meaningful action on the same day;
+        # record_activity callers always supply source_id.
+        UniqueConstraint(
+            "owner_id",
+            "activity_type",
+            "occurred_on",
+            "source_id",
+            name="uq_learning_activity_owner_type_day_source",
+        ),
+    )
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     activity_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     occurred_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
@@ -193,6 +221,47 @@ class AiUsage(TimestampMixin, Base):
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     period: Mapped[str] = mapped_column(String(7), nullable=False, unique=True)
     spend_usd: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
+class LearnerLLMKey(OwnedModel, Base):
+    """BYO Groq key per learner (Step 4). Only ciphertext is stored."""
+
+    __tablename__ = "learner_llm_keys"
+    __table_args__ = (
+        UniqueConstraint("owner_id", name="uq_learner_llm_key_owner"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    provider: Mapped[str] = mapped_column(String(32), default="groq", nullable=False)
+    encrypted_key: Mapped[str] = mapped_column(Text, nullable=False)
+    key_hint: Mapped[str] = mapped_column(String(16), nullable=False)
+    model: Mapped[str | None] = mapped_column(String(128))
+
+
+class LearnerAiUsage(OwnedModel, Base):
+    """Per-learner monthly AI spend (Step 4). Global `ai_usage` stays separate."""
+
+    __tablename__ = "learner_ai_usage"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "period", name="uq_learner_ai_usage_owner_period"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    period: Mapped[str] = mapped_column(String(7), nullable=False)
+    spend_usd: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
+class RateLimitBucket(Base):
+    """Shared fixed-window rate-limit buckets (multi-replica safe, backend=db).
+
+    `window_started_at` is deliberately naive UTC: SQLite drops tzinfo from
+    DateTime(timezone=True) columns, which would make cross-dialect window
+    comparisons inconsistent.
+    """
+
+    __tablename__ = "rate_limit_buckets"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    key: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 class AudioArtifact(OwnedModel, Base):
@@ -288,6 +357,7 @@ class ResourceChunk(OwnedModel, Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     embedding_json: Mapped[list | None] = mapped_column(JSON)
+    embedding: Mapped[list | None] = mapped_column(_EMBEDDING_TYPE, nullable=True)  # type: ignore[arg-type]
 
 
 class ConceptChunk(OwnedModel, Base):
@@ -341,15 +411,25 @@ class AssessmentQuestion(OwnedModel, Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[list] = mapped_column(JSON, nullable=False)
-    correct_option: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Unbounded text: option values are generated from real study material
+    # and routinely exceed 32 chars; PostgreSQL enforces varchar limits that
+    # SQLite ignores (StringDataRightTruncation in the production drill).
+    correct_option: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class AssessmentAttempt(OwnedModel, Base):
     __tablename__ = "assessment_attempts"
+    __table_args__ = (
+        # Client-generated keys are only required unique per owner; a global
+        # unique made an unrelated learner's key collide with a 500.
+        UniqueConstraint(
+            "owner_id", "idempotency_key", name="uq_attempt_owner_idempotency"
+        ),
+    )
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     assessment_id: Mapped[UUID] = mapped_column(ForeignKey("assessments.id"), index=True)
     status: Mapped[str] = mapped_column(String(32), default="IN_PROGRESS", nullable=False)
-    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
 
 
 class AttemptAnswer(OwnedModel, Base):
@@ -357,7 +437,7 @@ class AttemptAnswer(OwnedModel, Base):
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     attempt_id: Mapped[UUID] = mapped_column(ForeignKey("assessment_attempts.id"), index=True)
     question_id: Mapped[UUID] = mapped_column(ForeignKey("assessment_questions.id"), index=True)
-    selected_option: Mapped[str | None] = mapped_column(String(32))
+    selected_option: Mapped[str | None] = mapped_column(Text)
 
 
 class Evaluation(OwnedModel, Base):

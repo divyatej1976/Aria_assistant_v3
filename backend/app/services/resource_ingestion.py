@@ -6,8 +6,16 @@ from sqlalchemy.orm import Session
 
 from app.ai.registry import get_embedding_provider
 from app.core.errors import ValidationError
-from app.db.models import Resource, ResourceChunk
+from app.db.models import ConceptChunk, Resource, ResourceChunk
 from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
+
+
+def _delete_chunks_with_concept_links(db: Session, *, resource: Resource) -> None:
+    """Delete a resource's chunks FK-safely: concept links before chunks."""
+    chunk_ids = select(ResourceChunk.id).where(ResourceChunk.resource_id == resource.id)
+    db.execute(delete(ConceptChunk).where(ConceptChunk.chunk_id.in_(chunk_ids)))
+    db.execute(delete(ResourceChunk).where(ResourceChunk.resource_id == resource.id))
+    db.flush()
 
 
 def chunk_text(text: str, *, size: int = 900, overlap: int = 120) -> list[str]:
@@ -43,6 +51,12 @@ async def _process_resource(db: Session, resource: Resource, text: str) -> Resou
         if not chunks:
             raise ValueError("No readable text could be extracted")
         embeddings = await get_embedding_provider().embed(chunks)
+        from app.core.config import get_settings
+
+        expected_dim = get_settings().aria_embedding_dim
+        for emb in embeddings:
+            if len(emb) != expected_dim:
+                raise ValueError(f"Embedding dimension {len(emb)} != expected {expected_dim}")
         for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
             db.add(
                 ResourceChunk(
@@ -51,6 +65,7 @@ async def _process_resource(db: Session, resource: Resource, text: str) -> Resou
                     content=chunk,
                     chunk_index=index,
                     embedding_json=embedding,
+                    embedding=embedding,
                     metadata_json={"source": resource.title},
                 )
             )
@@ -127,8 +142,7 @@ def get_owned_resource(
 
 
 def delete_resource(db: Session, *, resource: Resource) -> None:
-    db.execute(delete(ResourceChunk).where(ResourceChunk.resource_id == resource.id))
-    db.flush()
+    _delete_chunks_with_concept_links(db, resource=resource)
     delete_audio_artifacts(
         db, owner_id=resource.owner_id, source_type="RESOURCE", source_id=resource.id
     )
@@ -137,7 +151,7 @@ def delete_resource(db: Session, *, resource: Resource) -> None:
 
 
 async def reprocess_resource(db: Session, *, resource: Resource) -> Resource:
-    db.execute(delete(ResourceChunk).where(ResourceChunk.resource_id == resource.id))
+    _delete_chunks_with_concept_links(db, resource=resource)
     resource.processing_status = "PROCESSING"
     resource.error_detail = None
     db.commit()

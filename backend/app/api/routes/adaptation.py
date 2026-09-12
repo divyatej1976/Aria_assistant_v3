@@ -154,7 +154,7 @@ def add_prerequisite_route(
             db,
             owner_id=learner.id,
             concept_id=concept_id,
-            prerequisite_concept_id=UUID(request.prerequisite_concept_id),
+            prerequisite_concept_id=request.prerequisite_concept_id,
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -193,7 +193,7 @@ def invalidate(
 ) -> CycleSummaryResponse:
     get_owned_context(db, context_id=context_id, owner_id=learner.id)
     try:
-        invalidate_evidence(db, owner_id=learner.id, evidence_id=evidence_id)
+        invalidate_evidence(db, owner_id=learner.id, evidence_id=evidence_id, context_id=context_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Evidence not found") from exc
     run_learner_loop(db, owner_id=learner.id, context_id=context_id)

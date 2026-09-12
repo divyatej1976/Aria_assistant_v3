@@ -1,13 +1,14 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class NoteCreateRequest(BaseModel):
-    context_id: str
+    context_id: UUID
     title: str = Field(min_length=1, max_length=255)
     body: str = Field(min_length=1)
-    concept_id: str | None = None
+    concept_id: UUID | None = None
 
 
 class NoteUpdateRequest(BaseModel):
@@ -35,8 +36,8 @@ class NoteDraft(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    context_id: str
-    study_session_id: str | None = None
+    context_id: UUID
+    study_session_id: UUID | None = None
 
 
 class ReviewRequest(BaseModel):

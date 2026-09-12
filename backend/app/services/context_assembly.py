@@ -37,14 +37,29 @@ class ContextPackage:
     retrieved_chunks: list[RetrievedChunk]
 
 
-def build_study_context(sources: list[RetrievedChunk], *, max_chars: int = 4000) -> str:
-    """Render source chunks as data-only context, capped at max_chars."""
+def build_study_context(
+    sources: list[RetrievedChunk], *, max_chars: int = 4000, per_chunk: int | None = None
+) -> str:
+    """Render source chunks as data-only context, capped at max_chars.
+
+    Near-duplicate chunks (same normalized 200-char prefix) are collapsed so
+    the budget carries distinct material, and `per_chunk` optionally truncates
+    each source so one long chunk cannot starve the rest.
+    """
     parts: list[str] = []
+    seen: set[str] = set()
     used = 0
     for source in sources:
         if source.score <= 0:
             continue
-        block = f"[{source.source_title}] {source.content}"
+        content = source.content
+        if per_chunk is not None and len(content) > per_chunk:
+            content = content[:per_chunk]
+        key = " ".join(content.lower().split())[:200]
+        if key in seen:
+            continue
+        seen.add(key)
+        block = f"[{source.source_title}] {content}"
         if used + len(block) > max_chars:
             remaining = max_chars - used
             if remaining > 0:
@@ -162,7 +177,9 @@ def build_prompt(
             role = "Learner" if message["role"] == "user" else "ARIA"
             lines.append(f"{role}: {message['content'][:300]}")
         sections.append("\n".join(lines))
-    context_text = build_study_context(package.retrieved_chunks, max_chars=max_chars)
+    context_text = build_study_context(
+        package.retrieved_chunks, max_chars=max_chars, per_chunk=1200
+    )
     if context_text:
         sections.append(f"Study material:\n{context_text}")
     sections.append(f"Learner question: {question}")

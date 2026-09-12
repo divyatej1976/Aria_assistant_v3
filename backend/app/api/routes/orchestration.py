@@ -17,6 +17,7 @@ from app.schemas.orchestration import (
 from app.security.dependencies import CurrentLearner
 from app.services.idempotency import find as find_idempotency
 from app.services.idempotency import record as record_idempotency
+from app.services.idempotency import release as release_idempotency
 from app.services.idempotency import replayable
 from app.services.idempotency import reserve as reserve_idempotency
 from app.services.orchestration import (
@@ -123,6 +124,9 @@ async def start(
             db, owner_id=learner.id, name=name, payload=request.payload
         )
     except ValidationError as exc:
+        if idempotency_key:
+            # Release the reservation so the corrected retry is not stuck 409.
+            release_idempotency(db, owner_id=learner.id, scope=scope, key=idempotency_key)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     response = start_response(workflow, approval)
     if idempotency_key:
