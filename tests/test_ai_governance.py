@@ -114,7 +114,7 @@ def test_production_accounting_failure_blocks_generation(monkeypatch) -> None:
     import app.ai.budget as budget
 
     monkeypatch.setattr(budget, "get_settings", lambda: _prod_settings(0.001))
-    monkeypatch.setattr(budget, "_probe_db", lambda: False)
+    monkeypatch.setattr(budget, "_probe_db", lambda table="ai_usage": False)
     budget._accounting_unavailable = True
     try:
         try:
@@ -132,7 +132,7 @@ def test_production_accounting_self_heals_when_db_returns(monkeypatch) -> None:
     import app.ai.budget as budget
 
     monkeypatch.setattr(budget, "get_settings", lambda: _prod_settings(0.001))
-    monkeypatch.setattr(budget, "_probe_db", lambda: True)
+    monkeypatch.setattr(budget, "_probe_db", lambda table="ai_usage": True)
     monkeypatch.setattr(budget, "_db_spend", lambda period: 0.0)
     budget._accounting_unavailable = True
     try:
@@ -240,3 +240,53 @@ def test_log_call_records_prompt_version_metric() -> None:
     assert value._value.get() >= 1
     assert spend_usd() > 0
     reset_budget()
+
+
+def test_missing_usage_metadata_is_estimated_never_skipped(monkeypatch) -> None:
+    """A response without usage metadata must still record spend — globally via
+    the post-call estimate, and per-learner via the pre-call reservation — so
+    budgets can never be bypassed by a metadata-less response."""
+    import uuid
+
+    import app.ai.budget as budget
+    from app.ai.providers import LiteLLMGroqProvider, estimate_tokens
+
+    # Ceiling + 25% margin heuristic (documented, not a guaranteed upper bound).
+    assert estimate_tokens(0) == 1
+    assert estimate_tokens(4) == 2
+    assert estimate_tokens(400) == 125
+    assert estimate_tokens(200) == 63
+
+    reset_budget()
+    budget.reset_learner_budget()
+    owner_id = uuid.uuid4()
+    provider = LiteLLMGroqProvider(
+        api_key="k", model="llama-3.3-70b-versatile", owner_id=owner_id
+    )
+
+    class _Msg:
+        content = "x" * 200
+
+    class _Choice:
+        message = _Msg()
+
+    class _Response:
+        usage = None  # LiteLLM returned no usage block
+        choices = [_Choice()]
+
+    async def _fake_completion(*args, **kwargs):
+        return _Response()
+
+    import litellm
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_completion)
+    before_global = spend_usd()
+    asyncio_run = __import__("asyncio").run
+    answer = asyncio_run(provider.generate_text(system="s" * 400, user="u" * 100))
+    assert answer == "x" * 200
+    # Global: post-call estimate recorded.
+    assert spend_usd() > before_global
+    # Learner: pre-call reservation guarantees nonzero accounted spend.
+    assert budget.learner_spend_usd(owner_id) > 0
+    reset_budget()
+    budget.reset_learner_budget()

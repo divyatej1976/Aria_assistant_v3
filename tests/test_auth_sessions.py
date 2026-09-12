@@ -124,6 +124,10 @@ def test_data_reset_deletes_owned_data_and_isolates_other_learner(client: TestCl
 
     reset = client.delete("/api/v1/account/data", headers=headers(first["access_token"]))
     assert reset.status_code == 200
+    # Honest scope: the response must disclose retained security/audit records.
+    detail = reset.json()["detail"]
+    assert "All learning data deleted" in detail
+    assert "retained" in detail and "audit" in detail
 
     assert (
         client.get("/api/v1/auth/me", headers=headers(first["access_token"])).status_code == 401

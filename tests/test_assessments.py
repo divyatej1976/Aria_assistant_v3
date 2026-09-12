@@ -110,6 +110,67 @@ def test_create_assessment_uses_real_material(client: TestClient) -> None:
         assert "correct_option" not in question
 
 
+def test_assessment_answer_columns_hold_option_text() -> None:
+    """Regression: answer columns must be unbounded text.
+
+    PostgreSQL enforces VARCHAR(32) and crashed submission with
+    StringDataRightTruncation on real option text ("Loops repeat a block
+    while a condition holds"); SQLite ignores the length, so this schema
+    assertion is what catches the regression on every backend.
+    """
+    from sqlalchemy import Text
+
+    from app.db.models import AssessmentQuestion, AttemptAnswer
+
+    assert isinstance(AssessmentQuestion.__table__.c.correct_option.type, Text)
+    assert isinstance(AttemptAnswer.__table__.c.selected_option.type, Text)
+
+
+def test_submit_option_text_persists_and_scores(client: TestClient) -> None:
+    """End-to-end: the UI submits option TEXT; it must persist (PostgreSQL
+    length enforcement) and score identically to the letter contract."""
+    session = register(client, "assess-text@example.com")
+    token = session["access_token"]
+    context_id = create_context(client, token)
+    add_material(client, token, context_id)
+    assessment = create_assessment(client, token, context_id, count=3).json()
+
+    # Long option text must persist — the exact live production failure.
+    attempt = start_attempt(client, token, assessment["id"]).json()
+    longest = max(
+        attempt["questions"], key=lambda q: max(len(option) for option in q["options"])
+    )
+    answer_text = max(longest["options"], key=len)
+    assert len(answer_text) > 32
+    first = submit(
+        client, token, assessment["id"], attempt["attempt_id"],
+        key=f"text-long-{uuid4()}", answers={longest["id"]: answer_text},
+    )
+    assert first.status_code == 200
+    detail = next(
+        d for d in first.json()["details"] if d["question_id"] == longest["id"]
+    )
+    assert detail["selected_option"] == answer_text
+
+    # Answering the correct option's TEXT must score correct on a fresh
+    # attempt (raw text == letter comparison scored every UI answer wrong).
+    letters = {d["question_id"]: d["correct_option"] for d in first.json()["details"]}
+    attempt2 = start_attempt(client, token, assessment["id"]).json()
+    answers2 = {
+        question["id"]: question["options"]["ABCD".index(letters[question["id"]])]
+        for question in attempt2["questions"]
+    }
+    second = submit(
+        client, token, assessment["id"], attempt2["attempt_id"],
+        key=f"text-correct-{uuid4()}", answers=answers2,
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["score"] == body["total"]
+    for d in body["details"]:
+        assert d["correct"] is True
+
+
 def test_generator_produces_valid_varied_correct_letters() -> None:
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool

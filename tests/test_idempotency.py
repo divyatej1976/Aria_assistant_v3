@@ -253,3 +253,121 @@ def test_in_flight_duplicate_returns_409(client: TestClient, session_factory) ->
     )
     assert duplicate.status_code == 409
     assert "already in progress" in duplicate.json()["detail"]
+
+
+def test_purge_expired_removes_only_dead_rows(engine, session_factory) -> None:
+    """Standalone sweeper: expired completed + stale in-progress rows are
+    removed; live reservations (future TTL) are never touched."""
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    from sqlalchemy import select
+
+    from app.db.models import IdempotencyKey
+    from app.services import idempotency
+
+    owner_id = uuid4()
+    db = session_factory()
+    try:
+        now = datetime.now(UTC)
+        # Expired completed row (no longer replayable) -> removed.
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id, scope="wf", key="done-old",
+                response_status=200, response_json={"v": 1},
+                expires_at=now - timedelta(hours=2),
+            )
+        )
+        # Stale in-progress row (crashed execution) -> removed.
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id, scope="wf", key="stale-reservation",
+                response_status=None, response_json=None,
+                expires_at=now - timedelta(hours=2),
+            )
+        )
+        # Live completed row (still replayable) -> kept.
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id, scope="wf", key="done-live",
+                response_status=200, response_json={"v": 2},
+                expires_at=now + timedelta(hours=1),
+            )
+        )
+        # Live in-progress reservation (another request executing) -> kept.
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id, scope="wf", key="live-reservation",
+                response_status=None, response_json=None,
+                expires_at=now + timedelta(hours=1),
+            )
+        )
+        db.commit()
+
+        removed = idempotency.purge_expired(db)
+        assert removed == 2
+
+        remaining = {
+            row.key
+            for row in db.scalars(
+                select(IdempotencyKey).where(IdempotencyKey.owner_id == owner_id)
+            ).all()
+        }
+        assert remaining == {"done-live", "live-reservation"}
+
+        # Idempotent: a second sweep removes nothing.
+        assert idempotency.purge_expired(db) == 0
+    finally:
+        db.close()
+
+
+def test_idempotency_sweep_job_purges_expired(engine, monkeypatch) -> None:
+    """The scheduled job uses the shared engine/SessionLocal and runs under
+    the advisory lock; verify it removes expired rows end to end."""
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db.models import IdempotencyKey
+    from app.jobs import scheduler as scheduler_mod
+
+    owner_id = uuid4()
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    db = factory()
+    try:
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id, scope="wf", key="sweep-me",
+                response_status=200, response_json={"v": 1},
+                expires_at=datetime.now(UTC) - timedelta(hours=3),
+            )
+        )
+        db.add(
+            IdempotencyKey(
+                owner_id=owner_id, scope="wf", key="keep-me",
+                response_status=200, response_json={"v": 1},
+                expires_at=datetime.now(UTC) + timedelta(hours=3),
+            )
+        )
+        db.commit()
+
+        # Point the job's engine/SessionLocal at the test database.
+        monkeypatch.setattr(
+            "app.db.session.engine", engine, raising=True
+        )
+        monkeypatch.setattr(
+            "app.db.session.SessionLocal", factory, raising=True
+        )
+        scheduler_mod.run_idempotency_sweep_job()
+
+        remaining = {
+            row.key
+            for row in db.scalars(
+                select(IdempotencyKey).where(IdempotencyKey.owner_id == owner_id)
+            ).all()
+        }
+        assert remaining == {"keep-me"}
+    finally:
+        db.close()

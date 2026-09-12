@@ -15,6 +15,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 os.environ.setdefault("ARIA_SCHEDULER_ENABLED", "false")
+# Force the deterministic LLM path for the whole suite unless a test opts in
+# by constructing its own provider. A developer's real .env GROQ_API_KEY must
+# not leak into tests: they assert deterministic generator behavior, and an
+# ambient key would make them fire live LLM calls (flaky asserts, token
+# burn). Empty string also matches CI, which runs without any key.
+os.environ["GROQ_API_KEY"] = ""
 # Point the app-level engine (used by /ready probes) at the test database.
 os.environ["DATABASE_URL"] = (
     os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or "sqlite://"

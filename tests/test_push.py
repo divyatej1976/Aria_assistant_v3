@@ -65,38 +65,42 @@ def test_push_subscriptions_are_isolated_between_learners(client: TestClient) ->
     assert listed == []
 
 
-def test_push_endpoint_reassignment_transfers_ownership(client: TestClient) -> None:
-    first = register(client, "push-reassign-a@example.com")
-    second = register(client, "push-reassign-b@example.com")
+def test_push_endpoint_takeover_is_rejected(client: TestClient) -> None:
+    """Endpoints are globally unique: a second learner registering the same
+    endpoint must be rejected, never steal the first learner's subscription."""
+    first = register(client, "push-takeover-a@example.com")
+    second = register(client, "push-takeover-b@example.com")
 
     created = client.post(
         "/api/v1/push/subscribe", headers=headers(first["access_token"]), json=SUB
     )
     assert created.status_code == 201
-    first_subscriptions = client.get(
-        "/api/v1/push/subscriptions", headers=headers(first["access_token"])
-    ).json()
-    assert len(first_subscriptions) == 1
 
-    reassigned = client.post(
+    stolen = client.post(
         "/api/v1/push/subscribe", headers=headers(second["access_token"]), json=SUB
     )
-    assert reassigned.status_code == 201
-    assert reassigned.json()["endpoint"] == SUB["endpoint"]
+    assert stolen.status_code == 422
 
+    # First learner's subscription is untouched.
     first_after = client.get(
         "/api/v1/push/subscriptions", headers=headers(first["access_token"])
     ).json()
+    assert len(first_after) == 1
+    assert first_after[0]["endpoint"] == SUB["endpoint"]
     second_after = client.get(
         "/api/v1/push/subscriptions", headers=headers(second["access_token"])
     ).json()
-    assert first_after == []
-    assert len(second_after) == 1
+    assert second_after == []
 
+    # Only the owner can unsubscribe; the outsider's attempt does nothing.
     removed = client.post(
         "/api/v1/push/unsubscribe", headers=headers(second["access_token"]), json=SUB
     ).json()
-    assert removed["unsubscribed"] is True
+    assert removed["unsubscribed"] is False
+    still_there = client.get(
+        "/api/v1/push/subscriptions", headers=headers(first["access_token"])
+    ).json()
+    assert len(still_there) == 1
     second_final = client.get(
         "/api/v1/push/subscriptions", headers=headers(second["access_token"])
     ).json()
