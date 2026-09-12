@@ -1,4 +1,5 @@
 ﻿import logging
+import re
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -36,6 +37,23 @@ from app.services.text import bm25_scores, content_terms
 logger = logging.getLogger(__name__)
 
 WEAK_BOOST = 1.3
+
+# Pure small-talk (no study content): greetings never match material chunks,
+# so without this they die in retrieval with a confusing "no relevant
+# information" reply. Anchored to the full message so "hi, explain functions"
+# still takes the normal RAG path.
+SMALL_TALK_RE = re.compile(
+    r"^(hi( there)?|hii+|hello( there)?|hey( there)?|yo|howdy|greetings"
+    r"|good\s?(morning|afternoon|evening|day)"
+    r"|how are you|what'?s up|thank(s| you)( very much)?|thanks a lot"
+    r"|bye|goodbye|good ?night|see you( later)?|who are you)[!.,\s]*$",
+    re.IGNORECASE,
+)
+
+DETERMINISTIC_GREETING = (
+    "Hi there! I'm ARIA, your learning companion. "
+    "Ask me anything about your study material and I'll do my best to help."
+)
 
 
 def create_session(
@@ -314,6 +332,42 @@ async def retrieve_chunks(
     return _dedupe_chunks(scored)[:5]
 
 
+async def _answer_small_talk(
+    db: Session, *, owner_id: UUID, question: str, sources: list
+) -> StudyResult:
+    """Greetings need no retrieval context: answer conversationally.
+
+    With a provider, greet via the LLM (fallback_used=False). Without one
+    (or on any provider failure), serve a friendly deterministic greeting
+    instead of the "no relevant information" dead end.
+    """
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    if provider is None:
+        return StudyResult(
+            content=DETERMINISTIC_GREETING, sources=sources, fallback_used=True
+        )
+    try:
+        answer = await provider.generate_text(
+            system=(
+                "You are ARIA, a friendly AI learning tutor. "
+                "Greet the learner briefly and invite them to ask about "
+                "their study material."
+            ),
+            user=question,
+            prompt_version="study_greeting:1",
+        )
+    except Exception:
+        logger.exception("study greeting call failed; serving deterministic greeting")
+        return StudyResult(
+            content=DETERMINISTIC_GREETING, sources=sources, fallback_used=True
+        )
+    if not answer or not answer.strip():
+        return StudyResult(
+            content=DETERMINISTIC_GREETING, sources=sources, fallback_used=True
+        )
+    return StudyResult(content=answer, sources=sources, fallback_used=False)
+
+
 async def answer_question(
     db: Session,
     *,
@@ -337,6 +391,10 @@ async def answer_question(
         )
     context_text = build_study_context(sources)
     if not context_text:
+        if SMALL_TALK_RE.match(question.strip()):
+            return await _answer_small_talk(
+                db, owner_id=owner_id, question=question, sources=sources
+            )
         return StudyResult(
             content=(
                 "I could not find enough relevant information in the selected material "

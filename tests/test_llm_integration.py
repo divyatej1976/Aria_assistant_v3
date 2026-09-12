@@ -99,6 +99,58 @@ def _ask(client: TestClient, token: str, session_id: str) -> dict:
     return response.json()
 
 
+def _ask_content(client: TestClient, token: str, session_id: str, content: str) -> dict:
+    response = client.post(
+        f"/api/v1/study/sessions/{session_id}/messages",
+        headers=_headers(token),
+        json={"content": content},
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_greeting_without_provider_uses_friendly_deterministic_reply(
+    client: TestClient, monkeypatch
+) -> None:
+    import app.services.study as study
+
+    data = _register(client, f"step1-greet-{uuid.uuid4().hex[:8]}@example.com")
+    session_id = _setup_material(client, data["access_token"])
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: None)
+    body = _ask_content(client, data["access_token"], session_id, "Hi there!")
+    assert body["fallback_used"] is True
+    assert "could not find enough relevant information" not in body["content"]
+    assert "ARIA" in body["content"]
+
+
+def test_greeting_with_provider_answers_conversationally(
+    client: TestClient, monkeypatch
+) -> None:
+    import app.services.study as study
+
+    data = _register(client, f"step1-greetlive-{uuid.uuid4().hex[:8]}@example.com")
+    session_id = _setup_material(client, data["access_token"])
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: _OkProvider())
+    body = _ask_content(client, data["access_token"], session_id, "hello!")
+    assert body["fallback_used"] is False
+    assert "could not find enough relevant information" not in body["content"]
+    assert body["content"].strip() != ""
+
+
+def test_greeting_with_failing_provider_still_greets_safely(
+    client: TestClient, monkeypatch
+) -> None:
+    import app.services.study as study
+
+    data = _register(client, f"step1-greetfail-{uuid.uuid4().hex[:8]}@example.com")
+    session_id = _setup_material(client, data["access_token"])
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: _FailingProvider())
+    body = _ask_content(client, data["access_token"], session_id, "hey")
+    assert body["fallback_used"] is True
+    assert "could not find enough relevant information" not in body["content"]
+    assert "gsk-super-secret" not in body["content"]
+
+
 def test_valid_provider_returns_grounded_answer(client: TestClient, monkeypatch) -> None:
     import app.services.study as study
 

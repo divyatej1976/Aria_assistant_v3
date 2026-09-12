@@ -23,6 +23,10 @@ services:
       ARIA_ENV: development
       DATABASE_URL: postgresql+psycopg://aria:aria@db:5432/aria
       ARIA_CORS_ORIGINS: http://localhost:3000
+      # Optional: picked up from the repo .env (never committed) when present.
+      # Without a key the tutor serves deterministic fallbacks.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-120b}
     ports:
       - "8000:8000"
     volumes:
