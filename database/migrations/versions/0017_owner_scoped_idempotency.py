@@ -83,9 +83,14 @@ def downgrade() -> None:
         op.drop_constraint(
             "uq_attempt_owner_idempotency", "assessment_attempts", type_="unique"
         )
-    op.drop_index(
-        "ix_assessment_attempts_idempotency_key", table_name="assessment_attempts"
-    )
+    # Guarded: on fresh databases 0001 already builds the final shape, so the
+    # upgrade is a no-op and this index was never created — dropping it
+    # unconditionally fails the downgrade with UndefinedObject.
+    attempts_indexes = {ix["name"] for ix in inspector.get_indexes("assessment_attempts")}
+    if "ix_assessment_attempts_idempotency_key" in attempts_indexes:
+        op.drop_index(
+            "ix_assessment_attempts_idempotency_key", table_name="assessment_attempts"
+        )
     op.create_index(
         "ix_assessment_attempts_idempotency_key",
         "assessment_attempts",
