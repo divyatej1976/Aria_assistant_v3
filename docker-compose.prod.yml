@@ -66,7 +66,7 @@ services:
       ARIA_SESSION_SECRET: ${ARIA_SESSION_SECRET:?ARIA_SESSION_SECRET is required}
       ARIA_TRUSTED_HOSTS: ${ARIA_TRUSTED_HOSTS:?ARIA_TRUSTED_HOSTS is required}
       ARIA_LOG_LEVEL: ${ARIA_LOG_LEVEL:-INFO}
-      # ARIA_API_PREFIX is intentionally not forwarded — routes hardcode /api/v1 (see backend/app/main.py:50)
+      # No API-prefix override exists — routes hardcode /api/v1.
       ARIA_RATE_LIMIT_ENABLED: "true"
       ARIA_RATE_LIMIT_REQUESTS: ${ARIA_RATE_LIMIT_REQUESTS:-10}
       ARIA_RATE_LIMIT_WINDOW_SECONDS: ${ARIA_RATE_LIMIT_WINDOW_SECONDS:-60}
