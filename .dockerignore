@@ -17,5 +17,10 @@ tests
 frontend
 node_modules
 .next
+**/node_modules
+**/.next
+**/test-results
+**/.cache
+**/coverage
 postgres-data
 aria*.db
