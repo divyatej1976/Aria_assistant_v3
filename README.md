@@ -96,10 +96,29 @@ docker compose up -d db          # start PostgreSQL
 alembic upgrade head             # apply all database migrations
 ```
 
-### Docker Compose (Production Setup)
+### Docker Compose (Production Setup — Bundled PostgreSQL Only)
+
+> Bundled `db` is the only supported prod model until an external-DB compose file exists.
+> Compose alone exposes `3000/8000`; a reverse proxy must route `public domain → frontend:3000`, `/api/* → backend:8000` + TLS.
+> Generate a URL-safe DB password `^[A-Za-z0-9._~-]+$` (no `: / @ #`).
 
 ```powershell
-docker-compose -f docker-compose.prod.yml up --build -d
+$env:POSTGRES_PASSWORD="example-UrlSafe_2x9.~-password"
+$env:DATABASE_URL="postgresql+psycopg://aria:$env:POSTGRES_PASSWORD@db:5432/aria"
+$env:ARIA_SESSION_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+$env:ARIA_CORS_ORIGINS="https://your-domain.com"
+$env:ARIA_TRUSTED_HOSTS="your-domain.com,localhost,127.0.0.1"
+$env:ARIA_PUBLIC_URL="https://your-domain.com"
+$env:NEXT_PUBLIC_API_URL="https://your-domain.com"
+# SMTP/Groq/semantic required for unrestricted prod:
+$env:SMTP_HOST="smtp.example.com"; $env:SMTP_FROM="ARIA <noreply@your-domain.com>"
+$env:GROQ_API_KEY="..."
+
+python scripts/check_prod_secrets.py --strict --ai-tutoring --semantic-enabled
+docker compose -f docker-compose.prod.yml config --quiet  # never log plain config (secrets)
+docker compose -f docker-compose.prod.yml up -d --build
+curl http://localhost:8000/ready   # readiness DB ok (bundled proxy routes /ready -> backend:8000)
+curl http://localhost:8000/health  # liveness
 ```
 
 ---

@@ -16,6 +16,7 @@ out/
 test-results/
 playwright-report/
 e2e-smoke.db
+e2e-smoke-v2.db
 
 # Environment and secrets
 .env
@@ -23,6 +24,7 @@ e2e-smoke.db
 !.env.example
 
 # Local services and tooling
+%SystemDrive%/
 postgres-data/
 backups/
 aria*.db
@@ -38,5 +40,3 @@ Thumbs.db
 # Design assets (wireframes kept locally, not tracked)
 design/*
 !design/README.md
-
-e2e-smoke.db
