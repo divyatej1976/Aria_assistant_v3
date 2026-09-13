@@ -208,6 +208,15 @@ export default function LearnPage() {
             m.role === "aria" ? (
               <div className="msg msg-aria" key={i}>
                 <div className="mh"><Icon name="sparkles" size={14} /> ARIA Tutor</div>
+                {m.sources && m.sources.length > 0 ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--success-strong)", background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 10px", marginBottom: 8 }}>
+                    <Icon name="file" size={12} /> Grounded in your material · {m.sources.length} source{m.sources.length === 1 ? "" : "s"}
+                  </div>
+                ) : m.fallback_used ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--text-2)", background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 10px", marginBottom: 8 }}>
+                    <Icon name="sparkles" size={12} /> General guidance — add material for grounded answers
+                  </div>
+                ) : null}
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.role === "aria" ? <TutorMarkdown content={m.content} /> : m.content}</div>
                 {m.sources && m.sources.length > 0 && (
                   <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-3)" }}>
