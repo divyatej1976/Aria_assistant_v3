@@ -202,8 +202,6 @@ jobs:
           PYTHONPATH: backend
       - working-directory: frontend-v2
         run: npm ci
-      - working-directory: frontend-v2
-        run: npm audit --audit-level=high
       - name: Enforce generated API types are current
         working-directory: frontend-v2
         env:
@@ -236,3 +234,9 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
           PYTHONPATH: backend
+      # Keep the same blocking gate, while allowing browser verification to run
+      # independently of an unpatched development-tool dependency advisory.
+      - name: Frontend dependency audit
+        if: always()
+        working-directory: frontend-v2
+        run: npm audit --audit-level=high
