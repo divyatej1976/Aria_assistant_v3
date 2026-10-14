@@ -29,6 +29,13 @@ class AssessmentResponse(BaseModel):
     questions: list[AssessmentQuestionResponse]
 
 
+class AssessmentScore(BaseModel):
+    attempt_id: str
+    score: int
+    total: int
+    completed_at: datetime
+
+
 class AssessmentSummary(BaseModel):
     id: str
     context_id: str
@@ -36,6 +43,8 @@ class AssessmentSummary(BaseModel):
     mode: str
     status: str
     question_count: int
+    submitted_attempt_count: int = 0
+    completed_scores: list[AssessmentScore] = Field(default_factory=list)
     created_at: datetime
 
 

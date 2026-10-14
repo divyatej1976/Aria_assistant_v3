@@ -47,12 +47,17 @@ def _fernet_candidates():
 
 
 def _primary_fernet():
-    candidates = _fernet_candidates()
-    if not candidates:
+    from cryptography.fernet import Fernet
+
+    raw = getattr(get_settings(), "aria_llm_keys_encryption_key", None)
+    if not raw:
         raise ValidationError(
             "Personal LLM keys are not enabled on this deployment."
         )
-    return candidates[0]
+    try:
+        return Fernet(raw.encode("utf-8"))
+    except Exception as exc:
+        raise ValidationError("LLM key encryption is misconfigured") from exc
 
 
 def encrypt_key(plaintext: str) -> str:
@@ -168,9 +173,21 @@ def set_key(
 def get_status(db: Session, *, owner_id: UUID) -> dict:
     row = db.scalar(select(LearnerLLMKey).where(LearnerLLMKey.owner_id == owner_id))
     if row is None:
-        return {"configured": False, "provider": None, "model": None, "hint": None}
+        return {"configured": False, "usable": False, "issue": None,
+                "provider": None, "model": None, "hint": None}
+    issue = None
+    try:
+        usable = bool(decrypt_key(row.encrypted_key))
+    except ValidationError:
+        usable = False
+        issue = "credential_unreadable"
+    if row.provider != PROVIDER_GROQ or (row.model and row.model not in get_settings().llm_allowed_models):
+        usable = False
+        issue = "configuration_unsupported"
     return {
         "configured": True,
+        "usable": usable,
+        "issue": issue,
         "provider": row.provider,
         "model": row.model,
         "hint": row.key_hint,
@@ -186,6 +203,29 @@ def delete_key(db: Session, *, owner_id: UUID) -> bool:
     return True
 
 
+def get_capabilities(db: Session, *, owner_id: UUID) -> dict:
+    settings = get_settings()
+    key, model, source = resolve_credential(db, owner_id=owner_id)
+    try:
+        _primary_fernet()
+        personal_keys_enabled = True
+    except ValidationError:
+        personal_keys_enabled = False
+    deployment_key = bool(settings.groq_api_key)
+    return {
+        "credential_source": source,
+        "tutor_configured": bool(key),
+        "provider_verified": False,
+        "model": model,
+        "allowed_models": settings.llm_allowed_models,
+        "personal_keys_enabled": personal_keys_enabled,
+        "personal_key": get_status(db, owner_id=owner_id),
+        "speech_to_text_configured": deployment_key or bool(getattr(settings, "aria_stt_api_key", None)),
+        "cloud_speech_configured": deployment_key or bool(getattr(settings, "aria_tts_api_key", None)),
+        "audio_credential_scope": "deployment",
+    }
+
+
 def resolve_credential(
     db: Session, *, owner_id: UUID
 ) -> tuple[str | None, str, str]:
@@ -196,15 +236,15 @@ def resolve_credential(
     """
     settings = get_settings()
     row = db.scalar(select(LearnerLLMKey).where(LearnerLLMKey.owner_id == owner_id))
-    if row is not None:
+    if row is not None and row.provider == PROVIDER_GROQ and (
+        not row.model or row.model in settings.llm_allowed_models
+    ):
         try:
             api_key = decrypt_key(row.encrypted_key)
         except ValidationError:
             api_key = None
         if api_key:
             model = row.model or settings.llm_model
-            if model not in settings.llm_allowed_models:
-                model = settings.llm_model
             return api_key, model, "learner"
     if settings.groq_api_key:
         return settings.groq_api_key, settings.llm_model, "global"

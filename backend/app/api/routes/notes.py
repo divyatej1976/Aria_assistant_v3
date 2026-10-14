@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
-from app.db.models import LearningContext, Note
+from app.db.models import LearningContext, Note, RevisionItem
 from app.schemas.notes import (
     GenerateRequest,
     NoteCreateRequest,
@@ -16,6 +17,7 @@ from app.schemas.notes import (
     ReviewRequest,
 )
 from app.security.dependencies import CurrentLearner
+from app.security.rate_limit import rate_limited
 from app.services.notes import (
     build_note_pdf,
     create_note,
@@ -26,12 +28,20 @@ from app.services.notes import (
     list_notes,
     review_note,
     revision_item,
+    revision_items_for,
     update_note,
 )
 from app.services.progress import record_activity
 
 router = APIRouter(prefix="/api/v1/notes", tags=["notes"])
 Db = Annotated[Session, Depends(get_db)]
+
+
+def _ai_rate_limit():
+    settings = get_settings()
+    return rate_limited(
+        settings.aria_rate_limit_requests, settings.aria_rate_limit_window_seconds
+    )
 
 
 def get_owned_context(db: Session, *, context_id: UUID, owner_id: UUID) -> LearningContext:
@@ -45,8 +55,11 @@ def get_owned_context(db: Session, *, context_id: UUID, owner_id: UUID) -> Learn
     return context
 
 
-def note_response(db: Session, *, owner_id: UUID, note: Note) -> NoteResponse:
-    item = revision_item(db, owner_id=owner_id, note_id=note.id)
+def note_response(
+    db: Session, *, owner_id: UUID, note: Note, item: RevisionItem | None = None
+) -> NoteResponse:
+    if item is None:
+        item = revision_item(db, owner_id=owner_id, note_id=note.id)
     return NoteResponse(
         id=str(note.id),
         context_id=str(note.context_id),
@@ -81,22 +94,30 @@ def create(
 @router.get("", response_model=list[NoteResponse])
 def list_notes_route(context_id: UUID, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
     get_owned_context(db, context_id=context_id, owner_id=learner.id)
+    notes = list_notes(db, owner_id=learner.id, context_id=context_id)
+    items = revision_items_for(
+        db, owner_id=learner.id, note_ids=[note.id for note in notes]
+    )
     return [
-        note_response(db, owner_id=learner.id, note=note)
-        for note in list_notes(db, owner_id=learner.id, context_id=context_id)
+        note_response(db, owner_id=learner.id, note=note, item=items.get(note.id))
+        for note in notes
     ]
 
 
 @router.get("/due", response_model=list[NoteResponse])
 def due(context_id: UUID, learner: CurrentLearner, db: Db) -> list[NoteResponse]:
     get_owned_context(db, context_id=context_id, owner_id=learner.id)
+    notes = due_notes(db, owner_id=learner.id, context_id=context_id)
+    items = revision_items_for(
+        db, owner_id=learner.id, note_ids=[note.id for note in notes]
+    )
     return [
-        note_response(db, owner_id=learner.id, note=note)
-        for note in due_notes(db, owner_id=learner.id, context_id=context_id)
+        note_response(db, owner_id=learner.id, note=note, item=items.get(note.id))
+        for note in notes
     ]
 
 
-@router.post("/generate", response_model=NoteResponse, status_code=201)
+@router.post("/generate", response_model=NoteResponse, status_code=201, dependencies=[Depends(_ai_rate_limit())])
 async def generate(
     request: GenerateRequest, learner: CurrentLearner, db: Db
 ) -> NoteResponse:

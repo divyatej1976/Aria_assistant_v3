@@ -15,10 +15,15 @@ class StudySessionResponse(BaseModel):
     mode: str
     status: str
     created_at: datetime
+    title: str | None = None
+    preview: str | None = None
+    message_count: int = 0
+    last_message_at: datetime | None = None
 
 
 class StudyMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=10_000)
+    request_id: UUID | None = None
 
 
 class SourceReference(BaseModel):
@@ -40,3 +45,5 @@ class StudyMessage(BaseModel):
     role: str
     content: str
     sources: list[SourceReference]
+    position: int
+    fallback_used: bool | None = None

@@ -28,7 +28,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Metrics */
+        /**
+         * Metrics
+         * @description Prometheus internals. The edge proxy blocks /metrics publicly; when
+         *     ARIA_METRICS_TOKEN is set, direct backend scrapes must also present it.
+         */
         get: operations["metrics_metrics_get"];
         put?: never;
         post?: never;
@@ -285,7 +289,7 @@ export interface paths {
         };
         /**
          * Export Data
-         * @description Download every learner-owned artifact as portable JSON.
+         * @description Download a versioned portable export, streaming uncapped snapshot records.
          */
         get: operations["export_data_api_v1_account_export_get"];
         put?: never;
@@ -1245,6 +1249,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/resources/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Image Resource */
+        post: operations["add_image_resource_api_v1_resources_image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resources": {
         parameters: {
             query?: never;
@@ -1348,6 +1369,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capabilities */
+        get: operations["capabilities_api_v1_settings_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/llm-key": {
         parameters: {
             query?: never;
@@ -1362,6 +1400,23 @@ export interface paths {
         post: operations["llm_key_upsert_api_v1_settings_llm_key_post"];
         /** Llm Key Delete */
         delete: operations["llm_key_delete_api_v1_settings_llm_key_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/study/contexts/{context_id}/finish-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish Learning Day */
+        post: operations["finish_learning_day_api_v1_study_contexts__context_id__finish_day_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1540,6 +1595,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roadmaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Roadmaps Endpoint */
+        get: operations["list_roadmaps_endpoint_api_v1_roadmaps_get"];
+        put?: never;
+        /** Create Roadmap Endpoint */
+        post: operations["create_roadmap_endpoint_api_v1_roadmaps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Roadmap Endpoint */
+        get: operations["get_roadmap_endpoint_api_v1_roadmaps__roadmap_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Roadmap Endpoint */
+        delete: operations["delete_roadmap_endpoint_api_v1_roadmaps__roadmap_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1663,6 +1754,20 @@ export interface components {
             /** Questions */
             questions: components["schemas"]["AssessmentQuestionResponse"][];
         };
+        /** AssessmentScore */
+        AssessmentScore: {
+            /** Attempt Id */
+            attempt_id: string;
+            /** Score */
+            score: number;
+            /** Total */
+            total: number;
+            /**
+             * Completed At
+             * Format: date-time
+             */
+            completed_at: string;
+        };
         /** AssessmentSummary */
         AssessmentSummary: {
             /** Id */
@@ -1677,6 +1782,13 @@ export interface components {
             status: string;
             /** Question Count */
             question_count: number;
+            /**
+             * Submitted Attempt Count
+             * @default 0
+             */
+            submitted_attempt_count: number;
+            /** Completed Scores */
+            completed_scores?: components["schemas"]["AssessmentScore"][];
             /**
              * Created At
              * Format: date-time
@@ -1804,6 +1916,38 @@ export interface components {
         Body_transcribe_api_v1_audio_transcribe_post: {
             /** File */
             file: string;
+        };
+        /** CapabilityResponse */
+        CapabilityResponse: {
+            /**
+             * Credential Source
+             * @enum {string}
+             */
+            credential_source: "learner" | "global" | "none";
+            /** Tutor Configured */
+            tutor_configured: boolean;
+            /**
+             * Provider Verified
+             * @default false
+             */
+            provider_verified: boolean;
+            /** Model */
+            model: string;
+            /** Allowed Models */
+            allowed_models: string[];
+            /** Personal Keys Enabled */
+            personal_keys_enabled: boolean;
+            personal_key: components["schemas"]["LLMKeyStatusResponse"];
+            /** Speech To Text Configured */
+            speech_to_text_configured: boolean;
+            /** Cloud Speech Configured */
+            cloud_speech_configured: boolean;
+            /**
+             * Audio Credential Scope
+             * @default deployment
+             * @constant
+             */
+            audio_credential_scope: "deployment";
         };
         /** ChunkResponse */
         ChunkResponse: {
@@ -1977,6 +2121,13 @@ export interface components {
         LLMKeyStatusResponse: {
             /** Configured */
             configured: boolean;
+            /**
+             * Usable
+             * @default false
+             */
+            usable: boolean;
+            /** Issue */
+            issue?: string | null;
             /** Provider */
             provider?: string | null;
             /** Model */
@@ -2258,6 +2409,103 @@ export interface components {
             /** Outcome */
             outcome: string;
         };
+        /** RoadmapCreateRequest */
+        RoadmapCreateRequest: {
+            /** Goal */
+            goal: string;
+            /**
+             * Level
+             * @default Beginner
+             * @enum {string}
+             */
+            level: "Beginner" | "Intermediate" | "Advanced";
+            /** Target Date */
+            target_date?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+        };
+        /** RoadmapMilestoneResponse */
+        RoadmapMilestoneResponse: {
+            /** Id */
+            id: string;
+            /** Phase Name */
+            phase_name: string;
+            /** Phase Order */
+            phase_order: number;
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+            /** Key Skills */
+            key_skills?: string[];
+            /** Prerequisites */
+            prerequisites?: string[];
+            /** State */
+            state: string;
+            /** Confidence */
+            confidence: number;
+            /** Reason */
+            reason?: string | null;
+            /** Ticked */
+            ticked: boolean;
+            /** Order Index */
+            order_index: number;
+        };
+        /** RoadmapResponse */
+        RoadmapResponse: {
+            /** Id */
+            id: string;
+            /** Goal */
+            goal: string;
+            /** Level */
+            level: string;
+            /** Target Date */
+            target_date?: string | null;
+            /** Status */
+            status: string;
+            /** Generation Mode */
+            generation_mode?: ("ai" | "starter") | null;
+            /** Fallback Reason */
+            fallback_reason?: ("provider_unavailable" | "provider_failed" | "invalid_output") | null;
+            /** Tiers */
+            tiers: components["schemas"]["RoadmapTierResponse"][];
+            /** Total */
+            total: number;
+            /** Done */
+            done: number;
+        };
+        /** RoadmapSummaryResponse */
+        RoadmapSummaryResponse: {
+            /** Id */
+            id: string;
+            /** Goal */
+            goal: string;
+            /** Level */
+            level: string;
+            /** Target Date */
+            target_date?: string | null;
+            /** Status */
+            status: string;
+            /** Generation Mode */
+            generation_mode?: ("ai" | "starter") | null;
+            /** Fallback Reason */
+            fallback_reason?: ("provider_unavailable" | "provider_failed" | "invalid_output") | null;
+            /** Created At */
+            created_at: string;
+            /** Total */
+            total: number;
+            /** Done */
+            done: number;
+        };
+        /** RoadmapTierResponse */
+        RoadmapTierResponse: {
+            /** Name */
+            name: string;
+            /** Icon */
+            icon: string;
+            /** Topics */
+            topics: components["schemas"]["RoadmapMilestoneResponse"][];
+        };
         /** SessionRecord */
         SessionRecord: {
             /** Id */
@@ -2275,7 +2523,7 @@ export interface components {
         /** SessionResponse */
         SessionResponse: {
             /** Access Token */
-            access_token: string;
+            access_token?: string | null;
             /**
              * Token Type
              * @default bearer
@@ -2305,11 +2553,17 @@ export interface components {
             content: string;
             /** Sources */
             sources: components["schemas"]["SourceReference"][];
+            /** Position */
+            position: number;
+            /** Fallback Used */
+            fallback_used?: boolean | null;
         };
         /** StudyMessageCreate */
         StudyMessageCreate: {
             /** Content */
             content: string;
+            /** Request Id */
+            request_id?: string | null;
         };
         /** StudyMessageResponse */
         StudyMessageResponse: {
@@ -2350,6 +2604,17 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Title */
+            title?: string | null;
+            /** Preview */
+            preview?: string | null;
+            /**
+             * Message Count
+             * @default 0
+             */
+            message_count: number;
+            /** Last Message At */
+            last_message_at?: string | null;
         };
         /** TaskCreateRequest */
         TaskCreateRequest: {
@@ -2506,7 +2771,9 @@ export interface operations {
     metrics_metrics_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-metrics-token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2519,6 +2786,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2539,7 +2815,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: string;
+                        [key: string]: unknown;
                     };
                 };
             };
@@ -2547,7 +2823,9 @@ export interface operations {
     };
     register_api_v1_auth_register_post: {
         parameters: {
-            query?: never;
+            query?: {
+                bearer?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2580,7 +2858,9 @@ export interface operations {
     };
     login_api_v1_auth_login_post: {
         parameters: {
-            query?: never;
+            query?: {
+                bearer?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4906,6 +5186,38 @@ export interface operations {
             };
         };
     };
+    add_image_resource_api_v1_resources_image_post: {
+        parameters: {
+            query: {
+                context_id: string;
+                title?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_resources_api_v1_resources_get: {
         parameters: {
             query: {
@@ -5131,6 +5443,26 @@ export interface operations {
             };
         };
     };
+    capabilities_api_v1_settings_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilityResponse"];
+                };
+            };
+        };
+    };
     llm_key_status_api_v1_settings_llm_key_get: {
         parameters: {
             query?: never;
@@ -5206,10 +5538,45 @@ export interface operations {
             };
         };
     };
+    finish_learning_day_api_v1_study_contexts__context_id__finish_day_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                context_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     sessions_api_v1_study_sessions_get: {
         parameters: {
             query: {
                 context_id: string;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -5272,7 +5639,10 @@ export interface operations {
     };
     messages_api_v1_study_sessions__session_id__messages_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                before_position?: number | null;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -5429,6 +5799,8 @@ export interface operations {
         parameters: {
             query: {
                 context_id: string;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -5614,6 +5986,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttemptResultResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_roadmaps_endpoint_api_v1_roadmaps_get: {
+        parameters: {
+            query?: {
+                context_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapSummaryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_roadmap_endpoint_api_v1_roadmaps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_roadmap_endpoint_api_v1_roadmaps__roadmap_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_roadmap_endpoint_api_v1_roadmaps__roadmap_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
                 };
             };
             /** @description Validation Error */

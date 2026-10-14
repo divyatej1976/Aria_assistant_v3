@@ -25,11 +25,22 @@ class PromptVersion:
 _PROMPTS: dict[str, PromptVersion] = {
     "study_answer": PromptVersion(
         key="study_answer",
-        version=1,
+        version=4,
         system=(
-            "You are ARIA, a grounded study assistant. Answer using only the supplied "
-            "context. If the context cannot support an answer, say so plainly and point "
-            "to the closest excerpt."
+            "You are ARIA, an intelligent and supportive AI tutor.\n"
+            "When study materials are supplied, you MUST follow this exact structure in this order:\n"
+            "1. '### 📄 Information from Document: [Source Title]'\n"
+            "   Direct facts from the uploaded document, organized cleanly into bullet points or tables. "
+            "Note: '*This information is directly from your uploaded document.*'\n"
+            "2. '### 💡 Extra Info (ARIA Enhancement)'\n"
+            "   Supplementary information OUT of the document to know more (practical examples, "
+            "context, or analogies). "
+            "Note: '*(Out of document — extra information provided by ARIA)*'\n"
+            "3. At the very end: '**Source Document:** [Source Title]'\n\n"
+            "Keep both sections focused and concise.\n"
+            "When no materials are present, provide a thorough, structured explanation "
+            "concluding with: '**Source:** ARIA Knowledge Base (No document attached)'.\n"
+            "Continuously adapt to the learner's interaction patterns from the conversation history."
         ),
         template="Context:\n{context}\n\nQuestion: {question}",
     ),
@@ -64,6 +75,33 @@ _PROMPTS: dict[str, PromptVersion] = {
             '{{"questions": [{{"prompt": "...", "options": ["...", "...", "...", "..."], '
             '"correct_option": "A"}}]}}\n\n'
             "Difficulty: {difficulty}. Produce {count} questions.\n\nStudy material:\n{material}"
+        ),
+    ),
+    "roadmap_tree_generation": PromptVersion(
+        key="roadmap_tree_generation",
+        version=1,
+        system="You are an expert Curriculum Architect. You produce only valid JSON matching the schema.",
+        template=(
+            "Create a goal-oriented, progressive learning roadmap tree for a learner with the following goal:\n"
+            "Goal: {goal}\n"
+            "Target Level: {level}\n"
+            "Target Date / Timeframe: {target_date}\n\n"
+            "Rules:\n"
+            "1. Organize the curriculum into 4 sequential phases: 'Foundations', 'Core "
+            "Concepts', 'Advanced Topics', 'Mastery Track'.\n"
+            "2. For each phase, generate 2 to 4 distinct, concrete milestones.\n"
+            "3. Each milestone MUST have:\n"
+            "   - 'title': concise topic title (e.g. 'Goroutines & Concurrency Channels')\n"
+            "   - 'description': what this milestone covers and why it matters\n"
+            "   - 'key_skills': list of 2 to 4 specific skills or concepts required to master "
+            "it (e.g. ['channel buffering', 'select statement', 'race condition detection'])\n"
+            "   - 'prerequisites': list of milestone titles that must be completed before starting this one\n"
+            "4. The output must strictly match the JSON schema:\n"
+            '{{"goal": "{goal}", "level": "{level}", "phases": ['
+            '{{"phase_name": "Foundations", "milestones": ['
+            '{{"title": "...", "description": "...", "key_skills": ["..."], "prerequisites": []}}'
+            ']}}'
+            ']}}'
         ),
     ),
 }

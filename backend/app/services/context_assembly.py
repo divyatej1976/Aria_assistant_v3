@@ -6,7 +6,7 @@ the retrieved resource chunks. Resource and conversation text are always
 treated as data and never influence the system instruction.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import UUID
 
 from sqlalchemy import select
@@ -26,7 +26,37 @@ from app.services.learner_state import (
     STATE_UNTESTED,
 )
 
-STUDY_SYSTEM_PROMPT = "Answer only from the supplied study material. If it is insufficient, say so."
+STUDY_SYSTEM_PROMPT = (
+    "You are ARIA, an expert, supportive AI learning companion and tutor.\n\n"
+    "RESPONSE STRUCTURE & SOURCE PROVENANCE RULES:\n"
+    "1. WHEN STUDY MATERIAL IS PROVIDED (under 'Study material:'):\n"
+    "   You MUST format your answer in this exact order with these exact markdown section headings:\n"
+    "   - ### 📄 Information from Document: [Source Title]\n"
+    "     Structure and explain the information provided in the uploaded document with clear bullet points, "
+    "numbered steps, or tables. State explicitly: '*This information is directly from your uploaded document.*'\n"
+    "   - ### 💡 Extra Info (ARIA Enhancement)\n"
+    "     Under this section, provide supplementary information that is OUT of the document to know more, "
+    "such as practical real-world applications, analogies, or best practices. "
+    "State explicitly: '*(Out of document — extra information provided by ARIA to enrich your understanding)*'\n"
+    "   - Footer: Always end with:\n"
+    "     **Source Document:** [Source Title]\n\n"
+    "2. WHEN NO STUDY MATERIAL IS PROVIDED:\n"
+    "   - Answer thoroughly, clearly, and engagingly using your general knowledge with step-by-step explanations, "
+    "bullet points, and code snippets where appropriate.\n"
+    "   - Footer: Always end with:\n"
+    "     **Source:** ARIA Knowledge Base (No document attached)\n\n"
+    "3. LEARNER PATTERN & ADAPTIVE SELF-LOOP:\n"
+    "   - Actively analyze the learner's ongoing interaction pattern in the 'Conversation so "
+    "far:' and 'Learner state:' "
+    "(e.g., whether they prefer code over theory, ask for simpler beginner explanations, or "
+    "dive deep into mechanics).\n"
+    "   - Seamlessly adapt your explanation style, level of detail, and examples to match their "
+    "learning pattern in this self-improving loop.\n\n"
+    "4. TONE & FORMATTING:\n"
+    "   - Welcoming, encouraging, concise, and pedagogical.\n"
+    "   - Keep both sections clear and focused so the learner can quickly grasp both the "
+    "document facts and the extra knowledge."
+)
 
 
 @dataclass(frozen=True)
@@ -37,37 +67,43 @@ class ContextPackage:
     retrieved_chunks: list[RetrievedChunk]
 
 
-def build_study_context(
+def pack_study_context(
     sources: list[RetrievedChunk], *, max_chars: int = 4000, per_chunk: int | None = None
-) -> str:
-    """Render source chunks as data-only context, capped at max_chars.
-
-    Near-duplicate chunks (same normalized 200-char prefix) are collapsed so
-    the budget carries distinct material, and `per_chunk` optionally truncates
-    each source so one long chunk cannot starve the rest.
-    """
+) -> tuple[str, list[RetrievedChunk]]:
+    """Return rendered material and exactly the source excerpts it contains."""
     parts: list[str] = []
+    included: list[RetrievedChunk] = []
     seen: set[str] = set()
     used = 0
     for source in sources:
-        if source.score <= 0:
+        if source.score <= 0 or not source.content.strip():
             continue
-        content = source.content
-        if per_chunk is not None and len(content) > per_chunk:
-            content = content[:per_chunk]
+        content = source.content[:per_chunk] if per_chunk is not None else source.content
         key = " ".join(content.lower().split())[:200]
         if key in seen:
             continue
         seen.add(key)
-        block = f"[{source.source_title}] {content}"
-        if used + len(block) > max_chars:
-            remaining = max_chars - used
-            if remaining > 0:
-                parts.append(block[:remaining])
+        prefix = f"[{source.source_title}] "
+        separator = 2 if parts else 0
+        available = max_chars - used - separator - len(prefix)
+        if available <= 0:
             break
+        excerpt = content[:available]
+        if not excerpt.strip():
+            continue
+        block = prefix + excerpt
         parts.append(block)
-        used += len(block)
-    return "\n\n".join(parts)
+        included.append(replace(source, content=excerpt))
+        used += separator + len(block)
+        if len(excerpt) < len(content):
+            break
+    return "\n\n".join(parts), included
+
+
+def build_study_context(
+    sources: list[RetrievedChunk], *, max_chars: int = 4000, per_chunk: int | None = None
+) -> str:
+    return pack_study_context(sources, max_chars=max_chars, per_chunk=per_chunk)[0]
 
 
 def build_study_messages(*, question: str, context_text: str) -> tuple[str, str]:

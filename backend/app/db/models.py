@@ -73,6 +73,8 @@ class LearningContext(OwnedModel, Base):
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
     configuration: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    concept_sync_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    concept_sync_names: Mapped[list | None] = mapped_column(JSON)
 
 
 class Concept(OwnedModel, Base):
@@ -211,6 +213,8 @@ class IdempotencyKey(OwnedModel, Base):
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     scope: Mapped[str] = mapped_column(String(64), nullable=False)
     key: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    workflow_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     response_status: Mapped[int | None] = mapped_column(Integer)
     response_json: Mapped[dict | None] = mapped_column(JSON)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -276,6 +280,9 @@ class AudioArtifact(OwnedModel, Base):
     content_type: Mapped[str | None] = mapped_column(String(64))
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     storage_key: Mapped[str | None] = mapped_column(String(500))
+    generation_token: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    generation_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
 
 class AudioProgress(OwnedModel, Base):
@@ -390,17 +397,23 @@ class ConversationMessage(OwnedModel, Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     source_refs: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # NULL means legacy response provenance is unknown, not generated.
+    fallback_used: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class Assessment(OwnedModel, Base):
     __tablename__ = "assessments"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "context_id", "daily_review_date", name="uq_assessment_daily_review"),
+    )
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     context_id: Mapped[UUID] = mapped_column(ForeignKey("learning_contexts.id"), index=True)
     mode: Mapped[str] = mapped_column(String(32), default="BASELINE", nullable=False)
     format: Mapped[str] = mapped_column(String(64), default="mcq", nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="READY", nullable=False)
     configuration: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    daily_review_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
 class AssessmentQuestion(OwnedModel, Base):
@@ -477,3 +490,35 @@ class AdaptationDecision(OwnedModel, Base):
     decision_type: Mapped[str] = mapped_column(String(64), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="READY", nullable=False)
+
+
+class Roadmap(OwnedModel, Base):
+    __tablename__ = "roadmaps"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    context_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("learning_contexts.id"), index=True, nullable=True
+    )
+    goal: Mapped[str] = mapped_column(String(255), nullable=False)
+    level: Mapped[str] = mapped_column(String(64), default="Beginner", nullable=False)
+    target_date: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
+    generation_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    fallback_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class RoadmapMilestone(OwnedModel, Base):
+    __tablename__ = "roadmap_milestones"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    roadmap_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmaps.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    phase_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    phase_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    key_skills: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    prerequisites: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    state: Mapped[str] = mapped_column(String(32), default="NOT_STARTED", nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(255))
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

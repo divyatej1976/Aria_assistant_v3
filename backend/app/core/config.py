@@ -1,6 +1,6 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,18 +24,23 @@ class Settings(BaseSettings):
     # Rotation: set _OLD to the previous primary, re-encrypt, then drop _OLD.
     aria_llm_keys_encryption_key: str | None = Field(default=None, repr=False)
     aria_llm_keys_encryption_key_old: str | None = Field(default=None, repr=False)
-    aria_llm_allowed_models: str = "openai/gpt-oss-120b,openai/gpt-oss-20b"
+    aria_llm_allowed_models: str = (
+        "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b,"
+        "llama-3.3-70b-versatile,llama-3.1-8b-instant"
+    )
     # Per-learner monthly cap in USD (0 = unlimited). Global budget stays separate.
     aria_llm_per_user_budget_usd: float = 0.0
-    # Completion-token floor reserved per owner-scoped call when a per-user
-    # budget is active; the concurrent overshoot bound is actual completion
-    # tokens minus this floor. Raise it for tighter caps.
+    # Completion-token limit reserved and passed to the provider when a
+    # per-user budget is active. Admission/input estimates remain best-effort.
     aria_llm_completion_reserve_tokens: int = 512
     # Scheduled database backups (pg_dump). Only meaningful on PostgreSQL.
     aria_backup_enabled: bool = False
     aria_backup_dir: str = "backups"
     aria_backup_interval_hours: int = 24
     aria_backup_keep: int = 14
+    # At-rest encryption for pg_dump archives (Fernet; dedicated key, never
+    # the session secret). Unset = plaintext dumps (dev only).
+    aria_backup_encryption_key: str | None = Field(default=None, repr=False)
     aria_embedding_api_key: str | None = Field(default=None, repr=False)
     aria_embedding_model: str = "text-embedding-3-small"
     aria_embedding_base_url: str | None = None
@@ -53,15 +58,21 @@ class Settings(BaseSettings):
     aria_vapid_public_key: str | None = None
     aria_vapid_private_key: str | None = Field(default=None, repr=False)
     aria_vapid_subject: str = "mailto:noreply@aria.local"
+    # Only browser push services may receive server-side notification requests.
+    aria_push_allowed_hosts: str = (
+        "fcm.googleapis.com,updates.push.services.mozilla.com,"
+        "*.notify.windows.com,web.push.apple.com"
+    )
     aria_sentry_dsn: str | None = Field(default=None, repr=False)
+    aria_metrics_token: str | None = Field(default=None, repr=False)
     aria_langfuse_public_key: str | None = None
     aria_langfuse_secret_key: str | None = Field(default=None, repr=False)
     aria_langfuse_host: str | None = None
     aria_ai_monthly_budget_usd: float = 0.0
-    aria_idempotency_ttl_seconds: int = 3600
+    aria_idempotency_ttl_seconds: int = Field(default=3600, gt=0)
     # Standalone sweeper interval for expired idempotency keys (scheduler job,
     # advisory-locked). Keeps the table clean even when no new inserts occur.
-    aria_idempotency_sweep_interval_seconds: int = 600
+    aria_idempotency_sweep_interval_seconds: int = Field(default=600, gt=0)
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -77,6 +88,10 @@ class Settings(BaseSettings):
     aria_tts_model: str = "canopylabs/orpheus-v1-english"
     aria_tts_voice: str = "tara"
     aria_stt_model: str = "whisper-large-v3"
+    # Audio byte storage root (local dir; prod mounts a volume here).
+    # S3-compatible backends implement AudioStorage later without migration:
+    # artifacts carry a storage_key either way.
+    aria_audio_dir: str = "audiofiles"
 
     @property
     def cors_origins(self) -> list[str]:
@@ -93,6 +108,21 @@ class Settings(BaseSettings):
     @property
     def trusted_hosts(self) -> list[str]:
         return [host.strip() for host in self.aria_trusted_hosts.split(",") if host.strip()]
+
+    @model_validator(mode="after")
+    def _enforce_prod_database(self):
+        """Prod runs on the bundled PostgreSQL only. SQLite is a dev/test
+        fallback (pgvector→JSON, no pg_dump); refuse to boot it in prod."""
+        if self.aria_env == "production" and self.database_url.startswith("sqlite"):
+            raise ValueError(
+                "ARIA_ENV=production requires a PostgreSQL DATABASE_URL "
+                "(SQLite is dev/test only)"
+            )
+        if self.aria_env == "production":
+            secret = self.aria_session_secret or self.supabase_jwt_secret
+            if not secret or len(secret) < 32 or secret == "development-only-change-me":
+                raise ValueError("Production requires a dedicated session secret of at least 32 characters")
+        return self
 
 
 @lru_cache

@@ -5,12 +5,17 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
-from app.schemas.settings import LLMKeyStatusResponse, LLMKeyUpsertRequest
+from app.schemas.settings import CapabilityResponse, LLMKeyStatusResponse, LLMKeyUpsertRequest
 from app.security.dependencies import CurrentLearner
-from app.services.llm_keys import delete_key, get_status, set_key
+from app.services.llm_keys import delete_key, get_capabilities, get_status, set_key
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 Db = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/capabilities", response_model=CapabilityResponse)
+def capabilities(learner: CurrentLearner, db: Db) -> CapabilityResponse:
+    return CapabilityResponse(**get_capabilities(db, owner_id=learner.id))
 
 
 @router.get("/llm-key", response_model=LLMKeyStatusResponse)
@@ -23,12 +28,10 @@ def llm_key_upsert(
     request: LLMKeyUpsertRequest, learner: CurrentLearner, db: Db
 ) -> LLMKeyStatusResponse:
     try:
-        row = set_key(db, owner_id=learner.id, key=request.key, model=request.model)
+        set_key(db, owner_id=learner.id, key=request.key, model=request.model)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return LLMKeyStatusResponse(
-        configured=True, provider=row.provider, model=row.model, hint=row.key_hint
-    )
+    return LLMKeyStatusResponse(**get_status(db, owner_id=learner.id))
 
 
 @router.delete("/llm-key")

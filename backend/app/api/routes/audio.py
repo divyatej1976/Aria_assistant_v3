@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
 from app.schemas.audio import (
@@ -15,6 +16,7 @@ from app.schemas.audio import (
     TranscribeResponse,
 )
 from app.security.dependencies import CurrentLearner
+from app.security.rate_limit import rate_limited
 from app.services.audio import (
     NOTE,
     RESOURCE,
@@ -23,6 +25,7 @@ from app.services.audio import (
     get_owned_artifact,
     get_progress,
     list_audio,
+    load_audio_bytes,
     mark_reviewed,
     save_progress,
     transcribe_audio,
@@ -32,6 +35,13 @@ router = APIRouter(prefix="/api/v1/audio", tags=["audio"])
 Db = Annotated[Session, Depends(get_db)]
 
 logger = logging.getLogger(__name__)
+
+
+def _ai_rate_limit():
+    settings = get_settings()
+    return rate_limited(
+        settings.aria_rate_limit_requests, settings.aria_rate_limit_window_seconds
+    )
 
 
 def audio_response(artifact) -> AudioResponse:
@@ -56,7 +66,12 @@ def list_artifacts(
     return [AudioListItem(**item) for item in list_audio(db, owner_id=learner.id, context_id=context_id)]
 
 
-@router.post("/notes/{note_id}/generate", response_model=AudioResponse, status_code=201)
+@router.post(
+    "/notes/{note_id}/generate",
+    response_model=AudioResponse,
+    status_code=201,
+    dependencies=[Depends(_ai_rate_limit())],
+)
 def generate_note_audio(note_id: UUID, learner: CurrentLearner, db: Db) -> AudioResponse:
     try:
         artifact = generate_audio(
@@ -67,7 +82,12 @@ def generate_note_audio(note_id: UUID, learner: CurrentLearner, db: Db) -> Audio
     return audio_response(artifact)
 
 
-@router.post("/resources/{resource_id}/generate", response_model=AudioResponse, status_code=201)
+@router.post(
+    "/resources/{resource_id}/generate",
+    response_model=AudioResponse,
+    status_code=201,
+    dependencies=[Depends(_ai_rate_limit())],
+)
 def generate_resource_audio(
     resource_id: UUID, learner: CurrentLearner, db: Db
 ) -> AudioResponse:
@@ -95,10 +115,11 @@ def play(artifact_id: UUID, learner: CurrentLearner, db: Db) -> Response:
         artifact = get_owned_artifact(db, owner_id=learner.id, artifact_id=artifact_id)
     except ValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if artifact.status != "READY" or not artifact.audio_bytes:
+    data = load_audio_bytes(artifact)
+    if artifact.status != "READY" or not data:
         raise HTTPException(status_code=409, detail="Audio is not ready")
     return Response(
-        content=artifact.audio_bytes,
+        content=data,
         media_type=artifact.content_type or "audio/mpeg",
     )
 
@@ -154,7 +175,7 @@ def delete(artifact_id: UUID, learner: CurrentLearner, db: Db) -> dict[str, obje
     return {"deleted": True}
 
 
-@router.post("/transcribe", response_model=TranscribeResponse)
+@router.post("/transcribe", response_model=TranscribeResponse, dependencies=[Depends(_ai_rate_limit())])
 def transcribe(
     file: Annotated[UploadFile, File(...)], learner: CurrentLearner
 ) -> TranscribeResponse:
@@ -169,10 +190,10 @@ def transcribe(
         text = transcribe_audio(audio=content, content_type=file.content_type or "audio/webm")
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception:
+    except Exception as exc:
         # Provider failures (e.g. cloud STT rejects the payload with 400)
-        # must degrade to 422, never leak as a 500. Details stay server-side.
-        logger.exception("transcription provider failed")
+        # must degrade to 422 without exposing provider text or credentials.
+        logger.error("transcription provider failed error_type=%s", type(exc).__name__)
         raise HTTPException(
             status_code=422, detail="Speech-to-text provider rejected the audio"
         ) from None

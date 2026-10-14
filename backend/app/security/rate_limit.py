@@ -12,6 +12,7 @@ unaffected.
 """
 
 import datetime
+import logging
 import threading
 import time
 from collections import defaultdict, deque
@@ -22,8 +23,19 @@ from fastapi import HTTPException, Request, status
 
 from app.core.config import get_settings
 
+logger = logging.getLogger(__name__)
+
+# Memory-backend bounds: eviction sweep starts at 10k keys, hard cap at 11k.
+_MAX_MEMORY_KEYS = 10_000
+_HARD_CAP_KEYS = 11_000
+_EVICT_BATCH = 1_000
+
 _hits: dict[str, deque] = defaultdict(deque)
 _lock = threading.Lock()
+# Throttle for the db-backend fail-open warning: a down database must not
+# spam one log line per request.
+_last_db_warn: float = 0.0
+_DB_WARN_INTERVAL_SECONDS = 60.0
 
 
 class _SessionFactory(Protocol):
@@ -45,6 +57,23 @@ def allow_request(key: str, *, limit: int, window_seconds: int) -> bool:
         if len(recent) >= limit:
             return False
         recent.append(now)
+        # Evict dead keys so long-lived processes don't grow without bound.
+        if len(_hits) > _MAX_MEMORY_KEYS:
+            expired = [
+                existing
+                for existing, times in _hits.items()
+                if not times or now - times[-1] > window_seconds
+            ]
+            for existing in expired[:_EVICT_BATCH]:
+                del _hits[existing]
+            # A flood of distinct *fresh* keys leaves nothing expired;
+            # hard-cap by dropping oldest-inserted keys as a backstop.
+            # Bounded iterations: each call adds at most one key, so the
+            # excess over the cap is always small.
+            for _ in range(min(len(_hits) - _HARD_CAP_KEYS, _EVICT_BATCH)):
+                if len(_hits) <= _HARD_CAP_KEYS:
+                    break
+                _hits.pop(next(iter(_hits)))
         return True
 
 
@@ -117,6 +146,14 @@ def allow_request_db(
         finally:
             db.close()
     except Exception:
+        # Fail open (availability over strictness), but loudly: a silent
+        # limiter outage is how abuse goes unnoticed. Warning is throttled
+        # so a down database doesn't spam one line per request.
+        global _last_db_warn
+        now_warn = time.monotonic()
+        if now_warn - _last_db_warn >= _DB_WARN_INTERVAL_SECONDS:
+            _last_db_warn = now_warn
+            logger.warning("rate-limit db backend unavailable; failing open", exc_info=True)
         return True
 
 

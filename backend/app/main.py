@@ -20,10 +20,11 @@ from app.api.routes.planner import router as planner_router
 from app.api.routes.progress import router as progress_router
 from app.api.routes.push import router as push_router
 from app.api.routes.resources import router as resources_router
+from app.api.routes.roadmaps import router as roadmaps_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.study import router as study_router
 from app.core.config import get_settings
-from app.core.errors import ValidationError
+from app.core.errors import AuthorizationError, ValidationError
 from app.core.logging import configure_logging
 from app.core.metrics import init_sentry
 from app.core.request_context import RequestContextMiddleware
@@ -57,12 +58,21 @@ async def validation_error_handler(_: Request, exc: ValidationError) -> JSONResp
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
+@app.exception_handler(AuthorizationError)
+async def authorization_error_handler(_: Request, exc: AuthorizationError) -> JSONResponse:
+    """Ownership / permission failures map to 403, never 500."""
+    return JSONResponse(status_code=403, content={"detail": str(exc) or "Forbidden"})
+
+
 @app.middleware("http")
 async def no_store_api_responses(request, call_next):
     """Never let browsers heuristically cache API GETs (stale /auth/me after login)."""
     response = await call_next(request)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return response
 
 
@@ -74,8 +84,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Exact allowlist: every non-simple header the frontend (or API
+    # consumers) may send. Content-Type (JSON/uploads), Authorization
+    # (bearer clients), X-CSRF-Token (cookie double-submit), Idempotency-Key
+    # (orchestration/assessment idempotent retries — optional today, but an
+    # omission here would fail its preflight the day a client sends it).
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token", "Idempotency-Key"],
+    max_age=600,
 )
 app.include_router(health_router)
 app.include_router(auth_router)
@@ -94,6 +110,7 @@ app.include_router(resources_router)
 app.include_router(settings_router)
 app.include_router(study_router)
 app.include_router(assessments_router)
+app.include_router(roadmaps_router)
 
 
 @app.get("/", tags=["system"])

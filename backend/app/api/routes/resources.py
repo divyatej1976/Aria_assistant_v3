@@ -15,6 +15,7 @@ from app.schemas.resources import (
 )
 from app.security.dependencies import CurrentLearner
 from app.services.resource_ingestion import (
+    create_image_resource,
     create_pdf_resource,
     create_text_resource,
     delete_resource,
@@ -65,10 +66,7 @@ def get_resource(db: Session, *, resource_id: UUID, owner_id: UUID) -> Resource:
     return resource
 
 
-def resource_response(db: Session, resource: Resource) -> ResourceResponse:
-    count = db.scalar(
-        select(func.count(ResourceChunk.id)).where(ResourceChunk.resource_id == resource.id)
-    )
+def resource_response(resource: Resource, *, chunk_count: int = 0) -> ResourceResponse:
     return ResourceResponse(
         id=str(resource.id),
         context_id=str(resource.context_id),
@@ -76,8 +74,17 @@ def resource_response(db: Session, resource: Resource) -> ResourceResponse:
         resource_type=resource.resource_type,
         processing_status=resource.processing_status,
         error_detail=resource.error_detail,
-        chunk_count=count or 0,
+        chunk_count=chunk_count,
         created_at=resource.created_at,
+    )
+
+
+def chunk_count_for(db: Session, *, resource_id: UUID) -> int:
+    return (
+        db.scalar(
+            select(func.count(ResourceChunk.id)).where(ResourceChunk.resource_id == resource_id)
+        )
+        or 0
     )
 
 
@@ -89,7 +96,7 @@ async def add_text_resource(
     resource = await create_text_resource(
         db, owner_id=learner.id, context_id=request.context_id, title=request.title, text=request.text
     )
-    return resource_response(db, resource)
+    return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
 @router.post("/pdf", response_model=ResourceResponse, status_code=201)
@@ -111,16 +118,57 @@ async def add_pdf_resource(
         title=title,
         content=content,
     )
-    return resource_response(db, resource)
+    return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
+
+
+@router.post("/image", response_model=ResourceResponse, status_code=201)
+async def add_image_resource(
+    learner: CurrentLearner,
+    db: Db,
+    request: Request,
+    context_id: UUID,
+    title: str = "Uploaded Image",
+) -> ResourceResponse:
+    ensure_context(db, context_id=context_id, owner_id=learner.id)
+    content = await read_upload_body(request)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Image content cannot be empty",
+        )
+    content_type = request.headers.get("content-type")
+    resource = await create_image_resource(
+        db,
+        owner_id=learner.id,
+        context_id=context_id,
+        title=title,
+        content=content,
+        mime_type=content_type,
+    )
+    return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
 @router.get("", response_model=list[ResourceResponse])
 def list_resources(learner: CurrentLearner, db: Db, context_id: UUID) -> list[ResourceResponse]:
     ensure_context(db, context_id=context_id, owner_id=learner.id)
     resources = db.scalars(
-        select(Resource).where(Resource.owner_id == learner.id, Resource.context_id == context_id)
+        select(Resource)
+        .where(Resource.owner_id == learner.id, Resource.context_id == context_id)
+        .order_by(Resource.created_at)
+        .limit(100)
     ).all()
-    return [resource_response(db, resource) for resource in resources]
+    # One GROUP BY instead of one COUNT per resource (N+1).
+    counts = dict(
+        db.execute(
+            select(ResourceChunk.resource_id, func.count(ResourceChunk.id))
+            .where(ResourceChunk.resource_id.in_([item.id for item in resources]))
+            .group_by(ResourceChunk.resource_id)
+        ).all()
+    )
+    return [
+        resource_response(resource, chunk_count=counts.get(resource.id, 0))
+        for resource in resources
+    ]
 
 
 @router.get("/{resource_id}", response_model=ResourceResponse)
@@ -128,7 +176,7 @@ def get_resource_detail(
     resource_id: UUID, learner: CurrentLearner, db: Db
 ) -> ResourceResponse:
     resource = get_resource(db, resource_id=resource_id, owner_id=learner.id)
-    return resource_response(db, resource)
+    return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
 @router.get("/{resource_id}/chunks", response_model=list[ChunkResponse])
@@ -142,10 +190,11 @@ def list_resource_chunks(
         select(ResourceChunk)
         .where(ResourceChunk.resource_id == resource.id)
         .order_by(ResourceChunk.chunk_index)
+        .limit(3)
     ).all()
     return [
         ChunkResponse(chunk_index=chunk.chunk_index, content=chunk.content)
-        for chunk in chunks[:3]
+        for chunk in chunks
     ]
 
 
@@ -164,7 +213,7 @@ async def retry_processing(
 ) -> ResourceResponse:
     resource = get_resource(db, resource_id=resource_id, owner_id=learner.id)
     processed = await reprocess_resource(db, resource=resource)
-    return resource_response(db, processed)
+    return resource_response(processed, chunk_count=chunk_count_for(db, resource_id=processed.id))
 
 
 @router.put("/{resource_id}/text", response_model=ResourceResponse)
@@ -178,7 +227,7 @@ async def replace_text(
     replaced = await replace_text_resource(
         db, resource=resource, title=request.title, text=request.text
     )
-    return resource_response(db, replaced)
+    return resource_response(replaced, chunk_count=chunk_count_for(db, resource_id=replaced.id))
 
 
 @router.put("/{resource_id}/pdf", response_model=ResourceResponse)
@@ -196,4 +245,4 @@ async def replace_pdf(
     replaced = await replace_pdf_resource(
         db, resource=resource, title=title, content=content
     )
-    return resource_response(db, replaced)
+    return resource_response(replaced, chunk_count=chunk_count_for(db, resource_id=replaced.id))

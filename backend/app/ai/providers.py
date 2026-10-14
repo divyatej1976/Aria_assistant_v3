@@ -7,6 +7,8 @@ from typing import Protocol
 
 import httpx
 
+from app.ai.speech_audio import assemble_wav, speech_segments
+
 logger = logging.getLogger(__name__)
 
 
@@ -145,14 +147,21 @@ class CloudTTSProvider:
         self.voice = voice
 
     def generate(self, *, text: str) -> tuple[bytes, str, int]:
-        response = httpx.post(
-            "https://api.openai.com/v1/audio/speech",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={"model": self.model, "voice": self.voice, "input": text[:4000]},
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.content, "audio/mpeg", max(1, len(text) // 15)
+        parts: list[bytes] = []
+        for segment in speech_segments(text):
+            response = httpx.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": self.model, "voice": self.voice,
+                    "input": segment, "response_format": "wav",
+                },
+                timeout=60,
+            )
+            response.raise_for_status()
+            parts.append(response.content)
+        data, duration = assemble_wav(parts)
+        return data, "audio/wav", duration
 
 
 class LocalTTSProvider:
@@ -162,7 +171,8 @@ class LocalTTSProvider:
             data = self._pyttsx3(text)
         if not data:
             raise RuntimeError("No audio was produced")
-        return data, "audio/wav", max(1, len(text) // 15)
+        data, duration = assemble_wav([data])
+        return data, "audio/wav", duration
 
     def _espeak_ng(self, text: str) -> bytes | None:
         """Headless synthesis via espeak-ng, which writes WAV without an audio
@@ -179,8 +189,11 @@ class LocalTTSProvider:
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "speech.wav")
             try:
+                # Generated Markdown can start with a dash. Keep learner text
+                # on stdin so it is never interpreted as a command option.
                 proc = subprocess.run(
-                    [binary, "-w", path, text],
+                    [binary, "-b", "1", "-w", path, "--stdin"],
+                    input=text.encode("utf-8"),
                     capture_output=True,
                     timeout=60,
                 )
@@ -246,20 +259,21 @@ class GroqTTSProvider:
         self.voice = voice
 
     def generate(self, *, text: str) -> tuple[bytes, str, int]:
-        response = httpx.post(
-            "https://api.groq.com/openai/v1/audio/speech",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={
-                "model": self.model,
-                "voice": self.voice,
-                "input": text[:4000],
-                "response_format": "wav",
-            },
-            timeout=120,
-        )
-        response.raise_for_status()
-        content_type = response.headers.get("content-type", "audio/wav")
-        return response.content, content_type, max(1, len(text) // 15)
+        parts: list[bytes] = []
+        for segment in speech_segments(text):
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/audio/speech",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": self.model, "voice": self.voice,
+                    "input": segment, "response_format": "wav",
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+            parts.append(response.content)
+        data, duration = assemble_wav(parts)
+        return data, "audio/wav", duration
 
 
 class GroqSTTProvider:
@@ -294,21 +308,21 @@ class ChainedTTSProvider:
         self.providers = providers
 
     def generate(self, *, text: str) -> tuple[bytes, str, int]:
-        failures: list[str] = []
         for provider in self.providers:
             try:
                 return provider.generate(text=text)
             except Exception as exc:  # noqa: BLE001 - chain reports every failure
-                logger.warning("tts provider %s failed: %s", type(provider).__name__, exc)
-                failures.append(f"{type(provider).__name__}: {exc}")
-        raise RuntimeError("all TTS providers failed: " + " | ".join(failures))
+                logger.warning(
+                    "tts provider failed provider=%s error_type=%s",
+                    type(provider).__name__, type(exc).__name__,
+                )
+        raise RuntimeError("all TTS providers failed")
 
 
-# Default completion-side floor (tokens) reserved before each owner-scoped
+# Default completion limit (tokens) reserved before each owner-scoped
 # call when a per-learner budget is active. Configurable via
-# ARIA_LLM_COMPLETION_RESERVE_TOKENS. Output length is unknowable pre-call;
-# the hard-cap overshoot for concurrent calls is bounded by
-# (actual_completion_tokens - this floor) per in-flight request.
+# ARIA_LLM_COMPLETION_RESERVE_TOKENS. The same limit is sent to the provider.
+# Admission and input estimates remain best-effort, not hard spending caps.
 DEFAULT_COMPLETION_RESERVE_TOKENS = 512
 
 
@@ -335,11 +349,17 @@ class LiteLLMGroqProvider:
         prompt_version: str | None = None,
         prompt_chars: int = 0,
         completion_chars: int = 0,
-    ) -> None:
+        account_global: bool = True,
+    ) -> tuple[int, int]:
         duration_ms = int((time.monotonic() - started) * 1000)
         usage = getattr(response, "usage", None)
         prompt_tokens = getattr(usage, "prompt_tokens", None) if usage else None
         completion_tokens = getattr(usage, "completion_tokens", None) if usage else None
+        # Invalid metadata must never produce negative charges or refunds.
+        if type(prompt_tokens) is not int or prompt_tokens < 0:
+            prompt_tokens = None
+        if type(completion_tokens) is not int or completion_tokens < 0:
+            completion_tokens = None
         estimated = False
         if prompt_tokens is None or completion_tokens is None:
             # Heuristic estimate (see estimate_tokens) so a response without
@@ -364,14 +384,14 @@ class LiteLLMGroqProvider:
             from app.ai.budget import record_usage
             from app.core.metrics import observe_ai_call
 
-            record_usage(
-                model=self.model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-            )
-            # Learner accounting is reserve/settle in the caller (see
-            # generate_text/generate_structured); global accounting stays
-            # post-call with actual-or-estimated tokens.
+            if account_global:
+                record_usage(
+                    model=self.model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+            # Active budgets reserve/settle in the caller. Without a global
+            # reservation, global accounting records the post-call usage here.
             observe_ai_call(
                 kind=kind,
                 model=self.model,
@@ -384,8 +404,44 @@ class LiteLLMGroqProvider:
             logger.debug("ai metrics update failed", exc_info=True)
         return prompt_tokens, completion_tokens
 
-    def _reserve_learner(self, prompt_chars: int) -> tuple[int, int] | None:
-        """Pre-call reservation for hard per-learner caps; None when inactive."""
+    @staticmethod
+    def _completion_chars(response: object) -> int:
+        """Account returned usage even when the response has no usable choice."""
+        choices = getattr(response, "choices", None)
+        if not choices:
+            return 0
+        content = getattr(getattr(choices[0], "message", None), "content", None)
+        return len(content) if isinstance(content, str) else 0
+
+    def _reserve_budgets(self, prompt_chars: int):
+        from app.ai.budget import monthly_budget_usd, reserve_usage
+
+        global_reserved = None
+        if monthly_budget_usd() > 0:
+            global_reserved = (estimate_tokens(prompt_chars), completion_reserve_tokens())
+            period = reserve_usage(
+                model=self.model, prompt_tokens=global_reserved[0], completion_tokens=global_reserved[1]
+            )
+            global_reserved = (*global_reserved, period)
+        try:
+            learner_reserved = self._reserve_learner(prompt_chars)
+        except BaseException:
+            # No provider call was dispatched; this reservation is refundable.
+            self._settle_global(global_reserved, (0, 0))
+            raise
+        return global_reserved, learner_reserved
+
+    def _settle_global(self, reserved, final):
+        if reserved is None or final is None:
+            return
+        from app.ai.budget import record_usage
+
+        record_usage(model=self.model, prompt_tokens=final[0] - reserved[0],
+                     completion_tokens=final[1] - reserved[1],
+                     period=reserved[2] if len(reserved) > 2 else None)
+
+    def _reserve_learner(self, prompt_chars: int) -> tuple[int, int, str] | None:
+        """Pre-call estimate for per-learner budgets; None when inactive."""
         from app.ai.budget import learner_budget_usd, reserve_learner_usage
 
         if self.owner_id is None or learner_budget_usd() <= 0:
@@ -394,16 +450,16 @@ class LiteLLMGroqProvider:
             estimate_tokens(prompt_chars),
             completion_reserve_tokens(),
         )
-        reserve_learner_usage(
+        period = reserve_learner_usage(
             owner_id=self.owner_id,
             model=self.model,
             prompt_tokens=reserved[0],
             completion_tokens=reserved[1],
         )
-        return reserved
+        return (*reserved, period)
 
     def _settle_learner(
-        self, reserved: tuple[int, int] | None, final: tuple[int, int] | None
+        self, reserved: tuple[int, int, str] | None, final: tuple[int, int] | None
     ) -> None:
         from app.ai.budget import record_learner_usage, settle_learner_usage
 
@@ -420,17 +476,25 @@ class LiteLLMGroqProvider:
                 )
             return
         if final is None:
-            # Call failed before any accounting: refund the full reservation.
-            final = (0, 0)
+            # A transport failure does not prove the provider performed no
+            # work. Keep the provisional reservation instead of refunding
+            # potentially billable usage; this can conservatively overcount.
+            return
         settle_learner_usage(
             owner_id=self.owner_id,
             model=self.model,
             prompt_tokens_delta=final[0] - reserved[0],
             completion_tokens_delta=final[1] - reserved[1],
+            period=reserved[2] if len(reserved) > 2 else None,
         )
 
     async def generate_text(
-        self, *, system: str, user: str, prompt_version: str | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        prompt_version: str | None = None,
+        temperature: float = 0.0,
     ) -> str:
         from litellm import acompletion
 
@@ -439,13 +503,18 @@ class LiteLLMGroqProvider:
         assert_within_budget()
         if self.owner_id is not None:
             assert_learner_within_budget(self.owner_id)
-        reserved = self._reserve_learner(len(system) + len(user))
+        global_reserved, reserved = self._reserve_budgets(len(system) + len(user))
+        output_reservation = global_reserved or reserved
         started = time.monotonic()
+        final = None
         try:
             response = await acompletion(
                 model=f"groq/{self.model}",
                 api_key=self.api_key,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                temperature=temperature,
+                **({"max_tokens": output_reservation[1]} if output_reservation is not None else {}),
+                timeout=60,
             )
             final = self._log_call(
                 kind="generate_text",
@@ -453,17 +522,21 @@ class LiteLLMGroqProvider:
                 response=response,
                 prompt_version=prompt_version,
                 prompt_chars=len(system) + len(user),
-                completion_chars=len(response.choices[0].message.content or ""),
+                completion_chars=self._completion_chars(response),
+                account_global=global_reserved is None,
             )
+            text = response.choices[0].message.content or ""
         except Exception:
-            # Includes malformed responses: refund the reservation, never leak it.
+            # Preserve returned usage even if response extraction fails.
             # Log the model so fallback_used=true is triageable server-side
             # (e.g. invalid model vs bad key vs terms acceptance).
             logger.warning("groq generate_text failed model=%s", self.model, exc_info=True)
-            self._settle_learner(reserved, None)
+            self._settle_learner(reserved, final)
+            self._settle_global(global_reserved, final)
             raise
         self._settle_learner(reserved, final)
-        return response.choices[0].message.content or ""
+        self._settle_global(global_reserved, final)
+        return text
 
     async def generate_structured(
         self, *, prompt: str, schema: type, prompt_version: str | None = None
@@ -475,31 +548,40 @@ class LiteLLMGroqProvider:
         assert_within_budget()
         if self.owner_id is not None:
             assert_learner_within_budget(self.owner_id)
-        reserved = self._reserve_learner(len(prompt))
+        system = "You produce only valid JSON matching the schema."
+        prompt_chars = len(system) + len(prompt)
+        global_reserved, reserved = self._reserve_budgets(prompt_chars)
+        output_reservation = global_reserved or reserved
         started = time.monotonic()
+        final = None
         try:
             response = await acompletion(
                 model=f"groq/{self.model}",
                 api_key=self.api_key,
                 messages=[
-                    {"role": "system", "content": "You produce only valid JSON matching the schema."},
+                    {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
+                **({"max_tokens": output_reservation[1]} if output_reservation is not None else {}),
+                timeout=60,
             )
             final = self._log_call(
                 kind="generate_structured",
                 started=started,
                 response=response,
                 prompt_version=prompt_version,
-                prompt_chars=len(prompt),
-                completion_chars=len(response.choices[0].message.content or ""),
+                prompt_chars=prompt_chars,
+                completion_chars=self._completion_chars(response),
+                account_global=global_reserved is None,
             )
+            text = response.choices[0].message.content or ""
         except Exception:
-            # Includes malformed responses: refund the reservation, never leak it.
+            # Returned provider usage is chargeable even with malformed choices.
             logger.warning("groq generate_structured failed model=%s", self.model, exc_info=True)
-            self._settle_learner(reserved, None)
+            self._settle_learner(reserved, final)
+            self._settle_global(global_reserved, final)
             raise
         self._settle_learner(reserved, final)
-        text = response.choices[0].message.content or ""
+        self._settle_global(global_reserved, final)
         return schema.model_validate_json(text)

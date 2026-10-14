@@ -28,7 +28,6 @@ MODEL_RATES: dict[str, tuple[float, float]] = {
     # fall back to the conservative DEFAULT rates so budgets still bind.
     "openai/gpt-oss-120b": (0.00015, 0.00075),
     "openai/gpt-oss-20b": (0.00010, 0.00050),
-    "whisper-large-v3": (0.0000, 0.0000),  # audio; charged per second elsewhere
 }
 DEFAULT_INPUT_RATE = 0.00059
 DEFAULT_OUTPUT_RATE = 0.00079
@@ -39,7 +38,7 @@ class BudgetExceeded(RuntimeError):
 
 
 _lock = threading.Lock()
-_fallback_spend_usd = 0.0
+_fallback_spend_by_period: dict[str, float] = {}
 # True once persistent accounting has failed in production; generation is
 # blocked until a DB probe succeeds again (self-healing).
 _accounting_unavailable = False
@@ -159,28 +158,71 @@ def _db_reset(period: str) -> None:
         pass
 
 
-def record_usage(*, model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    global _fallback_spend_usd
+def record_usage(*, model: str, prompt_tokens: int, completion_tokens: int, period: str | None = None) -> float:
     cost = estimate_cost_usd(
         model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
     )
-    period = _period()
+    period = period or _period()
     if not _db_record_cost(cost, period):
         with _lock:
-            _fallback_spend_usd += cost
+            _fallback_spend_by_period[period] = _fallback_spend_by_period.get(period, 0.0) + cost
     return spend_usd()
 
 
-def spend_usd() -> float:
+def reserve_usage(*, model: str, prompt_tokens: int, completion_tokens: int) -> str:
+    """Atomically reserve estimated global spend before provider execution."""
+    if any(type(value) is not int or value < 0 for value in (prompt_tokens, completion_tokens)):
+        raise ValueError("Reservation tokens must be nonnegative integers")
+    cost = estimate_cost_usd(model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+    period = _period()
+    limit = monthly_budget_usd()
+    if limit <= 0:
+        record_usage(model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, period=period)
+        return period
     with _lock:
-        fallback = _fallback_spend_usd
-    return _db_spend(_period()) + fallback
+        fallback = _fallback_spend_by_period.get(period, 0.0)
+    try:
+        from sqlalchemy import update
+
+        from app.db.models import AiUsage
+        from app.db.session import SessionLocal
+
+        with SessionLocal() as db:
+            if db.get_bind().dialect.name == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert
+            else:
+                from sqlalchemy.dialects.sqlite import insert
+            db.execute(insert(AiUsage).values(period=period, spend_usd=0)
+                       .on_conflict_do_nothing(index_elements=[AiUsage.period]))
+            admitted = db.execute(update(AiUsage).where(
+                AiUsage.period == period, AiUsage.spend_usd <= limit - fallback - cost,
+            ).values(spend_usd=AiUsage.spend_usd + cost)).rowcount
+            db.commit()
+    except Exception:
+        _mark_db_failure()
+        if getattr(get_settings(), "aria_env", "development") == "production":
+            raise BudgetExceeded("Persistent AI budget accounting is unavailable") from None
+        with _lock:
+            if _fallback_spend_by_period.get(period, 0.0) + cost > limit:
+                raise BudgetExceeded("Insufficient monthly AI budget for this request")
+            _fallback_spend_by_period[period] = _fallback_spend_by_period.get(period, 0.0) + cost
+        return period
+    if not admitted:
+        raise BudgetExceeded("Insufficient monthly AI budget for this request")
+    return period
+
+
+def spend_usd() -> float:
+    period = _period()
+    with _lock:
+        fallback = _fallback_spend_by_period.get(period, 0.0)
+    return _db_spend(period) + fallback
 
 
 def reset_budget() -> None:
-    global _fallback_spend_usd, _accounting_unavailable
+    global _accounting_unavailable
     with _lock:
-        _fallback_spend_usd = 0.0
+        _fallback_spend_by_period.clear()
     _accounting_unavailable = False
     _db_reset(_period())
 
@@ -282,12 +324,12 @@ def _learner_db_spend(owner_id: object, period: str) -> float:
 
 
 def record_learner_usage(
-    *, owner_id: object, model: str, prompt_tokens: int, completion_tokens: int
+    *, owner_id: object, model: str, prompt_tokens: int, completion_tokens: int, period: str | None = None
 ) -> float:
     cost = estimate_cost_usd(
         model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
     )
-    period = _period()
+    period = period or _period()
     if not _learner_apply_cost(owner_id, cost, period):
         with _lock:
             key = (str(owner_id), period)
@@ -297,20 +339,62 @@ def record_learner_usage(
 
 def reserve_learner_usage(
     *, owner_id: object, model: str, prompt_tokens: int, completion_tokens: int
-) -> None:
-    """Charge an upfront cost estimate *before* the provider call.
+) -> str:
+    """Atomically admit the estimated cost within the learner's limit.
 
-    Concurrent in-flight requests each pay their estimated maximum upfront,
-    so `assert_learner_within_budget` sees their reservations immediately —
-    the hard-cap overshoot shrinks from a whole request to the difference
-    between estimate and actual usage.
+    Input estimation and final provider usage remain best-effort; admission
+    prevents simultaneous reservations from independently spending the same
+    remaining balance. Development fallback is limited to this process.
     """
-    record_learner_usage(
-        owner_id=owner_id,
-        model=model,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-    )
+    if any(type(value) is not int or value < 0 for value in (prompt_tokens, completion_tokens)):
+        raise ValueError("Reservation tokens must be nonnegative integers")
+    period = _period()
+    limit = learner_budget_usd()
+    if limit <= 0:
+        record_learner_usage(owner_id=owner_id, model=model,
+                             prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, period=period)
+        return period
+    cost = estimate_cost_usd(model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+    with _lock:
+        fallback = _learner_fallback_spend.get((str(owner_id), period), 0.0)
+    admitted = _learner_reserve_cost(owner_id, cost, period, limit - fallback)
+    if admitted is False:
+        raise BudgetExceeded("Insufficient monthly personal AI budget for this request")
+    if admitted is None:
+        if getattr(get_settings(), "aria_env", "development") == "production":
+            raise BudgetExceeded("Persistent AI budget accounting is unavailable")
+        with _lock:
+            key = (str(owner_id), period)
+            current = _learner_fallback_spend.get(key, 0.0)
+            if current + cost > limit:
+                raise BudgetExceeded("Insufficient monthly personal AI budget for this request")
+            _learner_fallback_spend[key] = current + cost
+    return period
+
+
+def _learner_reserve_cost(owner_id: object, cost: float, period: str, limit: float) -> bool | None:
+    try:
+        from sqlalchemy import update
+
+        from app.db.models import LearnerAiUsage
+        from app.db.session import SessionLocal
+
+        with SessionLocal() as db:
+            if db.get_bind().dialect.name == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert
+            else:
+                from sqlalchemy.dialects.sqlite import insert
+            db.execute(insert(LearnerAiUsage).values(owner_id=owner_id, period=period, spend_usd=0)
+                       .on_conflict_do_nothing(index_elements=[LearnerAiUsage.owner_id, LearnerAiUsage.period]))
+            changed = db.execute(update(LearnerAiUsage).where(
+                LearnerAiUsage.owner_id == owner_id, LearnerAiUsage.period == period,
+                LearnerAiUsage.spend_usd <= limit - cost,
+            ).values(spend_usd=LearnerAiUsage.spend_usd + cost)).rowcount
+            db.commit()
+            return bool(changed)
+    except Exception:
+        _mark_db_failure()
+        return None
 
 
 def settle_learner_usage(
@@ -319,12 +403,13 @@ def settle_learner_usage(
     model: str,
     prompt_tokens_delta: int,
     completion_tokens_delta: int,
+    period: str | None = None,
 ) -> None:
     """Reconcile final usage against the reservation (deltas may be negative).
 
     Called after the provider response with (actual - reserved) tokens, so
-    the learner's recorded spend converges to actual usage. Refunds the full
-    reservation when a call fails before completion (deltas = -reserved).
+    the learner's recorded spend converges to reported/estimated usage.
+    Unknown transport billing retains its provisional reservation instead.
     """
     if prompt_tokens_delta == 0 and completion_tokens_delta == 0:
         return
@@ -333,7 +418,7 @@ def settle_learner_usage(
         prompt_tokens=prompt_tokens_delta,
         completion_tokens=completion_tokens_delta,
     )
-    period = _period()
+    period = period or _period()
     if not _learner_apply_cost(owner_id, cost, period):
         with _lock:
             key = (str(owner_id), period)

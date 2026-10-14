@@ -88,12 +88,15 @@ def run_reminders_job() -> None:
 
 def run_audio_queue_job() -> None:
     from app.db.session import SessionLocal, engine
-    from app.services.audio import process_audio_queue
+    from app.services.audio import process_audio_queue, sweep_audio_files
 
     def work() -> None:
         db = SessionLocal()
         try:
             processed = process_audio_queue(db)
+            cleanup = sweep_audio_files(db)
+            if cleanup["deleted"]:
+                logger.info("scheduled audio cleanup removed %s files", cleanup["deleted"])
             if processed:
                 logger.info("scheduled audio generated %s artifacts", processed)
         except Exception:

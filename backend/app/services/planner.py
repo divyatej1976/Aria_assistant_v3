@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
 from app.db.models import Deadline, PlannedTask, Resource
+from app.services.contexts import get_owned_context, get_owned_related
 from app.services.progress import learner_timezone, record_activity
 
 
@@ -41,16 +42,10 @@ def create_deadline(
     syllabus_resource_id: UUID | None,
     reminder_days_before: int,
 ) -> Deadline:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
     if syllabus_resource_id is not None:
-        resource = db.scalar(
-            select(Resource).where(
-                Resource.id == syllabus_resource_id, Resource.owner_id == owner_id
-            )
-        )
-        if resource is None:
-            raise ValidationError("Syllabus resource not found")
-        if resource.context_id != context_id:
-            raise ValidationError("Syllabus resource does not belong to this context")
+        get_owned_related(db, Resource, owner_id=owner_id, context_id=context_id,
+                          related_id=syllabus_resource_id, label="Syllabus resource")
     tz = learner_timezone(db, owner_id=owner_id)
     deadline = Deadline(
         owner_id=owner_id,
@@ -134,10 +129,10 @@ def create_task(
     deadline_id: UUID | None,
     due_at: datetime | None,
 ) -> PlannedTask:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
     if deadline_id is not None:
-        deadline = get_owned_deadline(db, owner_id=owner_id, deadline_id=deadline_id)
-        if deadline.context_id != context_id:
-            raise ValidationError("Deadline does not belong to this context")
+        get_owned_related(db, Deadline, owner_id=owner_id, context_id=context_id,
+                          related_id=deadline_id, label="Deadline")
     if due_at is not None and due_at.tzinfo is None:
         tz = learner_timezone(db, owner_id=owner_id)
         due_at = _coerce_aware(due_at, tz=tz)

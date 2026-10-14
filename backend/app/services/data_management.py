@@ -1,18 +1,24 @@
 """Learner data controls: full export and context deletion (explicit cascades)."""
 
+import base64
+import json
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
     AdaptationDecision,
+    AgentTask,
+    ApprovalRequest,
     Assessment,
     AssessmentAttempt,
     AssessmentQuestion,
     AttemptAnswer,
     AudioArtifact,
     AudioProgress,
+    AuditLog,
     Concept,
     ConceptChunk,
     ConceptRelation,
@@ -22,6 +28,7 @@ from app.db.models import (
     Evidence,
     Goal,
     Learner,
+    LearnerAiUsage,
     LearnerBadge,
     LearnerConceptState,
     LearnerLLMKey,
@@ -35,7 +42,10 @@ from app.db.models import (
     Resource,
     ResourceChunk,
     RevisionItem,
+    Roadmap,
+    RoadmapMilestone,
     StudySession,
+    Workflow,
 )
 
 
@@ -47,200 +57,125 @@ def _owned_context(db: Session, *, owner_id: UUID, context_id: UUID) -> Learning
     )
 
 
-def _rows(db: Session, model, *, owner_id: UUID) -> list:
-    return list(db.scalars(select(model).where(model.owner_id == owner_id)).all())
+# Explicit allowlist: authentication/session/idempotency records are never exported.
+_EXPORT_COLLECTIONS = {
+    "preferences": LearnerPreference, "goals": Goal, "contexts": LearningContext,
+    "notes": Note, "revision_items": RevisionItem, "planned_tasks": PlannedTask,
+    "deadlines": Deadline, "study_sessions": StudySession,
+    "conversation_messages": ConversationMessage, "concepts": Concept,
+    "resources": Resource, "resource_chunks": ResourceChunk,
+    "concept_chunks": ConceptChunk, "concept_relations": ConceptRelation,
+    "learner_concept_states": LearnerConceptState, "assessments": Assessment,
+    "assessment_questions": AssessmentQuestion, "assessment_attempts": AssessmentAttempt,
+    "attempt_answers": AttemptAnswer, "evaluations": Evaluation, "evidence": Evidence,
+    "adaptation_decisions": AdaptationDecision, "badges": LearnerBadge,
+    "learning_activities": LearningActivity, "notifications": Notification,
+    "audio_artifacts": AudioArtifact, "audio_progress": AudioProgress,
+    "roadmaps": Roadmap, "roadmap_milestones": RoadmapMilestone,
+    "workflows": Workflow, "agent_tasks": AgentTask, "approvals": ApprovalRequest,
+    "audit_logs": AuditLog, "learner_ai_usage": LearnerAiUsage,
+    "push_subscriptions": PushSubscription, "llm_key": LearnerLLMKey,
+}
 
 
-# Binary/vector columns excluded from the portable JSON export: their repr
-# dumps are enormous and unusable outside the app.
-_EXPORT_EXCLUDED_COLUMNS = {"audio_bytes", "raw_bytes", "embedding", "embedding_json"}
-
-
-def _serialize(row) -> dict:
+def _serialize_export(row) -> dict:
+    if isinstance(row, LearnerLLMKey):
+        return {"id": str(row.id), "owner_id": str(row.owner_id),
+                "provider": row.provider, "model": row.model, "hint": row.key_hint}
     out = {}
     for column in row.__table__.columns:
-        if column.name in _EXPORT_EXCLUDED_COLUMNS:
-            out[column.name] = None
+        # Derived vectors and push authentication material are deliberately omitted.
+        if column.name in {"embedding", "embedding_json", "generation_token", "lease_until"}:
+            continue
+        if isinstance(row, PushSubscription) and column.name in {"auth", "p256dh"}:
             continue
         value = getattr(row, column.name)
-        out[column.name] = value.isoformat() if hasattr(value, "isoformat") else value
+        if isinstance(value, bytes):
+            value = base64.b64encode(value).decode("ascii")
+        elif isinstance(value, UUID):
+            value = str(value)
+        elif hasattr(value, "isoformat"):
+            value = value.isoformat()
+        out[column.name] = value
+    if isinstance(row, AudioArtifact):
+        from app.services.audio import load_audio_bytes
+
+        audio = load_audio_bytes(row)
+        out["audio_bytes"] = base64.b64encode(audio).decode("ascii") if audio is not None else None
+        out["audio_bytes_status"] = (
+            "included" if audio is not None else "unavailable" if row.status == "READY" else "not_generated"
+        )
+    if isinstance(row, Resource):
+        out["original_bytes_status"] = (
+            "included" if row.raw_bytes is not None
+            else "not_applicable" if row.resource_type == "TEXT" else "unavailable"
+        )
     return out
 
 
+def stream_learner_data(db: Session, *, owner_id: UUID):
+    """Stream portable JSON with bounded row batches from an owned snapshot.
+
+    The generator owns its session through completion/cancellation; it does not
+    depend on FastAPI dependency cleanup timing. No collection/message caps.
+    """
+    encoder = json.JSONEncoder(default=str, ensure_ascii=True)
+    with Session(bind=db.get_bind()) as snapshot:
+        dialect = snapshot.get_bind().dialect.name
+        snapshot.connection(execution_options={
+            "isolation_level": "REPEATABLE READ" if dialect == "postgresql" else "SERIALIZABLE"
+        })
+        if dialect == "sqlite":
+            # Python's legacy SQLite mode otherwise does not start a snapshot on SELECT.
+            snapshot.connection().exec_driver_sql("BEGIN")
+        learner = snapshot.get(Learner, owner_id)
+        metadata = {
+            "schema_version": 2,
+            "exported_at": datetime.now(UTC).isoformat(),
+            "owner_id": str(owner_id), "truncated": False,
+            "binary_encoding": "base64",
+            "omissions": [
+                "Authentication secrets, active sessions and idempotency reservations",
+                "LLM credential ciphertext/plaintext and push authentication keys",
+                "Derived embedding vectors (regenerate from resource chunks)",
+                "Transient audio leases and generation tokens",
+            ],
+            "relationships": "Original UUIDs and foreign IDs are preserved in separate collections.",
+        }
+        profile = {"id": str(owner_id), "email": learner.email if learner else None,
+                   "display_name": learner.display_name if learner else None,
+                   "verified": learner.verified_at is not None if learner else False}
+        if learner:
+            for field in ("owner_id", "created_at", "updated_at", "verified_at"):
+                value = getattr(learner, field)
+                profile[field] = value.isoformat() if hasattr(value, "isoformat") else str(value) if value else None
+        yield '{"metadata":'
+        yield from encoder.iterencode(metadata)
+        yield ',"profile":'
+        yield from encoder.iterencode(profile)
+        counts = {}
+        for name, model in _EXPORT_COLLECTIONS.items():
+            yield ',' + json.dumps(name) + ':['
+            count = 0
+            batch_size = 1 if model in (Resource, AudioArtifact) else 100
+            rows = snapshot.scalars(select(model).where(model.owner_id == owner_id)
+                                    .order_by(model.id).execution_options(yield_per=batch_size))
+            for row in rows:
+                if count:
+                    yield ','
+                yield from encoder.iterencode(_serialize_export(row))
+                count += 1
+                snapshot.expunge(row)
+            counts[name] = count
+            yield ']'
+        yield ',"record_counts":'
+        yield from encoder.iterencode(counts)
+        yield '}'
+
+
 def export_learner_data(db: Session, *, owner_id: UUID) -> dict:
-    """Assemble every learner-owned artifact into a portable JSON dict."""
-    learner = db.get(Learner, owner_id)
-    data: dict = {
-        "profile": {
-            "email": learner.email if learner else None,
-            "display_name": learner.display_name if learner else None,
-            "verified": learner.verified_at is not None if learner else False,
-        },
-        "preferences": [_serialize(p) for p in _rows(db, LearnerPreference, owner_id=owner_id)],
-        "contexts": [],
-    }
-
-    contexts = _rows(db, LearningContext, owner_id=owner_id)
-    notes_out: list[dict] = []
-    tasks_out: list[dict] = []
-    deadlines_out: list[dict] = []
-    sessions_out: list[dict] = []
-    concepts_out: list[dict] = []
-    resources_out: list[dict] = []
-    assessments_out: list[dict] = []
-
-    for ctx in contexts:
-        cid = ctx.id
-        data["contexts"].append(
-            {
-                "id": str(cid),
-                "title": ctx.title,
-                "description": ctx.description,
-                "status": ctx.status,
-                "configuration": ctx.configuration,
-                "goal_id": str(ctx.goal_id) if ctx.goal_id else None,
-            }
-        )
-
-        for note in db.scalars(
-            select(Note).where(Note.owner_id == owner_id, Note.context_id == cid)
-        ).all():
-            rev = db.scalar(
-                select(RevisionItem).where(
-                    RevisionItem.owner_id == owner_id, RevisionItem.note_id == note.id
-                )
-            )
-            notes_out.append(
-                {
-                    "title": note.title,
-                    "body": note.body,
-                    "review_state": rev.state if rev else None,
-                    "next_review_at": rev.next_review_at.isoformat()
-                    if rev and rev.next_review_at
-                    else None,
-                }
-            )
-
-        for task in db.scalars(
-            select(PlannedTask).where(PlannedTask.owner_id == owner_id, PlannedTask.context_id == cid)
-        ).all():
-            tasks_out.append(
-                {
-                    "title": task.title,
-                    "status": task.status,
-                    "due_at": task.due_at.isoformat() if task.due_at else None,
-                }
-            )
-
-        for dl in db.scalars(
-            select(Deadline).where(Deadline.owner_id == owner_id, Deadline.context_id == cid)
-        ).all():
-            deadlines_out.append(
-                {"title": dl.title, "due_at": dl.due_at.isoformat() if dl.due_at else None}
-            )
-
-        for sess in db.scalars(
-            select(StudySession).where(StudySession.owner_id == owner_id, StudySession.context_id == cid)
-        ).all():
-            msgs = [
-                {"role": m.role, "content": m.content}
-                for m in db.scalars(
-                    select(ConversationMessage).where(
-                        ConversationMessage.owner_id == owner_id,
-                        ConversationMessage.study_session_id == sess.id,
-                    )
-                ).all()
-            ]
-            sessions_out.append({"mode": sess.mode, "messages": msgs})
-
-        for concept in db.scalars(
-            select(Concept).where(Concept.owner_id == owner_id, Concept.context_id == cid)
-        ).all():
-            state_row = db.scalar(
-                select(LearnerConceptState).where(
-                    LearnerConceptState.owner_id == owner_id,
-                    LearnerConceptState.concept_id == concept.id,
-                )
-            )
-            concepts_out.append(
-                {
-                    "name": concept.name,
-                    "state": state_row.state if state_row else None,
-                    "confidence": state_row.confidence if state_row else None,
-                }
-            )
-
-        for res in db.scalars(
-            select(Resource).where(Resource.owner_id == owner_id, Resource.context_id == cid)
-        ).all():
-            resources_out.append({"title": res.title, "type": res.resource_type})
-
-        for assessment in db.scalars(
-            select(Assessment).where(Assessment.owner_id == owner_id, Assessment.context_id == cid)
-        ).all():
-            attempts: list[dict] = []
-            for attempt in db.scalars(
-                select(AssessmentAttempt).where(
-                    AssessmentAttempt.owner_id == owner_id,
-                    AssessmentAttempt.assessment_id == assessment.id,
-                )
-            ).all():
-                ev = db.scalar(select(Evaluation).where(Evaluation.attempt_id == attempt.id))
-                if ev:
-                    attempts.append(
-                        {
-                            "score": ev.score,
-                            "total": ev.details.get("total"),
-                            "attempt_status": attempt.status,
-                        }
-                    )
-            assessments_out.append({"format": assessment.format, "attempts": attempts})
-
-    data["notes"] = notes_out
-    data["planned_tasks"] = tasks_out
-    data["deadlines"] = deadlines_out
-    data["study_sessions"] = sessions_out
-    data["concepts"] = concepts_out
-    data["resources"] = resources_out
-    data["assessments"] = assessments_out
-    data["badges"] = [_serialize(b) for b in _rows(db, LearnerBadge, owner_id=owner_id)]
-
-    # --- additional learner-owned data omitted previously (issue 6) ---
-    data["goals"] = [_serialize(g) for g in _rows(db, Goal, owner_id=owner_id)]
-    data["learning_activities"] = [_serialize(a) for a in _rows(db, LearningActivity, owner_id=owner_id)]
-    data["notifications"] = [_serialize(n) for n in _rows(db, Notification, owner_id=owner_id)]
-    data["push_subscriptions"] = [_serialize(p) for p in _rows(db, PushSubscription, owner_id=owner_id)]
-
-    # audio artifacts with nested progress
-    audio_out: list[dict] = []
-    for art in _rows(db, AudioArtifact, owner_id=owner_id):
-        prog = db.scalar(
-            select(AudioProgress).where(
-                AudioProgress.owner_id == owner_id, AudioProgress.artifact_id == art.id
-            )
-        )
-        d = _serialize(art)
-        d["progress"] = _serialize(prog) if prog else None
-        audio_out.append(d)
-    data["audio_artifacts"] = audio_out
-    data["audio_progress"] = [_serialize(p) for p in _rows(db, AudioProgress, owner_id=owner_id)]
-
-    # concept graph and learner model
-    data["concept_relations"] = [_serialize(r) for r in _rows(db, ConceptRelation, owner_id=owner_id)]
-    data["resource_chunks"] = [_serialize(c) for c in _rows(db, ResourceChunk, owner_id=owner_id)]
-    data["concept_chunks"] = [_serialize(c) for c in _rows(db, ConceptChunk, owner_id=owner_id)]
-    data["evidence"] = [_serialize(e) for e in _rows(db, Evidence, owner_id=owner_id)]
-    data["adaptation_decisions"] = [_serialize(a) for a in _rows(db, AdaptationDecision, owner_id=owner_id)]
-
-    # BYO LLM key: metadata only (provider/model/hint). Ciphertext and
-    # plaintext are never included in exports.
-    data["llm_key"] = [
-        {"provider": row.provider, "model": row.model, "hint": row.key_hint}
-        for row in _rows(db, LearnerLLMKey, owner_id=owner_id)
-    ]
-    data["attempt_answers"] = [_serialize(a) for a in _rows(db, AttemptAnswer, owner_id=owner_id)]
-    data["learner_concept_states"] = [_serialize(s) for s in _rows(db, LearnerConceptState, owner_id=owner_id)]
-    return data
+    """Materialized helper for offline callers; HTTP uses the streaming variant."""
+    return json.loads("".join(stream_learner_data(db, owner_id=owner_id)))
 
 
 def delete_context_cascade(db: Session, *, owner_id: UUID, context_id: UUID) -> bool:
@@ -275,6 +210,13 @@ def delete_context_cascade(db: Session, *, owner_id: UUID, context_id: UUID) -> 
     # do NOT wrap in a second db.begin() — _owned_context lookup already opened
     # SQLAlchemy's autobegin transaction for this Session.
     try:
+        audio_keys = list(db.scalars(select(AudioArtifact.storage_key).where(
+            AudioArtifact.owner_id == owner_id,
+            or_(
+                (AudioArtifact.source_type == "NOTE") & AudioArtifact.source_id.in_(note_ids),
+                (AudioArtifact.source_type == "RESOURCE") & AudioArtifact.source_id.in_(resource_ids),
+            ),
+        )))
         # audio progress before artifacts (AudioProgress.artifact_id -> AudioArtifact.id)
         audio_note_artifact_ids = select(AudioArtifact.id).where(
             AudioArtifact.source_type == "NOTE", AudioArtifact.source_id.in_(note_ids)
@@ -344,6 +286,11 @@ def delete_context_cascade(db: Session, *, owner_id: UUID, context_id: UUID) -> 
         db.execute(delete(StudySession).where(StudySession.owner_id == owner_id, StudySession.context_id == context_id))
         db.execute(delete(Assessment).where(Assessment.owner_id == owner_id, Assessment.context_id == context_id))
 
+        # roadmaps before learning_context
+        roadmap_ids = select(Roadmap.id).where(Roadmap.owner_id == owner_id, Roadmap.context_id == context_id)
+        db.execute(delete(RoadmapMilestone).where(RoadmapMilestone.roadmap_id.in_(roadmap_ids)))
+        db.execute(delete(Roadmap).where(Roadmap.owner_id == owner_id, Roadmap.context_id == context_id))
+
         db.execute(delete(Resource).where(Resource.owner_id == owner_id, Resource.context_id == context_id))
         db.execute(delete(Concept).where(Concept.owner_id == owner_id, Concept.context_id == context_id))
 
@@ -352,4 +299,7 @@ def delete_context_cascade(db: Session, *, owner_id: UUID, context_id: UUID) -> 
     except Exception:
         db.rollback()
         raise
+    from app.services.audio import _remove_stored
+
+    _remove_stored(audio_keys)
     return True

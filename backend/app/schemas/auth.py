@@ -30,7 +30,9 @@ class LoginRequest(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    access_token: str
+    # None for cookie-only browser sessions (?bearer=false): no bearer copy
+    # ever enters browser JS memory. API/native clients keep ?bearer=true.
+    access_token: str | None = None
     token_type: str = "bearer"
     learner_id: str
 

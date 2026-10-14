@@ -93,7 +93,9 @@ class SmtpEmailProvider:
 
 class LogEmailProvider:
     def send(self, *, recipient: str, subject: str, body: str) -> str:
-        logger.info("email to=%s subject=%s body=%s", recipient, subject, body)
+        # Never log message bodies: password-reset / verify links carry
+        # signed single-use tokens. Metadata only.
+        logger.info("email to=%s subject=%s body_len=%d", recipient, subject, len(body))
         return "logged"
 
 

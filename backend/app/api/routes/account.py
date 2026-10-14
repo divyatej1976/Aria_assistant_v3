@@ -2,13 +2,14 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
 from app.security.csrf import clear_auth_cookies
 from app.security.dependencies import CurrentLearner
 from app.services.account import reset_learner_data
-from app.services.data_management import export_learner_data
+from app.services.data_management import stream_learner_data
 
 router = APIRouter(prefix="/api/v1/account", tags=["account"])
 Db = Annotated[Session, Depends(get_db)]
@@ -29,14 +30,10 @@ def reset_data(learner: CurrentLearner, response: Response, db: Db) -> dict[str,
 
 
 @router.get("/export")
-def export_data(learner: CurrentLearner, db: Db) -> Response:
-    """Download every learner-owned artifact as portable JSON."""
-    payload = export_learner_data(db, owner_id=learner.id)
-    body = (
-        __import__("json").dumps(payload, indent=2, default=str).encode("utf-8")
-    )
-    return Response(
-        content=body,
+def export_data(learner: CurrentLearner, db: Db) -> StreamingResponse:
+    """Download a versioned portable export, streaming uncapped snapshot records."""
+    return StreamingResponse(
+        stream_learner_data(db, owner_id=learner.id),
         media_type="application/json",
         headers={
             "Content-Disposition": 'attachment; filename="aria-data-export.json"'

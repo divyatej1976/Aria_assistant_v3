@@ -1,5 +1,6 @@
-﻿import logging
+import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -27,8 +28,9 @@ from app.services.context_assembly import (
     STUDY_SYSTEM_PROMPT,  # noqa: F401  (re-exported for tests/consumers)
     assemble_context,
     build_prompt,
-    build_study_context,
+    build_study_context,  # noqa: F401  (re-exported for tests/consumers)
     build_study_messages,  # noqa: F401  (re-exported for tests/consumers)
+    pack_study_context,
 )
 from app.services.contexts import get_owned_context
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW
@@ -68,16 +70,103 @@ def create_session(
 
 
 def list_sessions(
-    db: Session, *, owner_id: UUID, context_id: UUID
+    db: Session, *, owner_id: UUID, context_id: UUID, limit: int = 100, offset: int = 0
 ) -> list[StudySession]:
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
     return list(
         db.scalars(
             select(StudySession)
             .where(StudySession.owner_id == owner_id, StudySession.context_id == context_id)
-            .order_by(StudySession.created_at)
+            .order_by(StudySession.created_at.desc(), StudySession.id.desc())
+            .offset(offset)
+            .limit(limit)
         )
     )
+
+
+@dataclass(frozen=True)
+class SessionSummary:
+    title: str | None
+    preview: str | None
+    message_count: int
+    last_message_at: object | None
+
+
+_MARKDOWN_RE = re.compile(r"[*_`#>\[\]]+|\(https?://[^)]*\)")
+
+
+def _plain_snippet(text: str, limit: int) -> str:
+    """Collapse markdown/whitespace and trim to a word boundary."""
+    flat = " ".join(_MARKDOWN_RE.sub("", text).split())
+    if len(flat) <= limit:
+        return flat
+    cut = flat[:limit].rsplit(" ", 1)[0].rstrip(",.;:-")
+    return cut + "…"
+
+
+def _first_sentence(text: str) -> str:
+    flat = " ".join(_MARKDOWN_RE.sub("", text).split())
+    match = re.search(r"(.+?[.!?])(\s|$)", flat)
+    return match.group(1) if match else flat
+
+
+def session_summaries(
+    db: Session, *, owner_id: UUID, session_ids: list[UUID]
+) -> dict[UUID, SessionSummary]:
+    """Title (first learner question), preview (gist of the latest tutor reply),
+    count and recency per session, derived from stored messages."""
+    if not session_ids:
+        return {}
+    scope = (
+        ConversationMessage.owner_id == owner_id,
+        ConversationMessage.study_session_id.in_(session_ids),
+    )
+    stats = {
+        sid: (count, last_at)
+        for sid, count, last_at in db.execute(
+            select(
+                ConversationMessage.study_session_id,
+                func.count(ConversationMessage.id),
+                func.max(ConversationMessage.created_at),
+            )
+            .where(*scope)
+            .group_by(ConversationMessage.study_session_id)
+        )
+    }
+
+    def edge_messages(role: str, edge) -> dict[UUID, str]:
+        positions = (
+            select(
+                ConversationMessage.study_session_id.label("sid"),
+                edge(ConversationMessage.position).label("pos"),
+            )
+            .where(*scope, ConversationMessage.role == role)
+            .group_by(ConversationMessage.study_session_id)
+            .subquery()
+        )
+        rows = db.execute(
+            select(ConversationMessage.study_session_id, ConversationMessage.content).join(
+                positions,
+                (ConversationMessage.study_session_id == positions.c.sid)
+                & (ConversationMessage.position == positions.c.pos),
+            )
+        )
+        return {sid: content for sid, content in rows}
+
+    first_questions = edge_messages("user", func.min)
+    latest_replies = edge_messages("assistant", func.max)
+    summaries: dict[UUID, SessionSummary] = {}
+    for sid in session_ids:
+        count, last_at = stats.get(sid, (0, None))
+        question = first_questions.get(sid)
+        reply = latest_replies.get(sid)
+        summaries[sid] = SessionSummary(
+            title=_plain_snippet(question, 60) if question else None,
+            preview=_plain_snippet(_first_sentence(reply), 110) if reply else None,
+            message_count=count,
+            last_message_at=last_at,
+        )
+    return summaries
 
 
 def get_owned_session(
@@ -113,28 +202,29 @@ def delete_session(db: Session, *, owner_id: UUID, session_id: UUID) -> bool:
     return True
 
 def list_messages(
-    db: Session, *, owner_id: UUID, session_id: UUID
+    db: Session, *, owner_id: UUID, session_id: UUID, limit: int = 200,
+    before_position: int | None = None,
 ) -> list[ConversationMessage]:
-    return list(
-        db.scalars(
-            select(ConversationMessage)
-            .where(
-                ConversationMessage.study_session_id == session_id,
-                ConversationMessage.owner_id == owner_id,
-            )
-            .order_by(ConversationMessage.position, ConversationMessage.created_at)
-        )
+    query = select(ConversationMessage).where(
+        ConversationMessage.study_session_id == session_id,
+        ConversationMessage.owner_id == owner_id,
     )
+    if before_position is not None:
+        query = query.where(ConversationMessage.position < before_position)
+    rows = list(db.scalars(query.order_by(
+        ConversationMessage.position.desc(), ConversationMessage.created_at.desc()
+    ).limit(limit)))
+    return list(reversed(rows))
 
 
 def _next_position(db: Session, *, owner_id: UUID, session_id: UUID) -> int:
-    message_count = db.scalar(
-        select(func.count(ConversationMessage.id)).where(
+    last_position = db.scalar(
+        select(func.max(ConversationMessage.position)).where(
             ConversationMessage.study_session_id == session_id,
             ConversationMessage.owner_id == owner_id,
         )
     )
-    return (message_count or 0) + 1
+    return (last_position or 0) + 1
 
 
 def persist_conversation_turn(
@@ -145,6 +235,9 @@ def persist_conversation_turn(
     user_content: str,
     assistant_content: str,
     assistant_refs: list[dict],
+    fallback_used: bool | None = None,
+    user_message_id: UUID | None = None,
+    before_commit: Callable[[], None] | None = None,
 ) -> None:
     from sqlalchemy.exc import IntegrityError
 
@@ -152,6 +245,7 @@ def persist_conversation_turn(
         user_position = _next_position(db, owner_id=owner_id, session_id=session.id)
         db.add(
             ConversationMessage(
+                **({"id": user_message_id} if user_message_id is not None else {}),
                 owner_id=owner_id,
                 study_session_id=session.id,
                 role="user",
@@ -166,10 +260,13 @@ def persist_conversation_turn(
                 role="assistant",
                 content=assistant_content,
                 source_refs=assistant_refs,
+                fallback_used=fallback_used,
                 position=user_position + 1,
             )
         )
         try:
+            if before_commit is not None:
+                before_commit()
             db.commit()
             return
         except IntegrityError:
@@ -248,17 +345,38 @@ async def retrieve_chunks(
 ) -> list[RetrievedChunk]:
     from app.core.config import get_settings
 
+    # General tutoring needs no embeddings when this subject has no ready notes.
+    available_chunk = db.scalar(
+        select(ResourceChunk.id)
+        .join(Resource, Resource.id == ResourceChunk.resource_id)
+        .where(
+            ResourceChunk.owner_id == owner_id,
+            Resource.owner_id == owner_id,
+            Resource.context_id == context_id,
+            Resource.processing_status == "READY",
+        )
+        .limit(1)
+    )
+    if available_chunk is None:
+        return []
+
     boosts = weak_chunk_boosts(db, owner_id=owner_id, context_id=context_id)
     query_terms = {term for term in content_terms(query) if len(term) > 2}
     provider = get_embedding_provider()
     semantic = semantic_scoring_available(provider)
     query_embedding: list[float] | None = None
     if semantic:
-        query_embedding = (await provider.embed([query]))[0]
-        expected_dim = get_settings().aria_embedding_dim
-        if len(query_embedding) != expected_dim:
-            msg = f"Query embedding dimension {len(query_embedding)} != expected {expected_dim}"
-            raise ValueError(msg)
+        try:
+            query_embedding = (await provider.embed([query]))[0]
+            expected_dim = get_settings().aria_embedding_dim
+            if len(query_embedding) != expected_dim:
+                raise ValueError("Unexpected query embedding dimension")
+        except Exception:
+            # Embeddings are optional: preserve subject-scoped lexical grounding
+            # and let a healthy text provider continue tutoring.
+            logger.warning("study embeddings unavailable; using lexical retrieval")
+            semantic = False
+            query_embedding = None
 
     base = select(ResourceChunk, Resource).join(
         Resource, Resource.id == ResourceChunk.resource_id
@@ -298,6 +416,8 @@ async def retrieve_chunks(
             existing_ids = {chunk.id for chunk, _ in rows}
             extra = db.execute(
                 base.where(*filters, ResourceChunk.embedding.is_(None))
+                .order_by(ResourceChunk.created_at.desc())
+                .limit(500)
             ).all()
             rows.extend(
                 (chunk, resource) for chunk, resource in extra if chunk.id not in existing_ids
@@ -305,7 +425,9 @@ async def retrieve_chunks(
         except Exception:
             rows = []
     if not rows:
-        rows = db.execute(base.where(*filters)).all()
+        rows = db.execute(
+            base.where(*filters).order_by(ResourceChunk.created_at.desc()).limit(500)
+        ).all()
 
     # BM25 IDF weighting replaces naive set overlap: rare matching terms now
     # dominate common ones (see app.services.text.bm25_scores).
@@ -389,21 +511,29 @@ async def answer_question(
             sources=[],
             fallback_used=True,
         )
-    context_text = build_study_context(sources)
-    if not context_text:
-        if SMALL_TALK_RE.match(question.strip()):
-            return await _answer_small_talk(
-                db, owner_id=owner_id, question=question, sources=sources
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    context_text, sources = pack_study_context(
+        sources, per_chunk=1200 if provider is not None else None
+    )
+
+    # When no LLM provider is configured (offline mode / missing key):
+    if provider is None:
+        if not context_text:
+            if SMALL_TALK_RE.match(question.strip()):
+                return await _answer_small_talk(
+                    db, owner_id=owner_id, question=question, sources=sources
+                )
+            return StudyResult(
+                content=(
+                    "I can answer without uploaded notes, but no usable LLM API key "
+                    "is configured. Add your Groq API key in Account settings, or ask "
+                    "the deployment administrator to configure GROQ_API_KEY. "
+                    "If you already saved a key, the administrator should check "
+                    "the personal-key encryption configuration."
+                ),
+                sources=sources,
+                fallback_used=True,
             )
-        return StudyResult(
-            content=(
-                "I could not find enough relevant information in the selected material "
-                "to answer that reliably."
-            ),
-            sources=sources,
-            fallback_used=True,
-        )
-    if get_llm_provider_for_owner(db, owner_id=owner_id) is None:
         return StudyResult(
             content=(
                 "Provider fallback: here are the most relevant excerpts from your material. "
@@ -412,6 +542,13 @@ async def answer_question(
             sources=sources,
             fallback_used=True,
         )
+
+    # When LLM provider is active (conversational mode like ChatGPT/Gemini):
+    if not context_text and SMALL_TALK_RE.match(question.strip()):
+        return await _answer_small_talk(
+            db, owner_id=owner_id, question=question, sources=sources
+        )
+
     try:
         package = assemble_context(
             db,
@@ -421,25 +558,23 @@ async def answer_question(
             sources=sources,
         )
         system, user = build_prompt(question, package)
-        provider = get_llm_provider_for_owner(db, owner_id=owner_id)
-        if provider is None:
-            return StudyResult(
-                content=(
-                    "Provider fallback: here are the most relevant excerpts from your material. "
-                    "Configure GROQ_API_KEY to enable generated explanations.\n\n" + context_text
-                ),
-                sources=sources,
-                fallback_used=True,
+        try:
+            answer = await provider.generate_text(
+                system=system,
+                user=user,
+                prompt_version=get_prompt("study_answer").label(),
+                temperature=0.0,
             )
-        answer = await provider.generate_text(
-            system=system, user=user, prompt_version=get_prompt("study_answer").label()
-        )
+        except TypeError:
+            answer = await provider.generate_text(
+                system=system, user=user, prompt_version=get_prompt("study_answer").label()
+            )
         if not answer or not answer.strip():
             logger.warning("study llm returned an empty response; serving fallback")
             return StudyResult(
                 content=(
-                    "The AI provider returned an empty response. Review the cited excerpts "
-                    "and try again later."
+                    "The AI provider returned an empty response. "
+                    + ("Review the cited excerpts and try again later." if sources else "Please try asking again.")
                 ),
                 sources=sources,
                 fallback_used=True,
@@ -451,8 +586,8 @@ async def answer_question(
         logger.exception("study llm call failed; serving fallback")
         return StudyResult(
             content=(
-                "The AI provider is temporarily unavailable. Review the cited excerpts "
-                "and try again later."
+                "The AI provider is temporarily unavailable. "
+                + ("Review the cited excerpts and try again later." if sources else "Please try again later.")
             ),
             sources=sources,
             fallback_used=True,

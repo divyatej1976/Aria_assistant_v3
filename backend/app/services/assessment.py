@@ -2,12 +2,14 @@ import logging
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.formats import format_registry
 from app.assessment.mcq import (
     GeneratedMCQ,
+    generate_conversation_mcqs,
     generate_mcqs_deterministic,
     generate_mcqs_structured,
 )
@@ -17,9 +19,11 @@ from app.db.models import (
     AssessmentAttempt,
     AssessmentQuestion,
     AttemptAnswer,
+    Concept,
     Evaluation,
 )
 from app.services.concepts import list_concepts, sync_concepts
+from app.services.contexts import get_owned_context
 from app.services.evidence import record_assessment_evidence
 from app.services.text import tokenize
 
@@ -56,12 +60,31 @@ async def create_assessment(
     difficulty: str,
     mode: str,
     concept_ids: list[UUID | str],
+    study_transcript: str | None = None,
+    daily_review_date: str | None = None,
 ) -> Assessment:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    try:
+        selected_ids = {UUID(str(value)) for value in (concept_ids or [])}
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValidationError("Invalid concept ID") from exc
+    if selected_ids:
+        valid_ids = set(db.scalars(select(Concept.id).where(
+            Concept.id.in_(selected_ids), Concept.owner_id == owner_id, Concept.context_id == context_id,
+        )))
+        if valid_ids != selected_ids:
+            raise ValidationError("Selected concepts do not belong to this subject")
     definition = format_registry.get(format_name)
     if definition.name != "mcq":
         raise ValidationError(f"Format registry entry has no R0 generator: {definition.name}")
-    await sync_concepts(db, owner_id=owner_id, context_id=context_id)
-    if get_llm_provider_for_owner(db, owner_id=owner_id) is not None:
+    if study_transcript is None:
+        await sync_concepts(db, owner_id=owner_id, context_id=context_id)
+    if study_transcript is not None:
+        questions = await generate_conversation_mcqs(
+            db, owner_id=owner_id, transcript=study_transcript,
+            count=question_count, difficulty=difficulty,
+        )
+    elif get_llm_provider_for_owner(db, owner_id=owner_id) is not None:
         try:
             questions = await generate_mcqs_structured(
                 db,
@@ -92,23 +115,38 @@ async def create_assessment(
     if not questions:
         raise ValidationError("Add ready study material before creating an assessment")
     questions = _assign_question_concepts(
-        db, owner_id=owner_id, context_id=context_id, questions=questions
+        db, owner_id=owner_id, context_id=context_id, questions=questions,
+        allowed_ids=selected_ids if study_transcript is not None else None,
     )
     assessment = Assessment(
         owner_id=owner_id,
         context_id=context_id,
         format=definition.name,
         mode=mode,
+        daily_review_date=daily_review_date,
         configuration={
             "question_count": question_count,
             "difficulty": difficulty,
             "concept_ids": [str(c) for c in (concept_ids or [])],
+            **({"source": "tutoring_conversation", "mastery_evidence": bool(selected_ids)}
+               if study_transcript is not None else {}),
         },
     )
     db.add(assessment)
-    db.flush()
-    _persist_questions(db, owner_id=owner_id, assessment_id=assessment.id, questions=questions)
-    db.commit()
+    try:
+        db.flush()
+        _persist_questions(db, owner_id=owner_id, assessment_id=assessment.id, questions=questions)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if daily_review_date is not None:
+            existing = db.scalar(select(Assessment).where(
+                Assessment.owner_id == owner_id, Assessment.context_id == context_id,
+                Assessment.daily_review_date == daily_review_date,
+            ))
+            if existing is not None:
+                return existing
+        raise
     db.refresh(assessment)
     return assessment
 
@@ -119,15 +157,28 @@ def _assign_question_concepts(
     owner_id: UUID,
     context_id: UUID,
     questions: list[GeneratedMCQ],
+    allowed_ids: set[UUID] | None = None,
 ) -> list[GeneratedMCQ]:
     concepts = list_concepts(db, owner_id=owner_id, context_id=context_id)
+    if allowed_ids is not None:
+        concepts = [concept for concept in concepts if concept.id in allowed_ids]
+    valid_ids = {concept.id for concept in concepts}
     concept_terms = [(concept.id, set(tokenize(concept.name))) for concept in concepts]
     assigned: list[GeneratedMCQ] = []
     for question in questions:
         concept_id = question.concept_id
+        if concept_id is not None and concept_id not in valid_ids:
+            raise ValidationError("Generated question references a concept outside this subject")
         if concept_id is None:
             option_terms = set()
-            for option in question.options:
+            options = question.options
+            if allowed_ids is not None:
+                correct = question.correct_option
+                if correct in "ABCD" and len(correct) == 1:
+                    options = [question.options["ABCD".index(correct)]]
+                else:
+                    options = [correct] if correct in question.options else []
+            for option in options:
                 option_terms.update(tokenize(option))
             concept_id = next(
                 (
@@ -253,22 +304,36 @@ def _replace_answers(
     assessment_id: UUID,
     answers: dict[str, str],
 ) -> None:
-    db.execute(delete(AttemptAnswer).where(AttemptAnswer.attempt_id == attempt_id))
     valid = _question_ids(db, owner_id=owner_id, assessment_id=assessment_id)
-    for question_id, selected in answers.items():
-        try:
-            parsed = UUID(question_id)
-        except ValueError:
-            continue
-        if parsed in valid:
-            db.add(
-                AttemptAnswer(
-                    owner_id=owner_id,
-                    attempt_id=attempt_id,
-                    question_id=parsed,
-                    selected_option=selected,
-                )
-            )
+    try:
+        parsed_answers = {UUID(str(question_id)): selected for question_id, selected in answers.items()}
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValidationError("Invalid question ID") from exc
+    if len(parsed_answers) != len(answers):
+        raise ValidationError("Duplicate question IDs")
+    if not set(parsed_answers) <= valid:
+        raise ValidationError("Questions do not belong to this assessment")
+    db.execute(delete(AttemptAnswer).where(AttemptAnswer.attempt_id == attempt_id, AttemptAnswer.owner_id == owner_id))
+    for question_id, selected in parsed_answers.items():
+        db.add(AttemptAnswer(owner_id=owner_id, attempt_id=attempt_id,
+                             question_id=question_id, selected_option=selected))
+
+
+def _validate_replayed_answers(db: Session, *, owner_id: UUID, attempt_id: UUID, answers: dict[str, str]) -> None:
+    # Empty means "submit the autosaved answers" in the existing API contract.
+    if not answers:
+        return
+    try:
+        requested = {UUID(str(key)): value for key, value in answers.items()}
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValidationError("Invalid question ID") from exc
+    if len(requested) != len(answers):
+        raise ValidationError("Duplicate question IDs")
+    saved = {row.question_id: row.selected_option for row in db.scalars(
+        select(AttemptAnswer).where(AttemptAnswer.attempt_id == attempt_id, AttemptAnswer.owner_id == owner_id)
+    )}
+    if requested != saved:
+        raise ValidationError("Submission answers differ from the completed attempt")
 
 
 def submit_attempt(
@@ -286,9 +351,12 @@ def submit_attempt(
         )
     )
     if existing is not None:
+        if existing.id != attempt_id:
+            raise ValidationError("Idempotency key belongs to another attempt")
         evaluation = db.scalar(select(Evaluation).where(Evaluation.attempt_id == existing.id))
         if evaluation is None:
             raise ValidationError("Existing attempt is not evaluable yet")
+        _validate_replayed_answers(db, owner_id=owner_id, attempt_id=existing.id, answers=answers)
         return existing, evaluation, evaluation.details.get("questions", [])
 
     attempt = get_owned_attempt(db, owner_id=owner_id, attempt_id=attempt_id)
@@ -296,6 +364,7 @@ def submit_attempt(
         raise ValidationError("Attempt not found or not owned by learner")
     already = db.scalar(select(Evaluation).where(Evaluation.attempt_id == attempt.id))
     if already is not None:
+        _validate_replayed_answers(db, owner_id=owner_id, attempt_id=attempt.id, answers=answers)
         return attempt, already, already.details.get("questions", [])
     if attempt.status == "SUBMITTED":
         raise ValidationError("Attempt already submitted")
@@ -318,7 +387,7 @@ def submit_attempt(
     saved = {
         answer.question_id: answer.selected_option
         for answer in db.scalars(
-            select(AttemptAnswer).where(AttemptAnswer.attempt_id == attempt.id)
+            select(AttemptAnswer).where(AttemptAnswer.attempt_id == attempt.id, AttemptAnswer.owner_id == owner_id)
         )
     }
     details: list[dict[str, object]] = []
@@ -347,7 +416,30 @@ def submit_attempt(
     attempt.idempotency_key = idempotency_key
     db.add(attempt)
     db.add(evaluation)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        # Concurrent duplicate submit won the race (same attempt evaluated
+        # twice, or two attempts stamped with the same key): replay the
+        # winner instead of 500ing or double-applying evidence.
+        db.rollback()
+        winner = db.scalar(
+            select(AssessmentAttempt).where(
+                AssessmentAttempt.idempotency_key == idempotency_key,
+                AssessmentAttempt.owner_id == owner_id,
+            )
+        )
+        if winner is None:
+            winner = get_owned_attempt(db, owner_id=owner_id, attempt_id=attempt_id)
+        if winner is not None and winner.id != attempt_id:
+            raise ValidationError("Idempotency key belongs to another attempt") from None
+        if winner is None:
+            raise ValidationError("Attempt already submitted") from None
+        won = db.scalar(select(Evaluation).where(Evaluation.attempt_id == winner.id))
+        if won is None:
+            raise ValidationError("Existing attempt is not evaluable yet") from None
+        _validate_replayed_answers(db, owner_id=owner_id, attempt_id=winner.id, answers=answers)
+        return winner, won, won.details.get("questions", [])
     record_assessment_evidence(
         db,
         owner_id=owner_id,

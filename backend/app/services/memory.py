@@ -15,6 +15,7 @@ from app.db.models import (
     LearnerConceptState,
     LearnerPreference,
 )
+from app.services.contexts import get_owned_context, get_owned_related
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW, STATE_SUPPORTED
 
 WEAK_STATES = (STATE_NEEDS_REVIEW, STATE_DEVELOPING)
@@ -150,10 +151,12 @@ def add_prerequisite(
 ) -> None:
     if concept_id == prerequisite_concept_id:
         raise ValidationError("A concept cannot be its own prerequisite")
-    if _owned_concept(db, owner_id=owner_id, concept_id=concept_id) is None:
+    concept = _owned_concept(db, owner_id=owner_id, concept_id=concept_id)
+    if concept is None:
         raise ValidationError("Concept not found")
-    if _owned_concept(db, owner_id=owner_id, concept_id=prerequisite_concept_id) is None:
-        raise ValidationError("Prerequisite concept not found")
+    get_owned_context(db, owner_id=owner_id, context_id=concept.context_id)
+    get_owned_related(db, Concept, owner_id=owner_id, context_id=concept.context_id,
+                      related_id=prerequisite_concept_id, label="Prerequisite concept")
     existing = db.scalar(
         select(ConceptRelation).where(
             ConceptRelation.owner_id == owner_id,

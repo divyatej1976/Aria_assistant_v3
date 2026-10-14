@@ -7,6 +7,7 @@ must echo it in the `X-CSRF-Token` header. Bearer-authenticated requests are
 exempt because the bearer token itself is the secret.
 """
 
+import hmac
 import secrets
 
 from app.core.config import get_settings
@@ -117,7 +118,18 @@ class CSRFMiddleware:
             and not headers.get("authorization", "").startswith("Bearer ")
         ):
             token = cookies.get(CSRF_COOKIE, "")
-            if not token or token != headers.get("x-csrf-token", ""):
+            submitted = headers.get("x-csrf-token", "")
+            # Bytes comparison: str compare_digest raises TypeError on
+            # non-ASCII input, which would turn a bad token into a 500.
+            valid = False
+            if token and submitted:
+                try:
+                    valid = hmac.compare_digest(
+                        token.encode("utf-8"), submitted.encode("utf-8")
+                    )
+                except Exception:
+                    valid = False
+            if not valid:
                 await _send_json(
                     send, 403, "CSRF token missing or invalid"
                 )

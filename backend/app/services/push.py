@@ -1,15 +1,56 @@
 """Web push notifications using VAPID; logs delivery when not configured."""
 
 import logging
+from ipaddress import ip_address
+from urllib.parse import urlsplit
 from uuid import UUID
 
+from requests import Session as RequestSession
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.errors import ValidationError
 from app.db.models import PushSubscription
 
 logger = logging.getLogger(__name__)
+
+
+def validate_endpoint(endpoint: str) -> None:
+    """Reject arbitrary outbound destinations, including stored legacy endpoints."""
+    try:
+        parsed = urlsplit(endpoint)
+        host = (parsed.hostname or "").lower()
+        if (
+            parsed.scheme != "https" or not host or parsed.port not in (None, 443)
+            or parsed.username is not None or parsed.password is not None
+            or parsed.fragment or any(char.isspace() for char in endpoint)
+        ):
+            raise ValueError
+        try:
+            ip_address(host)
+        except ValueError:
+            pass
+        else:
+            raise ValueError
+        allowed = get_settings().aria_push_allowed_hosts.lower().split(",")
+        if not any(
+            host == pattern.strip()
+            or (pattern.strip().startswith("*.")
+                and host.endswith(pattern.strip()[1:])
+                and host != pattern.strip()[2:])
+            for pattern in allowed if pattern.strip()
+        ):
+            raise ValueError
+    except ValueError as exc:
+        raise ValidationError("Unsupported browser push endpoint") from exc
+
+
+class PushRequestSession(RequestSession):
+    def request(self, method, url, **kwargs):
+        validate_endpoint(url)
+        kwargs["allow_redirects"] = False
+        return super().request(method, url, **kwargs)
 
 
 class WebPushProvider:
@@ -24,28 +65,36 @@ class WebPushProvider:
         from pywebpush import WebPushException, webpush
 
         try:
-            webpush(
-                subscription_info={
-                    "endpoint": subscription.endpoint,
-                    "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
-                },
-                data=json.dumps({"title": title, "body": body}),
-                vapid_private_key=self.private_key,
-                vapid_claims={"sub": self.subject},
-            )
+            validate_endpoint(subscription.endpoint)
+            with PushRequestSession() as session:
+                webpush(
+                    subscription_info={
+                        "endpoint": subscription.endpoint,
+                        "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
+                    },
+                    data=json.dumps({"title": title, "body": body}),
+                    vapid_private_key=self.private_key,
+                    vapid_claims={"sub": self.subject},
+                    requests_session=session,
+                    timeout=15,
+                )
             return "sent"
+        except ValidationError:
+            logger.warning("web push rejected unsupported destination")
+            return "failed"
         except WebPushException as exc:
             if exc.response is not None and exc.response.status_code in (404, 410):
                 logger.info("web push subscription gone: %s", exc.response.status_code)
                 return "gone"
-            logger.warning("web push failed: %s", exc)
+            logger.warning("web push delivery failed status=%s", (
+                exc.response.status_code if exc.response is not None else "unavailable"
+            ))
             return "failed"
 
 
 class LogPushProvider:
     def send(self, *, subscription: PushSubscription, title: str, body: str) -> str:
-        endpoint = subscription.endpoint[:40]
-        logger.info("push to=%s title=%s body=%s", endpoint, title, body)
+        logger.info("push subscription=%s body_len=%d", subscription.id, len(body))
         return "logged"
 
 
@@ -63,6 +112,7 @@ def get_push_provider():
 def subscribe(
     db: Session, *, owner_id: UUID, endpoint: str, p256dh: str, auth: str
 ) -> PushSubscription:
+    validate_endpoint(endpoint)
     subscription = db.scalar(
         select(PushSubscription).where(PushSubscription.endpoint == endpoint)
     )
