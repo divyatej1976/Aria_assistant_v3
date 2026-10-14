@@ -50,7 +50,11 @@
     ".next-polish-webpack/types/**/*.ts",
     ".next-polish-webpack/dev/types/**/*.ts",
     ".next-review-verification/types/**/*.ts",
-    ".next-review-verification/dev/types/**/*.ts"
+    ".next-review-verification/dev/types/**/*.ts",
+    ".next-review-consistency/types/**/*.ts",
+    ".next-review-consistency/dev/types/**/*.ts",
+    ".next-review-consistency-build/types/**/*.ts",
+    ".next-review-consistency-build/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

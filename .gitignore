@@ -24,6 +24,7 @@ test-results-polish*/
 test-results-*/
 frontend-polish*.log
 verification-*.log
+verification-*.json
 review-*.log
 debug.log
 e2e-smoke.db
