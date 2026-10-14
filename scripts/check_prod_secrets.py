@@ -383,6 +383,22 @@ def main(argv: list[str] | None = None, env: dict[str, str] | None = None) -> in
 
     # Feature-gated strict requirements
     if args.strict:
+        # Backups are on by default in prod compose: dumps hold password
+        # hashes + PII, so at-rest encryption is mandatory unless the
+        # operator explicitly disables scheduled backups.
+        backups_enabled = env.get("ARIA_BACKUP_ENABLED", "true").lower() not in (
+            "false", "0", "no", "off",
+        )
+        if backups_enabled:
+            backup_key = env.get("ARIA_BACKUP_ENCRYPTION_KEY", "")
+            if not backup_key:
+                error("ARIA_BACKUP_ENCRYPTION_KEY is required (backups hold PII); "
+                      "generate one like a Fernet key or set ARIA_BACKUP_ENABLED=false")
+                failures += 1
+            elif not _valid_fernet_key(backup_key):
+                error("ARIA_BACKUP_ENCRYPTION_KEY must be a valid Fernet key "
+                      "(32 urlsafe-base64 bytes)")
+                failures += 1
         # SMTP required for unrestricted (email verification/reset active)
         if not env.get("SMTP_HOST"):
             error("SMTP_HOST is required for unrestricted prod (email verification/password reset)")
@@ -422,7 +438,8 @@ def main(argv: list[str] | None = None, env: dict[str, str] | None = None) -> in
                 failures += 1
             models = [m.strip() for m in env.get(
                 "ARIA_LLM_ALLOWED_MODELS",
-                "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",") if m.strip()]
+                "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b,"
+                "llama-3.3-70b-versatile,llama-3.1-8b-instant").split(",") if m.strip()]
             if not models:
                 error("ARIA_LLM_ALLOWED_MODELS must list at least one model")
                 failures += 1

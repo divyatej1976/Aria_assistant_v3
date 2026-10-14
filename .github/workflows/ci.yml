@@ -6,6 +6,17 @@ on:
   pull_request:
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend:
     runs-on: ubuntu-latest
     steps:
@@ -49,6 +60,73 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
 
+  backup-restore-verify:
+    # Proves pg_dump backups actually restore: migrate -> seed -> encrypted
+    # backup -> restore into a scratch DB -> data-fidelity smoke query.
+    # A corrupted dump must fail here, never at disaster time.
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: aria_test
+          POSTGRES_USER: aria
+          POSTGRES_PASSWORD: aria
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aria -d aria_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: python -m alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
+          PYTHONPATH: backend
+      - name: Seed one learner row
+        run: |
+          python -c "
+          import uuid
+          from sqlalchemy import create_engine, text
+          e = create_engine('postgresql+psycopg://aria:aria@localhost:5432/aria_test')
+          i = str(uuid.uuid4())
+          with e.begin() as c:
+              c.execute(text(\"INSERT INTO learners (id, owner_id, email) VALUES (:i, :i, 'restore-proof@example.com')\"), {'i': i})
+          "
+      - name: Generate backup encryption key
+        run: python -c "from cryptography.fernet import Fernet; print('ARIA_BACKUP_ENCRYPTION_KEY=' + Fernet.generate_key().decode())" >> "$GITHUB_ENV"
+      - name: Encrypted backup
+        run: python scripts/backup_db.py --out backups --keep 3
+        env:
+          DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
+      - run: ls backups/aria-*.dump.gz.enc
+      - name: Restore into scratch database
+        run: |
+          python -c "
+          from sqlalchemy import create_engine, text
+          e = create_engine('postgresql+psycopg://aria:aria@localhost:5432/postgres', isolation_level='AUTOCOMMIT')
+          with e.connect() as c:
+              c.execute(text('CREATE DATABASE aria_restore'))
+          "
+          DATABASE_URL=postgresql+psycopg://aria:aria@localhost:5432/aria_restore BACKUP_DIR=backups python scripts/restore_db.py
+      - name: Data-fidelity smoke query
+        run: |
+          python -c "
+          from sqlalchemy import create_engine, text
+          e = create_engine('postgresql+psycopg://aria:aria@localhost:5432/aria_restore')
+          with e.connect() as c:
+              assert c.execute(text(\"SELECT count(*) FROM learners WHERE email='restore-proof@example.com'\")).scalar() == 1
+              assert c.execute(text('SELECT count(*) FROM alembic_version')).scalar() >= 1
+          print('restore verified: seed row + migration history present')
+          "
+
   production-preflight:
     runs-on: ubuntu-latest
     steps:
@@ -75,6 +153,8 @@ jobs:
           ARIA_EMBEDDING_API_KEY: ci-dummy-embedding
           # Format-valid dummy Fernet key (synthetic, never a real secret).
           ARIA_LLM_KEYS_ENCRYPTION_KEY: OwZNo730HlYsnI8d2ZbUSOfw_n6fSiKLKeIN3bwLPfs=
+          # Format-valid dummy Fernet key for at-rest backup encryption (synthetic).
+          ARIA_BACKUP_ENCRYPTION_KEY: OwZNo730HlYsnI8d2ZbUSOfw_n6fSiKLKeIN3bwLPfs=
       - name: Validate production compose (no secret output)
         run: docker compose -f docker-compose.prod.yml config --quiet
         env:

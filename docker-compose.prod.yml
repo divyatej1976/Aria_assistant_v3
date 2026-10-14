@@ -58,6 +58,12 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile.prod
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=5)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       ARIA_ENV: production
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+psycopg://aria:<password>@db:5432/aria)}
@@ -86,7 +92,7 @@ services:
       # scripts/generate_llm_keys_key.py and scripts/rotate_llm_keys.py.
       ARIA_LLM_KEYS_ENCRYPTION_KEY: ${ARIA_LLM_KEYS_ENCRYPTION_KEY:-}
       ARIA_LLM_KEYS_ENCRYPTION_KEY_OLD: ${ARIA_LLM_KEYS_ENCRYPTION_KEY_OLD:-}
-      ARIA_LLM_ALLOWED_MODELS: ${ARIA_LLM_ALLOWED_MODELS:-openai/gpt-oss-120b,openai/gpt-oss-20b}
+      ARIA_LLM_ALLOWED_MODELS: ${ARIA_LLM_ALLOWED_MODELS:-openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b,llama-3.3-70b-versatile,llama-3.1-8b-instant}
       ARIA_LLM_PER_USER_BUDGET_USD: ${ARIA_LLM_PER_USER_BUDGET_USD:-0}
       ARIA_LLM_COMPLETION_RESERVE_TOKENS: ${ARIA_LLM_COMPLETION_RESERVE_TOKENS:-512}
       # --- Embeddings (strict preflight requires key + DIM=768 when --semantic-enabled) ---
@@ -111,12 +117,17 @@ services:
       ARIA_TTS_MODEL: ${ARIA_TTS_MODEL:-canopylabs/orpheus-v1-english}
       ARIA_TTS_VOICE: ${ARIA_TTS_VOICE:-tara}
       ARIA_STT_MODEL: ${ARIA_STT_MODEL:-whisper-large-v3}
+      # Generated audio bytes (object/file storage, never the database).
+      ARIA_AUDIO_DIR: /audio
       # --- Scheduled database backups (pg_dump into the shared backups volume;
       # requires postgresql-client in the image; restore via scripts/restore_db.py)
       ARIA_BACKUP_ENABLED: ${ARIA_BACKUP_ENABLED:-true}
       ARIA_BACKUP_DIR: /backups
       ARIA_BACKUP_INTERVAL_HOURS: ${ARIA_BACKUP_INTERVAL_HOURS:-24}
       ARIA_BACKUP_KEEP: ${ARIA_BACKUP_KEEP:-14}
+      # Fernet key for at-rest backup encryption (dumps hold PII).
+      # Generate like: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      ARIA_BACKUP_ENCRYPTION_KEY: ${ARIA_BACKUP_ENCRYPTION_KEY:-}
       # --- Observability (optional) ---
       ARIA_SENTRY_DSN: ${ARIA_SENTRY_DSN:-}
       ARIA_LANGFUSE_PUBLIC_KEY: ${ARIA_LANGFUSE_PUBLIC_KEY:-}
@@ -126,9 +137,17 @@ services:
       - "8000"
     volumes:
       - backups:/backups
+      - audiofiles:/audio
     depends_on:
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 512M
     restart: unless-stopped
 
   # TLS termination + reverse proxy: public 80/443 only. /api/* and /ready go
@@ -145,8 +164,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     restart: unless-stopped
 
   # frontend-v2 is the active learner UI; the legacy ./frontend is frozen and
@@ -160,6 +181,19 @@ services:
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
     expose:
       - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 512M
     depends_on:
       - backend
     restart: unless-stopped
@@ -167,5 +201,6 @@ services:
 volumes:
   pgdata:
   backups:
+  audiofiles:
   caddy_data:
   caddy_config:

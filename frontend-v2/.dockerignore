@@ -1,9 +1,9 @@
 node_modules
-.next
+.next*
 test-results
+playwright-report
 coverage
-.cache
-*.tsbuildinfo
 .env*
-debug.log
-npm-debug.log*
+*.log
+*.tsbuildinfo
+.git

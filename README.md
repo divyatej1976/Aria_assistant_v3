@@ -40,7 +40,7 @@ Multi-Agent Orchestration & Governance
 Phases 0–12 of the adaptive-learning operating system and post-Phase-12 security/operational hardening are fully implemented:
 
 - **Next.js Frontend**: Extruded Light design system, dark default + light theme, responsive layouts, accessible focus management, Playwright + Axe-core accessibility testing.
-- **FastAPI Backend**: Learner-owned domain model, asynchronous SQLAlchemy with PostgreSQL and `pgvector` similarity search.
+- **FastAPI Backend**: Learner-owned domain model, asynchronous SQLAlchemy with PostgreSQL and `pgvector` similarity search. (Prod = bundled PostgreSQL only; SQLite is a dev/test fallback and the backend refuses to boot it with `ARIA_ENV=production`.)
 - **Database & Migrations**: Complete Alembic migration sequence (`0001` through `0014`), including email verification and account security.
 - **Authentication & Security**: HttpOnly `SameSite=Strict` cookie sessions, double-submit CSRF tokens, sliding-window rate limiting, and secure password-reset / email-verification flows.
 - **Resource Ingestion**: Text and PDF ingestion pipeline with concept extraction, chunking, and vector embeddings.

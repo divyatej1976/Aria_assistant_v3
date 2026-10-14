@@ -19,6 +19,10 @@
 		reverse_proxy backend:8000
 	}
 
+	handle /health {
+		respond 403
+	}
+
 	handle /ready {
 		reverse_proxy backend:8000
 	}
@@ -28,7 +32,7 @@
 	}
 
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server

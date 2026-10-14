@@ -32,10 +32,11 @@ def main() -> int:
 
     try:
         destination = create_backup(
-            database_url=url, out_dir=args.out, keep=args.keep
+            database_url=url, out_dir=args.out, keep=args.keep,
+            encryption_key=os.environ.get("ARIA_BACKUP_ENCRYPTION_KEY") or None,
         )
     except Exception as exc:
-        print(f"backup failed: {exc}", file=sys.stderr)
+        print(f"backup failed (error_type={type(exc).__name__})", file=sys.stderr)
         return 1
     print(f"backup written to {destination}")
     return 0

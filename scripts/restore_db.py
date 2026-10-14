@@ -3,7 +3,9 @@
 Usage:
     python scripts/restore_db.py [FILE]
 
-Defaults to the most recent backup in BACKUP_DIR (./backups).
+Defaults to the most recent backup in BACKUP_DIR (./backups). Encrypted
+archives (aria-*.dump.gz.enc) are decrypted with ARIA_BACKUP_ENCRYPTION_KEY
+before restore.
 """
 
 import argparse
@@ -42,23 +44,43 @@ def main() -> int:
     if args.file:
         source = Path(args.file)
     else:
-        candidates = sorted(backup_dir.glob("aria-*.dump.gz"), reverse=True)
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+        from app.services.backup import completed_backups
+
+        candidates = completed_backups(backup_dir)
         if not candidates:
             print("no backups found", file=sys.stderr)
             return 2
         source = candidates[0]
 
-    with gzip.open(source, "rb") as handle:
-        data = handle.read()
+    data = source.read_bytes()
+    if source.suffix == ".enc":
+        key = os.environ.get("ARIA_BACKUP_ENCRYPTION_KEY", "")
+        if not key:
+            print("ARIA_BACKUP_ENCRYPTION_KEY is required for encrypted backups",
+                  file=sys.stderr)
+            return 2
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+        from app.services.backup import decrypt_backup
+
+        try:
+            data = decrypt_backup(data, encryption_key=key)
+        except Exception as exc:
+            print(f"decrypt failed (error_type={type(exc).__name__})", file=sys.stderr)
+            return 1
+
+    data = gzip.decompress(data)
 
     env = _pg_env(url)
     pg_restore = os.environ.get("PG_RESTORE", "pg_restore")
-    subprocess.run(
-        [pg_restore, "--clean", "--if-exists", "--no-owner", "-d", env["PGDATABASE"]],
-        env=env,
-        check=True,
-        input=data,
-    )
+    try:
+        subprocess.run(
+            [pg_restore, "--clean", "--if-exists", "--no-owner", "-d", env["PGDATABASE"]],
+            env=env, check=True, input=data, stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"restore failed (error_type={type(exc).__name__})", file=sys.stderr)
+        return 1
     print(f"restored from {source}")
     return 0
 
