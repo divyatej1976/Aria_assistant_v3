@@ -40,7 +40,7 @@ async function fixture(page: Page, state: State) {
         else body = { content: "A primary key uniquely identifies each row. For example, a student ID distinguishes students with the same name.", role: "assistant", sources: [] };
       } else body = [{ role: "user", content: "What is a primary key?" }, { role: "assistant", content: "A primary key uniquely identifies a row. A student ID is one example." }];
     } else if (path.endsWith("/finish-day")) body = { assessment_id: "visual-review" };
-    else if (path === "/api/v1/assessments/formats") body = [{ name: "mcq", label: "Multiple Choice" }];
+    else if (path === "/api/v1/assessments/formats") body = [{ name: "mcq", label: "Multiple choice" }];
     else if (path === "/api/v1/assessments") {
       if (method === "POST" && state.creationError) { status = 422; body = { detail: "Add more detail to your study material to create useful questions." }; }
       else body = state.assessments ? [review] : [];
@@ -100,7 +100,7 @@ for (const palette of ["aurora", "noir"] as const) for (const width of [375, 144
     await page.clock.install();
     let release!: () => void;
     state.reply = "held"; state.release = new Promise<void>(resolve => { release = resolve; });
-    await page.getByPlaceholder("Ask ARIA anything...").fill("Explain how primary keys help with duplicates");
+    await page.getByPlaceholder("Ask ARIA anything…").fill("Explain how primary keys help with duplicates");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.locator(".request-status")).toBeVisible();
     await page.clock.fastForward(8100);
@@ -125,15 +125,15 @@ for (const palette of ["aurora", "noir"] as const) for (const width of [375, 144
     await expect(page.getByRole("button", { name: "Create your first assessment" })).toBeVisible();
     await snap("assess-empty");
     state.ready = false;
-    await page.getByRole("button", { name: "Create Assessment", exact: true }).first().click();
-    const modal = page.getByRole("dialog", { name: "Create Assessment" });
-    await expect(modal.getByRole("button", { name: "Create Assessment", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Create assessment", exact: true }).first().click();
+    const modal = page.getByRole("dialog", { name: "Create assessment" });
+    await expect(modal.getByRole("button", { name: "Create assessment", exact: true })).toBeDisabled();
     await snap("assess-disabled");
     await page.keyboard.press("Escape");
     state.ready = true; state.creationError = true;
-    await page.getByRole("button", { name: "Create Assessment", exact: true }).first().click();
-    await expect(modal.getByRole("button", { name: "Create Assessment", exact: true })).toBeEnabled();
-    await modal.getByRole("button", { name: "Create Assessment", exact: true }).click();
+    await page.getByRole("button", { name: "Create assessment", exact: true }).first().click();
+    await expect(modal.getByRole("button", { name: "Create assessment", exact: true })).toBeEnabled();
+    await modal.getByRole("button", { name: "Create assessment", exact: true }).click();
     await expect(modal.getByRole("alert")).toContainText("Add more detail");
     await snap("assess-modal-error");
     await page.keyboard.press("Escape");

@@ -34,7 +34,7 @@ test("assessments page shows the empty state for a fresh learner", async ({ page
 
   await page.goto("/app/assess");
   await page.getByText("Assessments").first().waitFor({ state: "visible", timeout: 20_000 });
-  await expect(page.getByRole("button", { name: /Create Assessment/i }).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: /Create assessment/i }).first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("create an assessment from real material, answer it, and see the real score", async ({ page }) => {
@@ -50,11 +50,11 @@ test("create an assessment from real material, answer it, and see the real score
   await api.dispose();
 
   await page.goto("/app/assess");
-  await page.getByRole("button", { name: /Create Assessment/i }).first().click();
+  await page.getByRole("button", { name: /Create assessment/i }).first().click();
 
   // choose difficulty and create
   await page.getByRole("button", { name: "Hard" }).click();
-  await page.getByRole("button", { name: /Create Assessment/i }).last().click();
+  await page.getByRole("button", { name: /Create assessment/i }).last().click();
 
   // lands on the take screen with questions
   await page.getByRole("heading", { name: "Assessment", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
@@ -84,7 +84,7 @@ test("create an assessment from real material, answer it, and see the real score
     if (!(await radio.isChecked())) await radio.check();
   }
 
-  await page.getByRole("button", { name: /Submit Answers/i }).click();
+  await page.getByRole("button", { name: /Submit answers/i }).click();
 
   // real result review — numbers must be consistent with the answered count
   await page.locator(".score-hero").waitFor({ state: "visible", timeout: 30_000 });

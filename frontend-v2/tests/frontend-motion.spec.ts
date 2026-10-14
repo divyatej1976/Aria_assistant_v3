@@ -38,7 +38,7 @@ test("dashboard retains navigation, real progress, and accessible surfaces acros
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/app");
-  await expect(page.getByRole("heading", { name: "Continue Learning", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Continue learning", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "50% of concepts supported" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Workspace", exact: true })).toBeVisible();
   for (const palette of ["aurora", "noir", "gold"]) {
@@ -86,14 +86,14 @@ test("roadmap trail selects real topic details and materials processing follows 
   await page.getByRole("button", { name: "Normalization, next milestone", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Normalization", exact: true })).toBeVisible();
   await page.goto("/app/materials");
-  await page.getByRole("button", { name: "Add Resource", exact: true }).first().click();
-  await page.getByRole("button", { name: "Paste Text", exact: true }).click();
+  await page.getByRole("button", { name: "Add resource", exact: true }).first().click();
+  await page.getByRole("button", { name: "Paste text", exact: true }).click();
   await page.getByLabel("Title", { exact: true }).fill("New study text");
   await page.getByLabel("Text", { exact: true }).fill("A primary key identifies a row uniquely.");
   let finish!: () => void;
   const released = new Promise<void>(resolve => { finish = resolve; });
   await page.route("**/api/v1/resources/text", async route => { await released; await route.fulfill({ status: 200, contentType: "application/json", body: '{"id":"new"}' }); });
-  await page.getByRole("button", { name: "Add Resource", exact: true }).last().click();
+  await page.getByRole("button", { name: "Add resource", exact: true }).last().click();
   await expect(page.getByText("Processing your study text", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Processing material…", exact: false })).toBeDisabled();
   finish();
@@ -134,13 +134,13 @@ test("chat focus and incoming replies preserve an earlier reading position", asy
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
   await page.goto("/app/learn?session=session");
-  await expect(page.getByPlaceholder("Ask ARIA anything...")).toBeVisible();
+  await expect(page.getByPlaceholder("Ask ARIA anything…")).toBeVisible();
   await expect(page.locator(".msg")).toHaveCount(30);
   await page.getByRole("button", { name: "Focus", exact: true }).click();
   await expect(page.locator(".learn-side")).not.toBeVisible();
   await page.locator(".chat-body").evaluate(el => { el.scrollTop = 200; el.dispatchEvent(new Event("scroll")); });
   await expect(page.getByRole("button", { name: "Jump to latest" })).toBeVisible();
-  await page.getByPlaceholder("Ask ARIA anything...").fill("Explain normalization");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain normalization");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByText("A new response to your question.")).toBeAttached();
   expect(await page.locator(".chat-body").evaluate(el => el.scrollTop)).toBeLessThan(300);
@@ -182,7 +182,7 @@ test("mobile layouts and live reduced motion keep the dashboard usable", async (
   for (const width of [320, 375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/app");
-    await expect(page.getByRole("heading", { name: "Continue Learning", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Continue learning", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
     expect(await page.locator(".motion-reveal").first().evaluate(el => getComputedStyle(el).animationName)).toBe("none");
     await expect(page.locator(".ambient canvas")).toHaveCount(0);
@@ -197,9 +197,9 @@ test("mobile layouts and live reduced motion keep the dashboard usable", async (
   await expect(page.locator(".ambient canvas")).toHaveCount(0);
   await page.setViewportSize({ width: 375, height: 900 });
   const navigation = page.getByRole("navigation", { name: "Primary", exact: true });
-  await navigation.getByRole("link", { name: "Knowledge Map", exact: true }).click();
+  await navigation.getByRole("link", { name: "Knowledge map", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/map$/);
-  await expect(navigation.getByRole("link", { name: "Knowledge Map", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link", { name: "Knowledge map", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(navigation.locator(".mobile-active-surface")).toHaveCount(1);
   await expect(navigation.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveAttribute("aria-current", "page");
 });
@@ -210,7 +210,7 @@ test("workspace popovers preserve focus during switching and dismissal", async (
   const profile = page.getByRole("button", { name: "Profile", exact: true });
   const notifications = page.getByRole("button", { name: "Notifications", exact: true });
   await profile.click();
-  await expect(page.getByRole("link", { name: "Account & Settings", exact: true })).toBeFocused();
+  await expect(page.getByRole("link", { name: "Account & settings", exact: true })).toBeFocused();
   await notifications.click();
   await expect(page.getByRole("button", { name: "Mark all read", exact: true })).toBeFocused();
   await expect(page.getByRole("button", { name: "Sign Out", exact: true })).toHaveCount(0);
@@ -219,7 +219,7 @@ test("workspace popovers preserve focus during switching and dismissal", async (
   await expect(page.locator(".popover-card")).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await profile.click();
-  await expect(page.getByRole("link", { name: "Account & Settings", exact: true })).toBeFocused();
+  await expect(page.getByRole("link", { name: "Account & settings", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(profile).toBeFocused();
   await expect(page.locator(".popover-card")).toHaveCount(0);
@@ -313,7 +313,7 @@ test("a delayed tutor reply stays out of a different study session", async ({ pa
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
   await page.goto("/app/learn?session=first");
-  await page.getByPlaceholder("Ask ARIA anything...").fill("Explain this");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain this");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => replyStarted).toBe(true);
   await page.locator(".learn-side .session-item").nth(1).click();
@@ -323,8 +323,8 @@ test("a delayed tutor reply stays out of a different study session", async ({ pa
   await (await finished).finished();
   await settleUI(page);
   await expect(page.getByText("Reply belonging to the old session", { exact: true })).toHaveCount(0);
-  await expect(page.getByPlaceholder("Ask ARIA anything...")).toHaveValue("");
-  await page.getByPlaceholder("Ask ARIA anything...").fill("A new question");
+  await expect(page.getByPlaceholder("Ask ARIA anything…")).toHaveValue("");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("A new question");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
 });
 
@@ -383,10 +383,10 @@ test("dashboard stays interactive under CPU throttling and repeated workspace na
   expect(elapsed).toBeLessThan(20_000);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   for (let cycle = 0; cycle < 3; cycle++) {
-    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Knowledge Map", exact: true }).click();
+    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Knowledge map", exact: true }).click();
     await expect(page.locator(".constellation")).toBeVisible();
     await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Dashboard", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Continue Learning", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Continue learning", exact: true })).toBeVisible();
     await expect(page.locator(".ambient canvas")).toHaveCount(1);
     await expect(page.locator(".shell-side")).toHaveCount(1);
   }
@@ -466,10 +466,10 @@ test(`records ${viewport.name} animation frame pacing and navigation resource gr
       return;
     }
     await page.getByRole("navigation", { name: viewport.name === "mobile" ? "Primary" : "Workspace", exact: true }).getByRole("link", { name, exact: true }).click();
-    await expect(name === "Dashboard" ? page.getByRole("heading", { name: "Continue Learning", exact: true }) : page.locator(".constellation")).toBeVisible();
+    await expect(name === "Dashboard" ? page.getByRole("heading", { name: "Continue learning", exact: true }) : page.locator(".constellation")).toBeVisible();
     await settleUI(page);
   };
-  await visit("Knowledge Map");
+  await visit("Knowledge map");
   await visit("Dashboard");
   const before = await metrics();
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
@@ -482,7 +482,7 @@ test(`records ${viewport.name} animation frame pacing and navigation resource gr
   const navigationCycles = viewport.name === "mobile" ? 20 : 5;
   const checkpoints: { cycle: number; metrics: Record<string, number> }[] = [];
   for (let cycle = 0; cycle < navigationCycles; cycle++) {
-    await visit("Knowledge Map"); await visit("Dashboard");
+    await visit("Knowledge map"); await visit("Dashboard");
     if ((cycle + 1) % 5 === 0) checkpoints.push({ cycle: cycle + 1, metrics: await metrics() });
   }
   const after = await metrics();

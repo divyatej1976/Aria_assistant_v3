@@ -33,10 +33,10 @@ test("progress screen renders real zeros for a fresh learner", async ({ page }) 
   await signInAndOnboard(page, user);
 
   await page.goto("/app/progress");
-  await page.getByText("Your Progress").waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Your progress").waitFor({ state: "visible", timeout: 20_000 });
 
   // streaks + activity render from the real consistency endpoint
-  await expect(page.getByText("Current Streak").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Current streak").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTitle(/session/).first()).toBeVisible();
   await expect(page.getByText("Locked").first()).toBeVisible();
   await expect(page.getByText("No learning activity yet").first()).toBeVisible({ timeout: 20_000 });
@@ -54,7 +54,7 @@ test("progress reflects real learning activity and awards badges", async ({ page
   await api.dispose();
 
   await page.goto("/app/progress");
-  await page.getByText("Your Progress").waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Your progress").waitFor({ state: "visible", timeout: 20_000 });
 
   // a qualifying assessment activity was recorded today
   await expect(page.getByText("Assessment", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
@@ -71,7 +71,7 @@ test("progress page is accessible", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/progress");
-  await page.getByText("Your Progress").waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Your progress").waitFor({ state: "visible", timeout: 20_000 });
   await page.waitForLoadState("networkidle");
   await noSeriousAxe(page, "progress");
 });

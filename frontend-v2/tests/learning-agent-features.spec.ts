@@ -10,7 +10,7 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await signInAndOnboard(page, user);
 
     await page.goto("/app/learn");
-    await page.getByPlaceholder("Ask ARIA anything...").waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
     // Verify starter chips are rendered
     await expect(page.getByRole("button", { name: /Explain the core concepts/i })).toBeVisible({ timeout: 10_000 });
@@ -35,7 +35,7 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await signInAndOnboard(page, user);
 
     await page.goto("/app/learn");
-    await page.getByPlaceholder("Ask ARIA anything...").waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
     // Wait for the starter chip to become enabled (context loaded)
     const chip = page.getByRole("button", { name: /Explain the core concepts/i });
@@ -78,10 +78,10 @@ test.describe("Learning Agent Features & Screenshots", () => {
     });
 
     await page.goto("/app/learn");
-    await page.getByPlaceholder("Ask ARIA anything...").waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
     // Ask a question about normalization
-    await page.getByPlaceholder("Ask ARIA anything...").fill("What are 1NF, 2NF, and 3NF, and why are they important? Keep the breakdown crisp.");
+    await page.getByPlaceholder("Ask ARIA anything…").fill("What are 1NF, 2NF, and 3NF, and why are they important? Keep the breakdown crisp.");
     await page.getByRole("button", { name: "Send" }).click();
 
     // Wait for ARIA response with source citations
@@ -178,7 +178,7 @@ test.describe("Learning Agent Features & Screenshots", () => {
     });
 
     await page.goto("/app/learn");
-    await page.getByPlaceholder("Ask ARIA anything...").waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
     const micBtn = page.getByRole("button", { name: "Speak question" });
     await expect(micBtn).toBeVisible();
@@ -194,7 +194,7 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await page.getByRole("button", { name: "Stop recording voice" }).click();
 
     // Transcribed text should be inserted into the input field!
-    const input = page.getByPlaceholder("Ask ARIA anything...");
+    const input = page.getByPlaceholder("Ask ARIA anything…");
     await expect(input).toHaveValue("What is concurrency in Go?", { timeout: 10_000 });
 
     // Toast confirmation should be visible

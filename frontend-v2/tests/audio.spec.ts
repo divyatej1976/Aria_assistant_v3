@@ -44,7 +44,7 @@ test("audio page shows empty state and lists available sources", async ({ page }
   await signInAndOnboard(page, user);
 
   await page.goto("/app/audio");
-  await page.getByRole("heading", { name: "Audio Studio" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Audio studio" }).waitFor({ state: "visible", timeout: 20_000 });
 
   await expect(page.getByText("No audio yet").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Available sources").first()).toBeVisible({ timeout: 20_000 });
@@ -64,14 +64,14 @@ test("convert a note to audio, save progress, and restore it after reload", asyn
   await api.dispose();
 
   await page.goto("/app/audio");
-  await page.getByRole("heading", { name: "Audio Studio" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Audio studio" }).waitFor({ state: "visible", timeout: 20_000 });
 
   // open the convert modal and pick the note source
-  await page.getByRole("button", { name: /Convert to Audio/i }).first().click();
+  await page.getByRole("button", { name: /Convert to audio/i }).first().click();
   const noteValue = await page.locator("#audio-source option").nth(1).getAttribute("value");
   expect(noteValue).toContain("note:");
   await page.getByLabel("Source").selectOption(noteValue!);
-  await page.getByRole("button", { name: /Create Audio/i }).last().click();
+  await page.getByRole("button", { name: /Create audio/i }).last().click();
 
   // artifact card with real READY status appears
   await expect(page.getByText("Python Functions Audio Notes").first()).toBeVisible({ timeout: 30_000 });
@@ -98,6 +98,6 @@ test("convert a note to audio, save progress, and restore it after reload", asyn
 
   // reload: artifact restored from the server list with the saved resume position
   await page.reload();
-  await page.getByRole("heading", { name: "Audio Studio" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Audio studio" }).waitFor({ state: "visible", timeout: 20_000 });
   await expect(page.getByText("Resume 0:42").first()).toBeVisible({ timeout: 30_000 });
 });

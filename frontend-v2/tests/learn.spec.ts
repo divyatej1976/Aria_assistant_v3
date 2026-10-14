@@ -25,10 +25,10 @@ test("learn screen creates a session and sends a message to the real tutor", asy
   await signInAndOnboard(page, user);
 
   await page.goto("/app/learn");
-  await page.getByPlaceholder("Ask ARIA anything...").waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
   // send a message
-  await page.getByPlaceholder("Ask ARIA anything...").fill("Explain Python functions");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain Python functions");
   await page.getByRole("button", { name: "Send" }).click();
 
   // an AI reply (aria) appears
@@ -43,7 +43,7 @@ test("selecting a session whose messages fail does not leave the page stuck load
   await signInAndOnboard(page, user);
 
   await page.goto("/app/learn");
-  const input = page.getByPlaceholder("Ask ARIA anything...");
+  const input = page.getByPlaceholder("Ask ARIA anything…");
   await input.waitFor({ state: "visible", timeout: 20_000 });
 
   // Sessions are created on the first message, so hold two conversations.
@@ -51,7 +51,7 @@ test("selecting a session whose messages fail does not leave the page stuck load
     await input.fill(question);
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.locator(".session-item .session-title", { hasText: question })).toBeVisible({ timeout: 60_000 });
-    await page.getByRole("button", { name: "New Chat" }).click();
+    await page.getByRole("button", { name: "New chat" }).click();
   }
   await expect(page.locator(".session-item")).toHaveCount(2, { timeout: 20_000 });
 
@@ -72,7 +72,7 @@ test("selecting a session whose messages fail does not leave the page stuck load
   // The full-page loading spinner must clear (no stuck state) and a toast must appear.
   await expect(page.getByText("Loading your tutor").first()).toBeHidden({ timeout: 20_000 });
   await expect(page.getByText("Could not load this session.").first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByPlaceholder("Ask ARIA anything...")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByPlaceholder("Ask ARIA anything…")).toBeVisible({ timeout: 20_000 });
 
   await page.unroute("**/api/v1/study/sessions/*/messages");
   await noSeriousAxe(page, "learn-failed-session");
@@ -84,7 +84,7 @@ test("empty learn screen renders starter prompt chips and clicking one sends the
   await signInAndOnboard(page, user);
 
   await page.goto("/app/learn");
-  await page.getByPlaceholder("Ask ARIA anything...").waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
   // Starter chip is visible
   const chip = page.getByRole("button", { name: /Explain the core concepts/i });
@@ -103,7 +103,7 @@ test("returning to Learn opens a fresh chat and lists the old one by topic", asy
   await signInAndOnboard(page, user);
 
   await page.goto("/app/learn");
-  const input = page.getByPlaceholder("Ask ARIA anything...");
+  const input = page.getByPlaceholder("Ask ARIA anything…");
   await input.waitFor({ state: "visible", timeout: 20_000 });
   await input.fill("Explain Python functions");
   await page.getByRole("button", { name: "Send" }).click();

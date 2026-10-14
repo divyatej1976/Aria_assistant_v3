@@ -23,7 +23,7 @@ test("tutor replies render as ARIA bubbles after a page reload", async ({ page }
   await seedResource(api, contextId);
 
   await page.goto("/app/learn");
-  const input = page.getByPlaceholder("Ask ARIA anything...");
+  const input = page.getByPlaceholder("Ask ARIA anything…");
   await input.waitFor({ state: "visible", timeout: 20_000 });
   await input.fill("Explain Python functions");
   await page.getByRole("button", { name: "Send" }).click();

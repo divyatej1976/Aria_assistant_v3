@@ -70,7 +70,7 @@ test("switching context in the header updates mounted screens immediately (no re
 
   // refresh so the shared provider picks up the API-created context
   await page.reload();
-  await page.getByText("Continue Learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
 
   // header select now offers both; switching updates mounted screens WITHOUT reload
   const switcher = page.getByLabel("Active learning context");
@@ -78,7 +78,7 @@ test("switching context in the header updates mounted screens immediately (no re
   await switcher.selectOption(secondId);
   await expect(switcher).toHaveValue(secondId, { timeout: 10_000 });
 
-  // The Continue Learning card reflects the new context WITHOUT any reload.
+  // The Continue learning card reflects the new context WITHOUT any reload.
   await expect(
     page.locator(".learning-hero .hero-topic"),
   ).toHaveText("Second Goal", { timeout: 15_000 });

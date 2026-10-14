@@ -68,7 +68,7 @@ test("seeded exam reminder appears in the bell and mark-read clears the badge", 
 
   // reload so the app-shell refetches the unread count
   await page.goto("/app");
-  await page.getByText("Continue Learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
 
   const badge = page.locator(".bell-btn .badge");
   await expect(badge).toBeVisible({ timeout: 20_000 });
@@ -95,9 +95,9 @@ test("notification preferences persist across reloads", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/account");
-  await page.getByRole("heading", { name: /Account & Settings/i }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: /Account & settings/i }).waitFor({ state: "visible", timeout: 20_000 });
 
-  const remindersSwitch = page.getByRole("switch", { name: "Learning Reminders" });
+  const remindersSwitch = page.getByRole("switch", { name: "Learning reminders" });
   await expect(remindersSwitch).toHaveAttribute("aria-checked", "false", { timeout: 20_000 });
 
   // toggle on -> persists via /me/preferences
@@ -114,11 +114,11 @@ test("notification preferences persist across reloads", async ({ page }) => {
 
   // survives reload
   await page.reload();
-  const reloaded = page.getByRole("switch", { name: "Learning Reminders" });
+  const reloaded = page.getByRole("switch", { name: "Learning reminders" });
   await expect(reloaded).toHaveAttribute("aria-checked", "true", { timeout: 20_000 });
 
   // push toggle degrades gracefully without VAPID config (stays off, no crash)
-  const pushSwitch = page.getByRole("switch", { name: "Push Notifications" });
+  const pushSwitch = page.getByRole("switch", { name: "Push notifications" });
   await pushSwitch.click();
   await expect(pushSwitch).toHaveAttribute("aria-checked", "false", { timeout: 20_000 });
 });

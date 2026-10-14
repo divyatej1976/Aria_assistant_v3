@@ -44,7 +44,7 @@ test("materials page shows empty states for a fresh learner", async ({ page }) =
   await signInAndOnboard(page, user);
 
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: "Materials Library" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
 
   await expect(page.getByText("No saved notes yet").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("No resources yet").first()).toBeVisible({ timeout: 20_000 });
@@ -58,16 +58,16 @@ test("add a text resource and delete it", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: "Materials Library" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
 
-  await page.getByRole("button", { name: /Add Resource/i }).click();
-  await page.getByRole("button", { name: "Paste Text", exact: true }).click();
+  await page.getByRole("button", { name: /Add resource/i }).click();
+  await page.getByRole("button", { name: "Paste text", exact: true }).click();
   await page.getByLabel("Title").fill("Python Study Notes");
   await page.getByLabel("Text").fill(
     "A function is a reusable block of code. def defines a function. Arguments are passed when calling. "
       + "A function returns a value with return. Loops repeat a block while a condition holds.",
   );
-  await page.getByRole("button", { name: /Add Resource/i }).last().click();
+  await page.getByRole("button", { name: /Add resource/i }).last().click();
 
   await expect(page.getByText("Python Study Notes").first()).toBeVisible({ timeout: 20_000 });
   const resource = page.locator(".resource-card").filter({ hasText: "Python Study Notes" });
@@ -91,14 +91,14 @@ test("generate a note from a chat session and download the PDF", async ({ page }
   await api.dispose();
 
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: "Materials Library" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
 
   // generate from the real chat session
-  await page.getByRole("button", { name: /Generate Notes/i }).first().click();
+  await page.getByRole("button", { name: /Generate notes/i }).first().click();
   const sessionValue = await page.locator("#note-source option").nth(1).getAttribute("value");
   expect(sessionValue).toBeTruthy();
   await page.getByLabel("Source").selectOption(sessionValue!);
-  await page.getByRole("button", { name: /Generate Notes/i }).last().click();
+  await page.getByRole("button", { name: /Generate notes/i }).last().click();
 
   const noteTitle = "Database Management Systems — Study notes";
   await expect(page.getByText(noteTitle).first()).toBeVisible({ timeout: 30_000 });

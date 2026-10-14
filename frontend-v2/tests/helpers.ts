@@ -92,7 +92,7 @@ export async function seedLearningFlow(api: AuthedApi, contextId: string): Promi
 
 /** Wait until the home dashboard has finished loading its data and rendered a stable element. */
 export async function waitForHome(page: Page): Promise<void> {
-  await page.getByText("Continue Learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
 }
 
 export function randomUser(): TestUser {

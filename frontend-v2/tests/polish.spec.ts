@@ -34,16 +34,16 @@ const APP_ROUTES = [
 
 /** A stable, route-specific element that proves data has rendered before axe runs. */
 const LANDMARKS: Record<string, string> = {
-  "/app": "text=Continue Learning",
-  "/app/learn": 'input[placeholder="Ask ARIA anything..."]',
+  "/app": "text=Continue learning",
+  "/app/learn": 'input[placeholder="Ask ARIA anything…"]',
   "/app/planner": 'button:has-text("Exams")',
-  "/app/assess": 'button:has-text("Create Assessment")',
+  "/app/assess": 'button:has-text("Create assessment")',
   "/app/materials": "text=Generated from your learning",
-  "/app/audio": 'button:has-text("Convert to Audio")',
-  "/app/map": 'h1:has-text("Knowledge Map")',
-  "/app/roadmaps": 'button:has-text("Create Roadmap")',
-  "/app/progress": 'h1:has-text("Your Progress")',
-  "/app/account": 'h1:has-text("Account & Settings")',
+  "/app/audio": 'button:has-text("Convert to audio")',
+  "/app/map": 'h1:has-text("Knowledge map")',
+  "/app/roadmaps": 'button:has-text("Create roadmap")',
+  "/app/progress": 'h1:has-text("Your progress")',
+  "/app/account": 'h1:has-text("Account & settings")',
 };
 
 const AUTH_ROUTES = ["/signin", "/signup", "/verify-email", "/reset-password"];
@@ -150,7 +150,7 @@ test("dashboard performance sanity", async ({ page }) => {
 
   const started = Date.now();
   await page.goto("/app");
-  await page.getByText("Continue Learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
   await expect(page.getByText("Next best action").first()).toBeVisible({ timeout: 20_000 });
   const elapsed = Date.now() - started;
   // generous ceiling: guards against pathological regressions, not micro-tuning

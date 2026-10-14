@@ -54,7 +54,7 @@ test("tutor retry reuses the request and keeps one question bubble", async ({ pa
       body: JSON.stringify(requests.length === 1 ? { detail: "The tutor is temporarily unavailable. Try again." } : { role: "assistant", content: "A primary key identifies each row uniquely.", sources: [] }) });
   });
   await page.goto("/app/learn");
-  const input = page.getByPlaceholder("Ask ARIA anything...");
+  const input = page.getByPlaceholder("Ask ARIA anything…");
   await input.fill("Explain primary keys");
   await input.press("Enter");
   await expect(page.getByRole("alert").filter({ hasText: "Reply unavailable" })).toContainText("temporarily unavailable");
@@ -116,10 +116,10 @@ test("roadmap tiles stay readable, reveal prerequisites, and prefill the tutor",
   await expect(page.getByText("AI-generated curriculum", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "View Normalization and functional dependencies details" }).click();
   await page.getByRole("link", { name: "Study this milestone" }).click();
-  await expect(page.getByPlaceholder("Ask ARIA anything...")).toHaveValue("Help me learn Normalization and functional dependencies. Start with a clear explanation and an example.");
+  await expect(page.getByPlaceholder("Ask ARIA anything…")).toHaveValue("Help me learn Normalization and functional dependencies. Start with a clear explanation and an example.");
   await page.goto("/app/roadmaps");
   await page.getByRole("link", { name: "Study Tables and primary keys", exact: true }).click();
-  await expect(page.getByPlaceholder("Ask ARIA anything...")).toHaveValue("Help me learn Tables and primary keys. Start with a clear explanation and an example.");
+  await expect(page.getByPlaceholder("Ask ARIA anything…")).toHaveValue("Help me learn Tables and primary keys. Start with a clear explanation and an example.");
 });
 
 test("note generation keeps conversation selection and shows failures inside the modal", async ({ page }) => {
@@ -127,13 +127,13 @@ test("note generation keeps conversation selection and shows failures inside the
   await page.route("**/api/v1/study/sessions?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "conversation", message_count: 2, created_at: "2026-10-14T10:00:00Z" }]) }));
   await page.route("**/api/v1/notes/generate", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "Notes are temporarily unavailable. Please try again." }) }));
   await page.goto("/app/materials");
-  await page.getByRole("button", { name: "Generate Notes", exact: true }).first().click();
-  const modal = page.getByRole("dialog", { name: "Generate Notes" });
+  await page.getByRole("button", { name: "Generate notes", exact: true }).first().click();
+  const modal = page.getByRole("dialog", { name: "Generate notes" });
   await modal.getByLabel("Source", { exact: true }).selectOption("conversation");
-  await modal.getByRole("button", { name: "Generate Notes", exact: true }).click();
+  await modal.getByRole("button", { name: "Generate notes", exact: true }).click();
   await expect(modal.getByRole("alert")).toContainText("temporarily unavailable");
   await expect(modal.getByLabel("Source", { exact: true })).toHaveValue("conversation");
-  await expect(modal.getByRole("button", { name: "Generate Notes", exact: true })).toBeEnabled();
+  await expect(modal.getByRole("button", { name: "Generate notes", exact: true })).toBeEnabled();
 });
 
 test("streaming replies follow the latest message without pulling an earlier reading position", async ({ page }) => {
@@ -141,12 +141,12 @@ test("streaming replies follow the latest message without pulling an earlier rea
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.route("**/study/sessions/polish-session/messages", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ role: "assistant", content: "A primary key identifies each row uniquely. ".repeat(70) + "End of explanation.", sources: [] }) }));
   await page.goto("/app/learn");
-  await page.getByPlaceholder("Ask ARIA anything...").fill("Explain primary keys");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain primary keys");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.locator(".msg-aria").last()).toContainText("End of explanation.", { timeout: 30_000 });
   const chat = page.locator(".chat-body");
   await expect.poll(() => chat.evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(90);
-  await page.getByPlaceholder("Ask ARIA anything...").fill("Explain another example");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain another example");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.locator(".msg-aria")).toHaveCount(2);
   await chat.evaluate(element => { element.scrollTop = 0; element.dispatchEvent(new Event("scroll")); });
@@ -159,9 +159,9 @@ test("assessment readiness explains both learning paths before submission", asyn
   await fixture(page);
   await page.goto("/app/assess");
   await page.getByRole("button", { name: "Create your first assessment" }).click();
-  const modal = page.getByRole("dialog", { name: "Create Assessment" });
+  const modal = page.getByRole("dialog", { name: "Create assessment" });
   await expect(modal.getByRole("status")).toContainText("without notes");
-  await expect(modal.getByRole("button", { name: "Create Assessment", exact: true })).toBeDisabled();
+  await expect(modal.getByRole("button", { name: "Create assessment", exact: true })).toBeDisabled();
   await expect(modal.getByRole("link", { name: "Study with ARIA" })).toHaveAttribute("href", "/app/learn");
 });
 
@@ -172,12 +172,12 @@ test("assessment failure preserves selections and displays an inline error", asy
     await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "Add more detail to your material." }) });
   });
   await page.goto("/app/assess");
-  await page.getByRole("button", { name: "Create Assessment", exact: true }).click();
-  const modal = page.getByRole("dialog", { name: "Create Assessment" });
-  await modal.getByRole("button", { name: "Create Assessment", exact: true }).click();
+  await page.getByRole("button", { name: "Create assessment", exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Create assessment" });
+  await modal.getByRole("button", { name: "Create assessment", exact: true }).click();
   await expect(modal.getByRole("alert")).toContainText("Add more detail");
   await expect(modal).toBeVisible();
-  await expect(modal.getByRole("button", { name: "Create Assessment", exact: true })).toBeEnabled();
+  await expect(modal.getByRole("button", { name: "Create assessment", exact: true })).toBeEnabled();
 });
 
 test("first session guidance makes materials optional", async ({ page }, info) => {
@@ -218,7 +218,7 @@ test("slow replies explain the wait and the daily review has a clear action", as
   await page.route("**/api/v1/study/sessions?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "polish-session", message_count: 2, created_at: "2026-10-14T10:00:00Z" }]) }));
   await page.route("**/finish-day", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ assessment_id: "daily-review" }) }));
   await page.goto("/app/learn");
-  await page.getByPlaceholder("Ask ARIA anything...").fill("Explain primary keys");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain primary keys");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.locator(".request-status")).toBeVisible();
   await page.clock.fastForward(8100);
@@ -238,7 +238,7 @@ test("error feedback stays above a modal, survives closing it, and can be dismis
   await fixture(page);
   await page.goto("/app/roadmaps");
   await page.clock.install();
-  await page.getByRole("button", { name: "Create Roadmap", exact: true }).click();
+  await page.getByRole("button", { name: "Create roadmap", exact: true }).click();
   const source = readFileSync("lib/toast.ts", "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   await page.evaluate(compiled => {

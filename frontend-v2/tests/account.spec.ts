@@ -44,7 +44,7 @@ test("account page shows the real identity and is accessible", async ({ page }) 
   await signInAndOnboard(page, user);
 
   await page.goto("/app/account");
-  await page.getByRole("heading", { name: /Account & Settings/i }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: /Account & settings/i }).waitFor({ state: "visible", timeout: 20_000 });
 
   // email + display_name come from GET /auth/me (registered with display_name)
   await expect(page.getByLabel("Email")).toHaveValue(user.email, { timeout: 20_000 });
@@ -59,10 +59,10 @@ test("profile updates persist across reloads", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/account");
-  await page.getByRole("heading", { name: /Personal Details/i }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: /Personal details/i }).waitFor({ state: "visible", timeout: 20_000 });
 
   await page.getByLabel("Name").fill("Renamed User");
-  await page.getByRole("button", { name: /Save Changes/i }).click();
+  await page.getByRole("button", { name: /Save changes/i }).click();
 
   // persists in UI after reload
   await page.reload();
@@ -80,13 +80,13 @@ test("password change signs other devices out and the new password works", async
   expect((await second.get("/api/v1/auth/me")).status()).toBe(200);
 
   await page.goto("/app/account");
-  await page.getByLabel("Current Password").fill(user.password);
-  await page.getByLabel("New Password", { exact: true }).fill("brand-new-pw-123");
-  await page.getByLabel("Confirm New Password").fill("brand-new-pw-123");
-  await page.getByRole("button", { name: /Change Password/i }).click();
+  await page.getByLabel("Current password").fill(user.password);
+  await page.getByLabel("New password", { exact: true }).fill("brand-new-pw-123");
+  await page.getByLabel("Confirm new password").fill("brand-new-pw-123");
+  await page.getByRole("button", { name: /Change password/i }).click();
 
   // fields cleared on success
-  await expect(page.getByLabel("New Password", { exact: true })).toHaveValue("", { timeout: 20_000 });
+  await expect(page.getByLabel("New password", { exact: true })).toHaveValue("", { timeout: 20_000 });
 
   // the pre-existing second session was revoked by the change
   expect((await second.get("/api/v1/auth/me")).status()).toBe(401);
@@ -115,7 +115,7 @@ test("revoking another session kills it", async ({ page }) => {
   expect((await second.get("/api/v1/auth/me")).status()).toBe(200);
 
   await page.goto("/app/account");
-  await page.getByRole("heading", { name: /Active Sessions/i }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: /Active sessions/i }).waitFor({ state: "visible", timeout: 20_000 });
 
   // two active sessions: this device + e2e-second
   await expect(page.getByText("This device").first()).toBeVisible({ timeout: 20_000 });
@@ -135,7 +135,7 @@ test("danger zone: export downloads JSON and context deletion returns to onboard
   await signInAndOnboard(page, user);
 
   await page.goto("/app/account");
-  await page.getByRole("heading", { name: /Data & Privacy/i }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: /Data & privacy/i }).waitFor({ state: "visible", timeout: 20_000 });
 
   // export produces a JSON attachment
   const [download] = await Promise.all([
@@ -151,7 +151,7 @@ test("danger zone: export downloads JSON and context deletion returns to onboard
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0, { timeout: 10_000 });
   // still on account (context intact)
-  await expect(page.getByRole("heading", { name: /Personal Details/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Personal details/i })).toBeVisible();
 
   // reopen and confirm deletion -> onboarding
   await page.getByRole("button", { name: /Delete this context/i }).click();

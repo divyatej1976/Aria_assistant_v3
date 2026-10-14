@@ -82,7 +82,7 @@ test("missed tasks can be rescheduled to tomorrow", async ({ page }) => {
 
   await page.goto("/app/planner");
   await page.getByText("What should I do today?").waitFor({ state: "visible", timeout: 20_000 });
-  await page.getByRole("button", { name: /Task Planning/i }).click();
+  await page.getByRole("button", { name: /Task planning/i }).click();
 
   // Missed bucket contains it; reschedule moves it out
   const missedRow = page.locator(".ws-row").filter({ hasText: "Old Missed Task" });

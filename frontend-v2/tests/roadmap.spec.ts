@@ -107,10 +107,10 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
   // build the roadmap via the UI
   await page.goto("/app/roadmaps");
   await page.getByRole("heading", { name: "Roadmaps" }).waitFor({ state: "visible", timeout: 20_000 });
-  await page.getByRole("button", { name: /Create Roadmap/i }).first().click();
-  await page.getByLabel("Learning Goal").fill("Master Python for data analysis");
+  await page.getByRole("button", { name: /Create roadmap/i }).first().click();
+  await page.getByLabel("Learning goal").fill("Master Python for data analysis");
   await page.getByRole("button", { name: "Beginner" }).click();
-  await page.getByRole("button", { name: /Create Roadmap/i }).last().click();
+  await page.getByRole("button", { name: /Create roadmap/i }).last().click();
 
   // tree renders from real concepts with 0% completion
   await expect(page.locator(".roadmap-tier-head").first()).toBeVisible({ timeout: 30_000 });

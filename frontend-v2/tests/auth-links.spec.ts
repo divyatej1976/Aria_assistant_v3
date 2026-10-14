@@ -49,8 +49,8 @@ test("reset-password consumes the token and sets a new password", async ({ page 
   });
 
   await page.goto("/reset-password?email=user@example.com&token=tok-xyz");
-  await page.getByLabel("New Password", { exact: true }).fill("brand-new-pw-123");
-  await page.getByLabel("Confirm New Password").fill("brand-new-pw-123");
+  await page.getByLabel("New password", { exact: true }).fill("brand-new-pw-123");
+  await page.getByLabel("Confirm new password").fill("brand-new-pw-123");
   await page.getByRole("button", { name: /Update password/i }).click();
 
   await expect(page.getByText(/Password updated/i).first()).toBeVisible({ timeout: 20_000 });
@@ -63,8 +63,8 @@ test("reset-password surfaces an inline error for an expired link", async ({ pag
   );
 
   await page.goto("/reset-password?email=user@example.com&token=expired");
-  await page.getByLabel("New Password", { exact: true }).fill("brand-new-pw-123");
-  await page.getByLabel("Confirm New Password").fill("brand-new-pw-123");
+  await page.getByLabel("New password", { exact: true }).fill("brand-new-pw-123");
+  await page.getByLabel("Confirm new password").fill("brand-new-pw-123");
   await page.getByRole("button", { name: /Update password/i }).click();
 
   await expect(page.getByText(/invalid or expired/i).first()).toBeVisible({ timeout: 20_000 });

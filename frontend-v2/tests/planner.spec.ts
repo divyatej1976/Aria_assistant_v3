@@ -25,7 +25,7 @@ test("create an exam, then complete and delete it", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/planner");
-  await page.getByRole("button", { name: /Create Exam/i }).click();
+  await page.getByRole("button", { name: /Create exam/i }).click();
   await page.getByLabel(/Exam name/i).fill("Data Structures");
   // default datetime may be empty; use the date input
   const dateInput = page.getByLabel("Due date");
@@ -47,8 +47,8 @@ test("create a task and complete it", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/planner");
-  await page.getByRole("button", { name: /Task Planning/i }).click();
-  await page.getByRole("button", { name: /Create Task/i }).click();
+  await page.getByRole("button", { name: /Task planning/i }).click();
+  await page.getByRole("button", { name: /Create task/i }).click();
   await page.getByLabel(/Task name/i).fill("Solve LeetCode 53");
   await page.getByRole("button", { name: /^Create/i }).last().click();
 
