@@ -33,6 +33,7 @@ test("landing route renders and is accessible", async ({ page, baseURL }) => {
 test("auth page renders and is accessible", async ({ page }) => {
   await page.goto("/signin");
   await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
+  await expect(page.getByRole("main")).toHaveCount(1);
   await noSeriousAxe(page, "signin");
 });
 

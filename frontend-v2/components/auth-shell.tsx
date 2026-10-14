@@ -8,7 +8,7 @@ import { useHydrated } from "@/lib/use-hydrated";
 export function AuthShell({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
   const hydrated = useHydrated();
   return (
-    <div className="auth-wrap">
+    <main className="auth-wrap">
       <div style={{ position: "absolute", top: 24, left: 28, display: "flex", alignItems: "center", gap: 12 }}>
         <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
           <div
@@ -45,6 +45,6 @@ export function AuthShell({ children, title, subtitle }: { children: ReactNode; 
           {children}
         </fieldset>
       </div>
-    </div>
+    </main>
   );
 }
