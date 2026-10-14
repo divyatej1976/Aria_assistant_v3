@@ -1,10 +1,5 @@
 import type { IconName } from "@/components/icons";
 
-/**
- * Roadmap generation — pure client-side data function, abstracted so a future
- * orchestration endpoint can replace it without touching the UI.
- */
-
 export type ConceptStateLite = {
   concept_id: string;
   concept_name: string;
@@ -24,6 +19,8 @@ export type RoadmapInput = {
 export type RoadmapTopic = {
   key: string;
   title: string;
+  description?: string;
+  keySkills?: string[];
   ticked: boolean;
   state: string;
   confidence: number;
@@ -38,10 +35,27 @@ export type RoadmapTier = {
 };
 
 export type Roadmap = {
+  id?: string;
   goal: string;
   level: string;
   targetDate?: string;
+  status?: string;
+  generationMode?: "ai" | "starter" | null;
+  fallbackReason?: string | null;
   tiers: RoadmapTier[];
+  total: number;
+  done: number;
+};
+
+export type RoadmapSummary = {
+  id: string;
+  goal: string;
+  level: string;
+  target_date?: string;
+  status: string;
+  generation_mode?: "ai" | "starter" | null;
+  fallback_reason?: string | null;
+  created_at: string;
   total: number;
   done: number;
 };
@@ -50,9 +64,7 @@ const TIER_NAMES = ["Foundations", "Core Concepts", "Advanced Topics", "Mastery 
 const TIER_ICONS: IconName[] = ["book", "target", "zap", "trophy"];
 
 /**
- * Layer each concept by its prerequisite depth (among the tracked concept set),
- * then bucket into up to 4 tiers. Concepts with no in-scope prerequisites land
- * in Foundations; edges that would create cycles are ignored (safe crawl).
+ * Layer each concept by its prerequisite depth (fallback safe crawl).
  */
 function computeLayers(
   ids: string[],
@@ -124,13 +136,13 @@ export function buildRoadmap(input: RoadmapInput): Roadmap | null {
 /** Human-readable explanation for a topic's tick state. */
 export function tickExplanation(topic: RoadmapTopic): string {
   if (topic.ticked) {
-    return `Auto-ticked — "${topic.title}" has reached Supported in your Knowledge Map (${topic.confidence}% confidence).`;
+    return topic.reason || `Auto-ticked — "${topic.title}" has reached Supported in your Knowledge Map (${topic.confidence}% confidence).`;
   }
   if (topic.state === "NEEDS_REVIEW") {
-    return `Not ticked yet — recent evidence suggests "${topic.title}" needs review. Study the concept, then retake a focused assessment.`;
+    return topic.reason || `Not ticked yet — recent evidence suggests "${topic.title}" needs review. Study the concept, then retake a focused assessment.`;
   }
   if (topic.state === "DEVELOPING") {
-    return `Not ticked yet — "${topic.title}" is still developing (${topic.confidence}% confidence). It ticks once it reaches Supported (2 consecutive correct answers).`;
+    return topic.reason || `Not ticked yet — "${topic.title}" is still developing (${topic.confidence}% confidence). It ticks once it reaches Supported (2 consecutive correct answers).`;
   }
-  return `Not ticked yet — there is no evidence for "${topic.title}" yet. It ticks as soon as it reaches Supported in your Knowledge Map.`;
+  return topic.reason || `Not ticked yet — there is no evidence for "${topic.title}" yet. It ticks as soon as it reaches Supported in your Knowledge Map.`;
 }
