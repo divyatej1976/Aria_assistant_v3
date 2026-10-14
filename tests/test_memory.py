@@ -7,8 +7,8 @@ from app.db.models import (
     ConversationMessage,
     Learner,
     LearnerConceptState,
-    LearnerSession,
     LearningContext,
+    StudySession,
 )
 from app.services.context_assembly import (
     STUDY_SYSTEM_PROMPT,
@@ -315,9 +315,11 @@ def test_context_assembly_units(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         db.add(Learner(id=owner_id, owner_id=owner_id, email="assembly@example.com"))
+        context = LearningContext(owner_id=owner_id, title="Memory")
+        db.add(context)
         db.flush()
         session_id = uuid4()
-        db.add(LearnerSession(id=session_id, owner_id=owner_id))
+        db.add(StudySession(id=session_id, owner_id=owner_id, context_id=context.id))
         db.flush()
         db.add_all(
             [
@@ -344,9 +346,6 @@ def test_context_assembly_units(engine, session_factory) -> None:
                 ),
             ]
         )
-        context = LearningContext(owner_id=owner_id, title="Memory")
-        db.add(context)
-        db.flush()
         concept = Concept(owner_id=owner_id, context_id=context.id, name="locking")
         untested = Concept(owner_id=owner_id, context_id=context.id, name="untested")
         db.add_all([concept, untested])
