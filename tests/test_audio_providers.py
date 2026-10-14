@@ -19,6 +19,19 @@ from app.ai.providers import (
 from app.core.errors import ValidationError
 
 
+@pytest.mark.parametrize("provider_type", [GroqSTTProvider, CloudSTTProvider])
+@pytest.mark.parametrize("mime,filename", [("audio/webm;codecs=opus", "audio.webm"), ("audio/wav", "audio.wav"), ("audio/mp4", "audio.mp4")])
+def test_stt_upload_has_format_extension(monkeypatch, provider_type, mime, filename):
+    import httpx
+
+    def post(url, **kwargs):
+        assert kwargs["files"]["file"] == (filename, b"recording", mime)
+        return httpx.Response(200, json={"text": "hello"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr("app.ai.providers.httpx.post", post)
+    assert provider_type(api_key="test-key").transcribe(audio=b"recording", content_type=mime) == "hello"
+
+
 class _Settings:
     def __init__(
         self,

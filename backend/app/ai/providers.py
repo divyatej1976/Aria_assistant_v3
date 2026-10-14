@@ -228,6 +228,19 @@ class LocalTTSProvider:
         return data
 
 
+def _audio_upload_filename(content_type: str) -> str:
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    extension = {
+        "audio/webm": "webm", "video/webm": "webm",
+        "audio/wav": "wav", "audio/x-wav": "wav",
+        "audio/mpeg": "mp3", "audio/mp3": "mp3",
+        "audio/mp4": "mp4", "video/mp4": "mp4", "audio/m4a": "m4a",
+        "audio/ogg": "ogg", "audio/opus": "opus",
+        "audio/flac": "flac", "audio/x-flac": "flac",
+    }.get(media_type, "webm")
+    return f"audio.{extension}"
+
+
 class CloudSTTProvider:
     def __init__(self, *, api_key: str, model: str = "whisper-1") -> None:
         self.api_key = api_key
@@ -237,7 +250,7 @@ class CloudSTTProvider:
         response = httpx.post(
             "https://api.openai.com/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {self.api_key}"},
-            files={"file": ("audio", audio, content_type)},
+            files={"file": (_audio_upload_filename(content_type), audio, content_type)},
             data={"model": self.model},
             timeout=60,
         )
@@ -287,7 +300,7 @@ class GroqSTTProvider:
         response = httpx.post(
             "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {self.api_key}"},
-            files={"file": ("audio", audio, content_type)},
+            files={"file": (_audio_upload_filename(content_type), audio, content_type)},
             data={"model": self.model},
             timeout=120,
         )
