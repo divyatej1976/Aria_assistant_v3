@@ -357,7 +357,7 @@ export default function AccountPage() {
       <div className="grid-2">
         <div className="ui-stack ui-gap-18">
           <div className="card card-pad">
-            <h2 className="card-heading">Profile picture <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600 }} title="This picture is a temporary preview and disappears when you leave or refresh this page.">Preview only — not saved</span></h2>
+            <h2 className="card-heading">Profile picture <span className="profile-preview-note" title="This picture is a temporary preview and disappears when you leave or refresh this page.">Preview only — not saved</span></h2>
             <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 14 }}>
               <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--accent-grad)", color: "var(--on-accent)", fontWeight: 800, fontSize: 30, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "var(--shadow-2)", flexShrink: 0 }}>
                 {pic ? (

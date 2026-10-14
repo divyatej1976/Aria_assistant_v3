@@ -198,7 +198,7 @@ export default function ProgressPage() {
       </Reveal>
 
       <Reveal delay={120}>
-      <h2 style={{ fontSize: 19, fontWeight: 800, marginBottom: 16 }}>Achievements &amp; Badges</h2>
+      <h2 style={{ fontSize: 19, fontWeight: 800, marginBottom: 16 }}>Achievements &amp; badges</h2>
       {badges.length === 0 ? (
         <div className="empty-state">
           <Icon name="trophy" size={30} />

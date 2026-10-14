@@ -349,7 +349,7 @@ function PlannerPageWorkspace() {
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <button className={`btn ${tab === "exams" ? "btn-primary" : "btn-secondary"}`} onClick={() => setTab("exams")}>
-          <Icon name="calendar" /> Exams &amp; Deadlines
+          <Icon name="calendar" /> Exams &amp; deadlines
         </button>
         <button className={`btn ${tab === "tasks" ? "btn-primary" : "btn-secondary"}`} onClick={() => setTab("tasks")}>
           <Icon name="check" /> Task planning

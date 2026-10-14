@@ -25,12 +25,12 @@
 .ui-gap-8 { gap: 8px; }
 .ui-gap-10 { gap: 10px; }
 .ui-gap-12 { gap: 12px; }
-.ui-gap-14 { gap: 14px; }
 .ui-gap-18 { gap: 18px; }
 .ui-justify-center { justify-content: center; }
 .ui-mt-16 { margin-top: 16px; }
 .card-header { display: flex; align-items: center; gap: 14px; }
 .card-heading { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+.profile-preview-note { display: inline-block; font-size: 11px; color: var(--text-3); font-weight: 600; margin-left: 8px; }
 .card.empty-state-card { text-align: center; color: var(--text-3); padding: 60px; }
 .m-head.dialog-heading { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 18px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 18px; }
