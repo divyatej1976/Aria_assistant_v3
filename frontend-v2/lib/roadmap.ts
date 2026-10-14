@@ -136,7 +136,7 @@ export function buildRoadmap(input: RoadmapInput): Roadmap | null {
 /** Human-readable explanation for a topic's tick state. */
 export function tickExplanation(topic: RoadmapTopic): string {
   if (topic.ticked) {
-    return topic.reason || `Auto-ticked — "${topic.title}" has reached Supported in your Knowledge Map (${topic.confidence}% confidence).`;
+    return topic.reason || `Auto-ticked — "${topic.title}" has reached Supported in your Knowledge map (${topic.confidence}% confidence).`;
   }
   if (topic.state === "NEEDS_REVIEW") {
     return topic.reason || `Not ticked yet — recent evidence suggests "${topic.title}" needs review. Study the concept, then retake a focused assessment.`;
@@ -144,5 +144,5 @@ export function tickExplanation(topic: RoadmapTopic): string {
   if (topic.state === "DEVELOPING") {
     return topic.reason || `Not ticked yet — "${topic.title}" is still developing (${topic.confidence}% confidence). It ticks once it reaches Supported (2 consecutive correct answers).`;
   }
-  return topic.reason || `Not ticked yet — there is no evidence for "${topic.title}" yet. It ticks as soon as it reaches Supported in your Knowledge Map.`;
+  return topic.reason || `Not ticked yet — there is no evidence for "${topic.title}" yet. It ticks as soon as it reaches Supported in your Knowledge map.`;
 }

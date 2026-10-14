@@ -258,7 +258,7 @@ function RoadmapsPageWorkspace() {
           <p className="pg-sub">Choose a goal and follow milestones backed by your learning evidence.</p>
         </div>
         <button className="btn btn-primary" onClick={() => { setCreateError(""); setOpen(true); }}>
-          <Icon name="route" /> Create Roadmap
+          <Icon name="route" /> Create roadmap
         </button>
       </div>
 
@@ -293,7 +293,7 @@ function RoadmapsPageWorkspace() {
             No roadmap yet. Set a learning goal to see the skills and milestones to work through.
           </p>
           <button className="btn btn-primary" onClick={() => { setCreateError(""); setOpen(true); }} style={{ justifyContent: "center" }}>
-            <Icon name="route" /> Create Roadmap
+            <Icon name="route" /> Create roadmap
           </button>
         </div>
       ) : selected ? (
@@ -324,7 +324,7 @@ function RoadmapsPageWorkspace() {
 
           {selected.keySkills && selected.keySkills.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-3)", marginBottom: 6 }}>Key Skills & Concepts:</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-3)", marginBottom: 6 }}>Key skills & concepts:</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {selected.keySkills.map((skill, i) => (
                   <span key={i} className="tag-chip" style={{ fontSize: 11 }}>
@@ -451,14 +451,14 @@ function RoadmapsPageWorkspace() {
       )}
 
       {/* create modal */}
-      <Modal open={open} title="Create Roadmap" onClose={() => setOpen(false)}>
+      <Modal open={open} title="Create roadmap" onClose={() => setOpen(false)}>
         <div className="modal">
-          <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
-            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="route" size={20} /> Create Roadmap</h3>
+          <div className="m-head dialog-heading">
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="route" size={20} /> Create roadmap</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div className="form-group">
-            <label className="field-label" htmlFor="roadmap-goal">Learning Goal</label>
+            <label className="field-label" htmlFor="roadmap-goal">Learning goal</label>
             <input
               id="roadmap-goal"
               className="input"
@@ -469,8 +469,8 @@ function RoadmapsPageWorkspace() {
             />
           </div>
           <div className="form-group">
-            <label className="field-label">Target Level</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <label className="field-label">Target level</label>
+            <div className="ui-flex ui-gap-8 ui-wrap">
               {LEVELS.map((l) => (
                 <button
                   type="button"
@@ -485,7 +485,7 @@ function RoadmapsPageWorkspace() {
             </div>
           </div>
           <div className="form-group">
-            <label className="field-label" htmlFor="roadmap-target">Target Date (optional)</label>
+            <label className="field-label" htmlFor="roadmap-target">Target date (optional)</label>
             <input
               id="roadmap-target"
               type="date"
@@ -497,16 +497,16 @@ function RoadmapsPageWorkspace() {
           </div>
           {createError && <div className="inline-error" role="alert"><b>Roadmap could not be created</b><p>{createError}</p></div>}
           {busy && <RequestStatus label="Building your learning path…" />}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
+          <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
             <button className="btn btn-primary" onClick={create} disabled={busy}>
               {busy ? (
                 <>
-                  <Icon name="sparkles" /> Architecting Curriculum...
+                  <Icon name="sparkles" /> Building your roadmap…
                 </>
               ) : (
                 <>
-                  Create Roadmap <Icon name="arrow" />
+                  Create roadmap <Icon name="arrow" />
                 </>
               )}
             </button>
