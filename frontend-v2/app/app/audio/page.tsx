@@ -261,11 +261,11 @@ function AudioPageWorkspace() {
     <div>
       <div className="section-head">
         <div>
-          <h1 className="pg-title">Audio Studio</h1>
+          <h1 className="pg-title">Audio studio</h1>
           <p className="pg-sub">Turn your learning into beautiful audio.</p>
         </div>
         <button className="btn btn-primary" onClick={() => setOpen(true)}>
-          <Icon name="plus" /> Convert to Audio
+          <Icon name="plus" /> Convert to audio
         </button>
       </div>
 
@@ -284,7 +284,7 @@ function AudioPageWorkspace() {
             No audio yet. Convert a note or resource to listen on the go.
           </p>
           <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ justifyContent: "center" }}>
-            <Icon name="plus" /> Convert to Audio
+            <Icon name="plus" /> Convert to audio
           </button>
         </div>
       ) : (
@@ -293,7 +293,7 @@ function AudioPageWorkspace() {
           const isPlaying = playing === a.id;
           return (
             <div className="audio-card" key={a.id}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="card-header">
                 <button
                   className="play-btn"
                   disabled={a.status !== "READY"}
@@ -315,7 +315,7 @@ function AudioPageWorkspace() {
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="card-header">
                 <div className={`wave${isPlaying ? " playing" : ""}`} style={{ width: 120 }}>
                   {Array.from({ length: 12 }).map((_, i) => (
                     <b key={i} style={{ animationDuration: `${0.5 + ((i % 5) * 0.12)}s`, ["--wh" as string]: `${10 + ((i * 7) % 20)}px` }} />
@@ -327,7 +327,7 @@ function AudioPageWorkspace() {
               </div>
               {a.status === "FAILED" && (
                 <p role="alert" style={{ marginTop: 10 }}>
-                  Audio generation failed. Use Convert to Audio to retry this source.
+                  Audio generation failed. Use Convert to audio to retry this source.
                 </p>
               )}
               {isPlaying && a.status === "READY" && (
@@ -370,7 +370,7 @@ function AudioPageWorkspace() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
         {sources.map((s) => (
           <div className="resource-card" key={`${s.kind}-${s.id}`}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="ui-row ui-gap-12">
               <div className="fsq-ic" style={{ width: 46, height: 46 }}>
                 <Icon name={s.kind === "note" ? "file" : "folder"} size={21} />
               </div>
@@ -386,7 +386,7 @@ function AudioPageWorkspace() {
             <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>
               Generate notes or add resources first.{" "}
               <Link href="/app/materials" style={{ color: "var(--accent-strong)", fontWeight: 700 }}>
-                Open Materials Library
+                Open materials library
               </Link>
             </p>
           </div>
@@ -394,10 +394,10 @@ function AudioPageWorkspace() {
       </div>
 
       {/* convert modal */}
-      <Modal open={open} title="Convert to Audio" onClose={() => setOpen(false)}>
+      <Modal open={open} title="Convert to audio" onClose={() => setOpen(false)}>
         <div className="modal">
-          <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
-            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="headphones" size={20} /> Convert to Audio</h3>
+          <div className="m-head dialog-heading">
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="headphones" size={20} /> Convert to audio</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div className="form-group">
@@ -414,13 +414,13 @@ function AudioPageWorkspace() {
           </div>
           {sources.length === 0 && (
             <p style={{ fontSize: 12, color: "var(--text-1)", margin: "0 0 8px" }}>
-              No sources available — generate notes or add resources in the Materials Library first.
+              No sources available — generate notes or add resources in the Materials library first.
             </p>
           )}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
+          <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
             <button className="btn btn-primary" onClick={convert} disabled={busy || !source}>
-              Create Audio <Icon name="arrow" />
+              Create audio <Icon name="arrow" />
             </button>
           </div>
         </div>

@@ -148,7 +148,7 @@ function ContextMap({ context }: { context: ActiveContext | null }) {
     <div>
       <div className="section-head">
         <div>
-          <h1 className="pg-title">Knowledge Map</h1>
+          <h1 className="pg-title">Knowledge map</h1>
           <p className="eyebrow">{context?.title}</p>
           <p className="pg-sub">Your learning universe — explore concepts, prerequisites, and the evidence behind your understanding.</p>
         </div>
@@ -161,7 +161,7 @@ function ContextMap({ context }: { context: ActiveContext | null }) {
             No concepts tracked yet. Start a study session to build your map.
           </p>
           <Link href="/app/learn" className="btn btn-primary" style={{ justifyContent: "center" }}>
-            Start Learning <Icon name="arrow" />
+            Start learning <Icon name="arrow" />
           </Link>
         </div>
       ) : (
@@ -213,7 +213,7 @@ function ContextMap({ context }: { context: ActiveContext | null }) {
           )}
 
           <div className="card card-pad" style={{ marginTop: 22 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Evidence</h2>
+            <h2 className="card-heading">Evidence</h2>
             {evidence.length === 0 ? (
               <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>No evidence recorded yet — interactions with your study sessions appear here.</p>
             ) : (
