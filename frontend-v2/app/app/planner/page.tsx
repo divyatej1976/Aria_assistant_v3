@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { toast } from "@/lib/toast";
-import { ErrorState } from "@/components/states";
+import { ErrorState, Loading } from "@/components/states";
 import { ConfirmDialog, type ConfirmState } from "@/components/confirm";
 
 type Deadline = {
@@ -76,6 +76,7 @@ function PlannerPageWorkspace() {
   const [reminderDays, setReminderDays] = useState(5);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [reminderResult, setReminderResult] = useState("");
   const [confirm, setConfirm] = useState<ConfirmState>(null);
 
@@ -109,7 +110,7 @@ function PlannerPageWorkspace() {
       } catch {
         if (!cancelled) setFailed(true);
       } finally {
-        if (!cancelled) setBusy(false);
+        if (!cancelled) { setBusy(false); setLoading(false); }
       }
     })();
     return () => {
@@ -278,6 +279,8 @@ function PlannerPageWorkspace() {
     return <ErrorState message="This screen could not be loaded." onRetry={() => window.location.reload()} />;
   }
 
+  if (ctxLoading || (context && loading)) return <Loading label="your planner" />;
+
   return (
     <div>
       <div className="section-head">
@@ -285,14 +288,14 @@ function PlannerPageWorkspace() {
           <h1 className="pg-title">Planner</h1>
           <p className="pg-sub">Plan it. Learn it. Complete it. Reminders keep you on track day-to-day.</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="ui-flex ui-gap-8">
           {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "1" && (
             <button className="btn btn-ghost" onClick={runReminderCheck} title="Run reminder check (dev)">
               <Icon name="bell" /> Check reminders
             </button>
           )}
           <button className="btn btn-primary" disabled={ctxLoading || !context} onClick={() => { setOpen(tab === "exams" ? "deadline" : "task"); setTitle(""); setDueAt(""); }}>
-            <Icon name="plus" /> {tab === "exams" ? "Create Exam" : "Create Task"}
+            <Icon name="plus" /> {tab === "exams" ? "Create exam" : "Create task"}
           </button>
         </div>
       </div>
@@ -349,7 +352,7 @@ function PlannerPageWorkspace() {
           <Icon name="calendar" /> Exams &amp; Deadlines
         </button>
         <button className={`btn ${tab === "tasks" ? "btn-primary" : "btn-secondary"}`} onClick={() => setTab("tasks")}>
-          <Icon name="check" /> Task Planning
+          <Icon name="check" /> Task planning
         </button>
       </div>
 
@@ -430,7 +433,7 @@ function PlannerPageWorkspace() {
               </div>
             </div>
           ) : (
-            <div className="card card-pad" style={{ textAlign: "center", color: "var(--text-3)", padding: 60 }}>
+            <div className="card card-pad empty-state-card">
               Select an exam, or create one to begin.
             </div>
           )}
@@ -475,11 +478,11 @@ function PlannerPageWorkspace() {
       )}
 
       {open && (
-        <Modal open={Boolean(open)} title={open === "deadline" ? "Create Exam" : "Create Task"} onClose={() => setOpen(null)}>
+        <Modal open={Boolean(open)} title={open === "deadline" ? "Create exam" : "Create task"} onClose={() => setOpen(null)}>
           <div className="modal">
-            <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
+            <div className="m-head dialog-heading">
               <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}>
-                <Icon name={open === "deadline" ? "calendar" : "check"} size={20} /> {open === "deadline" ? "Create Exam" : "Create Task"}
+                <Icon name={open === "deadline" ? "calendar" : "check"} size={20} /> {open === "deadline" ? "Create exam" : "Create task"}
               </h3>
               <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(null)} aria-label="Close"><Icon name="x" size={16} /></button>
             </div>
@@ -488,7 +491,7 @@ function PlannerPageWorkspace() {
             {open === "deadline" && (
               <div className="form-group"><label className="field-label" htmlFor="pl-remind">Remind me (days before)</label><input id="pl-remind" type="number" min={1} max={60} className="input" value={reminderDays} onChange={(e) => setReminderDays(Number(e.target.value))} /></div>
             )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
+            <div className="dialog-actions ui-mt-16">
               <button className="btn btn-ghost" onClick={() => setOpen(null)}>Cancel</button>
               <button className="btn btn-primary" disabled={busy || ctxLoading || !context} onClick={open === "deadline" ? createDeadline : createTask}>
                 {busy ? "Saving…" : "Create"} <Icon name="arrow" />
