@@ -1,0 +1,31 @@
+# Isolated review stack; use with docker-compose.yml and an empty --env-file.
+# Backend source/migrations are mounted; the frontend uses a fresh source image plus Compose watch.
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:55434:5432"
+  migrate:
+    image: aria-review-backend:dev
+    volumes:
+      - ./database:/app/database:ro
+  backend:
+    image: aria-review-backend:dev
+    ports: !override
+      - "127.0.0.1:8020:8000"
+    environment:
+      ARIA_PUBLIC_URL: http://localhost:3120
+      ARIA_CORS_ORIGINS: http://localhost:3120
+      ARIA_SCHEDULER_ENABLED: "false"
+      # Public test-only encryption key; never use this review override for user data.
+      ARIA_LLM_KEYS_ENCRYPTION_KEY: BcxusO8Zc5ehRqVpEJWCJ_zsEkhJYLh5GHtBs344Jp0=
+      GROQ_API_KEY: ""
+      ARIA_TTS_PROVIDER: local
+      ARIA_TTS_API_KEY: ""
+      ARIA_STT_API_KEY: ""
+      ARIA_EMBEDDING_API_KEY: ""
+  frontend:
+    image: aria-review-frontend:dev-20261014
+    ports: !override
+      - "127.0.0.1:3120:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8020

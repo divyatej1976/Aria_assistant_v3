@@ -45,6 +45,31 @@ and requires `postgresql-client` (present in `backend/Dockerfile.prod`).
 Manual backup: `python scripts/backup_db.py [--out DIR] [--keep N]`
 Manual restore: `python scripts/restore_db.py [FILE]` (defaults to newest)
 
+The scheduled archive covers PostgreSQL. Generated audio normally resides in
+the separate `audiofiles` volume. Choose and record one recovery policy:
+
+- Preserve that volume with an encrypted volume snapshot taken while the
+  backend/scheduler is stopped, and restore it with its matching database
+  snapshot. The database dump alone does not restore these files.
+- For a database-only restore, after migrations and before starting the
+  backend, run `python scripts/recover_audio.py --requeue-missing` with the
+  restored DATABASE_URL and correct ARIA_AUDIO_DIR. Start the scheduler to
+  regenerate queued artifacts. This uses current restored note/resource text
+  and configured TTS; voice, duration and file bytes may differ from the
+  original, and cloud generation consumes provider quota. Existing readable
+  audio and legacy database bytes remain available. Progress records survive.
+
+Keep the backup encryption key and the current/old LLM-key encryption keys in
+the recovery secret store independently of the encrypted archive. Test both
+archive decryption and personal-key decryption during the staging drill.
+
+Deletion removes audio files after its database transaction commits. Failed
+file deletion and crash-created orphan files are retried by the audio scheduler
+sweeper after a one-hour grace period. Referenced files and current generation
+tokens are protected. If the scheduler is disabled, run
+`python scripts/recover_audio.py --sweep` as maintenance. Filesystem inspection
+is restricted to regular UUID files under the configured audio storage root.
+
 **Drill procedure (perform on staging, record the results below):**
 
 ```text
@@ -53,9 +78,10 @@ Manual restore: `python scripts/restore_db.py [FILE]` (defaults to newest)
 2. python scripts/backup_db.py --out /tmp/drill      # record duration
 3. Stop backend; drop and recreate the target database.
 4. python scripts/restore_db.py /tmp/drill/<latest>.dump.gz   # record duration
-5. alembic upgrade head                              # must be a no-op
+5. alembic upgrade head                              # apply any newer migrations
    (local dev without pip install: PYTHONPATH=backend alembic upgrade head)
-6. Start backend; verify /ready, login, material retrieval, audio playback,
+6. Restore the matching audio volume, or run recover_audio.py --requeue-missing.
+   Start backend; verify /ready, login, material retrieval, audio playback,
    assessment submission, BYO-key usage (learner key still decrypts).
 7. Record: backup size, backup duration, restore duration, verification
    checklist result, operator, date.
@@ -123,3 +149,34 @@ manual, audited operation — do not automate blanket deletion of audit data.
 - [ ] Backup/restore drill §2 executed with recorded RPO/RTO
 - [ ] Full Playwright suite green against staging (65 tests; includes full journey + axe)
 - [ ] `scripts/check_prod_secrets.py --strict ...` passes (incl. password coupling)
+
+## 5. Backup encryption + offsite copy
+
+Scheduled `pg_dump` archives contain password hashes and PII. They are
+`chmod 0600` and Fernet-encrypted at rest (`ARIA_BACKUP_ENCRYPTION_KEY`,
+required by strict preflight whenever `ARIA_BACKUP_ENABLED` is true).
+Generate a key with:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Restore an encrypted archive with `ARIA_BACKUP_ENCRYPTION_KEY` set:
+
+```bash
+DATABASE_URL=postgresql+psycopg://aria:<pw>@db:5432/aria_restore \
+BACKUP_DIR=/backups \
+python scripts/restore_db.py
+```
+
+The `backups/` volume lives on the same host as Postgres — host loss takes
+backups with it. Replicate offsite nightly (example with rclone to S3):
+
+```bash
+rclone sync /var/lib/docker/volumes/aria_backups/_data \
+  s3:aria-prod-backups --include 'aria-*.dump.gz.enc' --min-age 1d
+```
+
+The `backup-restore-verify` CI job proves every dump restores (migrate →
+seed → encrypted backup → scratch-DB restore → data-fidelity query). A
+corrupted dump must fail there, never at disaster time.

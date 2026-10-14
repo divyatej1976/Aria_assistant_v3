@@ -1,0 +1,65 @@
+{
+  "surface": "mobile",
+  "viewport": "390x844",
+  "cpuThrottle": 4,
+  "animated": {
+    "frames": 110,
+    "p95GapMs": 16.799999999999727,
+    "gapsOver32Ms": 0,
+    "longTasks": 0,
+    "longTaskMs": 0
+  },
+  "reduced": {
+    "frames": 110,
+    "p95GapMs": 16.700000000000728,
+    "gapsOver32Ms": 0,
+    "longTasks": 0,
+    "longTaskMs": 0
+  },
+  "navigationCycles": 20,
+  "checkpoints": [
+    {
+      "cycle": 5,
+      "metrics": {
+        "JSEventListeners": 367,
+        "Nodes": 393,
+        "JSHeapUsedSize": 7038804
+      }
+    },
+    {
+      "cycle": 10,
+      "metrics": {
+        "JSEventListeners": 367,
+        "Nodes": 393,
+        "JSHeapUsedSize": 7314096
+      }
+    },
+    {
+      "cycle": 15,
+      "metrics": {
+        "JSEventListeners": 367,
+        "Nodes": 393,
+        "JSHeapUsedSize": 7383616
+      }
+    },
+    {
+      "cycle": 20,
+      "metrics": {
+        "JSEventListeners": 367,
+        "Nodes": 393,
+        "JSHeapUsedSize": 7493056
+      }
+    }
+  ],
+  "before": {
+    "JSEventListeners": 367,
+    "Nodes": 393,
+    "JSHeapUsedSize": 5994628
+  },
+  "after": {
+    "JSEventListeners": 367,
+    "Nodes": 393,
+    "JSHeapUsedSize": 7494208
+  },
+  "note": "production runtime with network fixtures. Frame gaps measure this host, not a production device guarantee. Resource samples follow forced garbage collection and route warmup."
+}

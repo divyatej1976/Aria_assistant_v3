@@ -1,0 +1,65 @@
+{
+  "surface": "mobile",
+  "viewport": "390x844",
+  "cpuThrottle": 4,
+  "animated": {
+    "frames": 110,
+    "p95GapMs": 16.800000000000182,
+    "gapsOver32Ms": 0,
+    "longTasks": 0,
+    "longTaskMs": 0
+  },
+  "reduced": {
+    "frames": 108,
+    "p95GapMs": 16.799999999999272,
+    "gapsOver32Ms": 1,
+    "longTasks": 0,
+    "longTaskMs": 0
+  },
+  "navigationCycles": 20,
+  "checkpoints": [
+    {
+      "cycle": 5,
+      "metrics": {
+        "JSEventListeners": 669,
+        "Nodes": 700,
+        "JSHeapUsedSize": 13140996
+      }
+    },
+    {
+      "cycle": 10,
+      "metrics": {
+        "JSEventListeners": 669,
+        "Nodes": 700,
+        "JSHeapUsedSize": 13426472
+      }
+    },
+    {
+      "cycle": 15,
+      "metrics": {
+        "JSEventListeners": 669,
+        "Nodes": 700,
+        "JSHeapUsedSize": 13738372
+      }
+    },
+    {
+      "cycle": 20,
+      "metrics": {
+        "JSEventListeners": 669,
+        "Nodes": 700,
+        "JSHeapUsedSize": 13932204
+      }
+    }
+  ],
+  "before": {
+    "JSEventListeners": 669,
+    "Nodes": 700,
+    "JSHeapUsedSize": 11651832
+  },
+  "after": {
+    "JSEventListeners": 669,
+    "Nodes": 700,
+    "JSHeapUsedSize": 13932204
+  },
+  "note": "Current development runtime with network fixtures. Frame gaps measure this host, not a production device guarantee. Resource samples follow forced garbage collection and route warmup."
+}

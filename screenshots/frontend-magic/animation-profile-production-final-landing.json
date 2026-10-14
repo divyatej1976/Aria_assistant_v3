@@ -1,0 +1,41 @@
+{
+  "surface": "landing",
+  "viewport": "1440x900",
+  "cpuThrottle": 4,
+  "animated": {
+    "frames": 96,
+    "p95GapMs": 33.399999999999636,
+    "gapsOver32Ms": 14,
+    "longTasks": 0,
+    "longTaskMs": 0
+  },
+  "reduced": {
+    "frames": 109,
+    "p95GapMs": 16.799999999999272,
+    "gapsOver32Ms": 0,
+    "longTasks": 0,
+    "longTaskMs": 0
+  },
+  "navigationCycles": 5,
+  "checkpoints": [
+    {
+      "cycle": 5,
+      "metrics": {
+        "JSEventListeners": 328,
+        "Nodes": 276,
+        "JSHeapUsedSize": 4785472
+      }
+    }
+  ],
+  "before": {
+    "JSEventListeners": 328,
+    "Nodes": 272,
+    "JSHeapUsedSize": 4413720
+  },
+  "after": {
+    "JSEventListeners": 328,
+    "Nodes": 276,
+    "JSHeapUsedSize": 4862716
+  },
+  "note": "production runtime with network fixtures. Frame gaps measure this host, not a production device guarantee. Resource samples follow forced garbage collection and route warmup."
+}
