@@ -37,7 +37,7 @@ type Draft = {
   marked: Record<string, boolean>;
 };
 
-const FORMAT_LABEL: Record<string, string> = { mcq: "Multiple Choice" };
+const FORMAT_LABEL: Record<string, string> = { mcq: "Multiple choice" };
 const DIFFICULTIES = ["easy", "medium", "hard"];
 const DRAFT_KEY = "aria_assess_draft";
 
@@ -303,7 +303,7 @@ function AssessPageWorkspace() {
         </div>
         {!taking && !reviewing && (
           <button className="btn btn-primary" onClick={() => { setCreateError(""); setMaterialReady(null); setCreateOpen(true); }} disabled={busy}>
-            <Icon name="plus" /> Create Assessment
+            <Icon name="plus" /> Create assessment
           </button>
         )}
       </div>
@@ -342,7 +342,7 @@ function AssessPageWorkspace() {
                     onClick={() => void beginAttempt(a.id, { resume: true })}
                     {...interactiveProps(() => void beginAttempt(a.id, { resume: true }))}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div className="card-header">
                       <div className="fsq-ic"><Icon name="clipboard" size={26} /></div>
                       <div>
                         <b style={{ fontSize: 17 }}>{a.mode === "DAILY_REVIEW" ? "Daily learning review" : formatLabel(a.format)}</b>
@@ -350,7 +350,7 @@ function AssessPageWorkspace() {
                         {a.mode === "DAILY_REVIEW" && <div style={{ fontSize: 12, color: "var(--text-2)" }}>Reviews today&apos;s tutoring conversation.</div>}
                       </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+                    <div className="ui-row-between ui-mt-16">
                       <span className={`tag-chip assessment-kind ${assessmentTypeClass(a.mode)}`}>{assessmentTypeLabel(a.mode)}</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-strong)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                         {hasDraft ? "Resume test" : "Take test"} <Icon name="arrow" size={14} />
@@ -435,10 +435,10 @@ function AssessPageWorkspace() {
               </div>
             </div>
           ))}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18 }}>
+          <div className="dialog-actions">
             <button className="btn btn-ghost" onClick={() => setTaking(null)} disabled={busy}>Cancel</button>
             <button className="btn btn-primary" onClick={submit} disabled={busy}>
-              Submit Answers <Icon name="arrow" />
+              Submit answers <Icon name="arrow" />
             </button>
           </div>
         </div>
@@ -474,7 +474,7 @@ function AssessPageWorkspace() {
               </div>
             </div>
           )}
-          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>Answer Review</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>Answer review</h3>
           {reviewing.details.map((d) => (
             <div className="kv" key={d.question_id}>
               <span className="k" style={{ color: d.correct ? "var(--success-strong)" : "var(--danger-strong)" }}>
@@ -490,23 +490,23 @@ function AssessPageWorkspace() {
               </button>
             )}
             <Link href="/app/learn" className="btn btn-primary">
-              <Icon name="message" /> Keep Learning
+              <Icon name="message" /> Keep learning
             </Link>
           </div>
         </div>
       )}
 
       {/* create modal */}
-      <Modal open={createOpen} title="Create Assessment" onClose={() => setCreateOpen(false)}>
+      <Modal open={createOpen} title="Create assessment" onClose={() => setCreateOpen(false)}>
         <div className="modal">
-          <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
-            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="clipboard" size={20} /> Create Assessment</h3>
+          <div className="m-head dialog-heading">
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="clipboard" size={20} /> Create assessment</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setCreateOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div className="form-group">
             <label className="field-label">Format</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {(formats.length ? formats : [{ name: "mcq", label: "Multiple Choice" }]).map((f) => (
+            <div className="ui-flex ui-gap-8 ui-wrap">
+              {(formats.length ? formats : [{ name: "mcq", label: "Multiple choice" }]).map((f) => (
                 <span className="tag-chip tag-chip-selected" key={f.name}>{f.label}</span>
               ))}
             </div>
@@ -521,7 +521,7 @@ function AssessPageWorkspace() {
           {busy && <RequestStatus label="Preparing your assessment…" />}
           <div className="form-group">
             <label className="field-label">Difficulty</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="ui-flex ui-gap-8 ui-wrap">
               {DIFFICULTIES.map((d) => (
                 <button
                   type="button"
@@ -536,16 +536,16 @@ function AssessPageWorkspace() {
           </div>
           <div className="form-group">
             <label className="field-label" htmlFor="question-count">Number of Questions</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="ui-row ui-gap-12">
               <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => setQuestionCount((q) => Math.max(1, q - 1))} aria-label="Fewer questions">−</button>
               <span id="question-count" style={{ minWidth: 40, textAlign: "center", fontWeight: 800 }}>{questionCount}</span>
               <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => setQuestionCount((q) => Math.min(20, q + 1))} aria-label="More questions">+</button>
             </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
+          <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" onClick={() => setCreateOpen(false)}>Cancel</button>
             <button className="btn btn-primary" onClick={create} disabled={busy || materialReady === false} title={materialReady === false ? "Add ready material, or create a daily review from Learn" : undefined}>
-              {busy ? "Preparing…" : "Create Assessment"} <Icon name="arrow" />
+              {busy ? "Preparing…" : "Create assessment"} <Icon name="arrow" />
             </button>
           </div>
         </div>
