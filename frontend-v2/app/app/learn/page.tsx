@@ -12,6 +12,7 @@ import { TutorMarkdown } from "@/components/tutor-markdown";
 import { AssistantPresence } from "@/components/assistant-presence";
 import { useMotionPreference } from "@/components/motion-system";
 import { RequestStatus } from "@/components/request-status";
+import { ErrorState, Loading } from "@/components/states";
 
 type Session = {
   id: string;
@@ -338,7 +339,7 @@ function ContextLearn() {
         ...m,
         {
           role: "aria",
-          content: `📎 **Attached Document:** \`${file.name}\` has been processed via OCR into your study materials. What would you like to explore or practice from it?`,
+          content: `📎 **Attached document:** \`${file.name}\` has been processed via OCR into your study materials. What would you like to explore or practice from it?`,
         },
       ]);
     } catch (err) {
@@ -493,20 +494,14 @@ function ContextLearn() {
   };
 
   if (loading || ctxLoading) {
-    return (
-      <div className="chat-shell">
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh", color: "var(--text-2)" }}>
-          Loading your tutor…
-        </div>
-      </div>
-    );
+    return <div className="chat-shell"><Loading label="your tutor" /></div>;
   }
 
   return (
     <div className={`chat-sidebar-layout${focusMode ? " study-focus" : ""}`}>
       <aside className="learn-side">
         <button className="btn btn-primary btn-block" onClick={newChat}>
-          <Icon name="plus" size={16} /> New Chat
+          <Icon name="plus" size={16} /> New chat
         </button>
         {visibleSessions.length === 0 ? (
           <>
@@ -586,7 +581,7 @@ function ContextLearn() {
                 <Icon name="sparkles" size={32} />
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: "0 0 6px" }}>
-                Meet ARIA, your AI Learning Agent
+                Meet ARIA, your AI learning agent
               </h3>
               <p style={{ fontSize: 13, color: "var(--text-3)", margin: "0 0 24px" }}>
                 Ask anything about <b>{context?.title ?? "your topic"}</b>, explore ideas, or practice concepts. Upload materials whenever you want grounded source citations.
@@ -669,12 +664,8 @@ function ContextLearn() {
               <div className={`msg msg-user${m.fresh ? " message-arrival" : ""}`} key={i}>{m.content}</div>
             ),
           )}
-          {replyError && retryRequest && <div className="inline-error" role="alert">
-            <b>Reply unavailable</b><p>{replyErrorText}</p>
-            <button className="btn btn-secondary" onClick={() => void send(retryRequest.content, retryRequest)} disabled={typing}>
-              <Icon name="refresh" size={15} /> Retry reply
-            </button>
-          </div>}
+          {replyError && retryRequest && <ErrorState inline title="Reply unavailable" message={replyErrorText}
+            retryLabel="Retry reply" retryDisabled={typing} onRetry={() => void send(retryRequest.content, retryRequest)} />}
           {typing && <RequestStatus label="ARIA is thinking…" />}
         </div>
 
@@ -700,7 +691,7 @@ function ContextLearn() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask ARIA anything..."
+              placeholder="Ask ARIA anything…"
               onKeyDown={(e) => e.key === "Enter" && send(input)}
               disabled={ctxLoading || loading}
             />
@@ -714,16 +705,16 @@ function ContextLearn() {
                 borderRadius: "50%",
                 flexShrink: 0,
                 transition: "all 0.2s ease",
-                ...(recording ? { background: "var(--danger)", color: "#fff", borderColor: "var(--danger)" } : {}),
+                ...(recording ? { background: "var(--danger)", color: "var(--on-danger)", borderColor: "var(--danger)" } : {}),
               }}
               aria-label={recording ? "Stop recording voice" : "Speak question"}
               onClick={toggleRecording}
               disabled={transcribing || ctxLoading || loading}
               title={
                 transcribing
-                  ? "Transcribing your voice..."
+                  ? "Transcribing your voice…"
                   : recording
-                  ? "Recording... click to stop and transcribe"
+                  ? "Recording… click to stop and transcribe"
                   : "Speak your question"
               }
             >
