@@ -74,6 +74,7 @@ def test_concurrent_reply_retry_dispatches_once(client, session_factory, engine,
 def test_concurrent_reply_retry_on_file_sqlite(client, tmp_path, monkeypatch):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session, sessionmaker
+
     from app.db.base import Base
     from app.db.dependencies import get_db
     from app.main import app

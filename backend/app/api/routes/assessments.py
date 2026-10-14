@@ -21,8 +21,8 @@ from app.schemas.assessment import (
     AssessmentCreateRequest,
     AssessmentQuestionResponse,
     AssessmentResponse,
-    AssessmentSummary,
     AssessmentScore,
+    AssessmentSummary,
     AttemptResultResponse,
     AttemptStartResponse,
     AttemptSubmitRequest,
@@ -49,16 +49,12 @@ Db = Annotated[Session, Depends(get_db)]
 
 def _ai_rate_limit():
     settings = get_settings()
-    return rate_limited(
-        settings.aria_rate_limit_requests, settings.aria_rate_limit_window_seconds
-    )
+    return rate_limited(settings.aria_rate_limit_requests, settings.aria_rate_limit_window_seconds)
 
 
 def get_owned_context(db: Session, *, context_id: UUID, owner_id: UUID) -> LearningContext:
     context = db.scalar(
-        select(LearningContext).where(
-            LearningContext.id == context_id, LearningContext.owner_id == owner_id
-        )
+        select(LearningContext).where(LearningContext.id == context_id, LearningContext.owner_id == owner_id)
     )
     if context is None:
         raise HTTPException(status_code=404, detail="Learning context not found")
@@ -82,12 +78,8 @@ def question_response(question: AssessmentQuestion) -> AssessmentQuestionRespons
     )
 
 
-def assessment_response(
-    db: Session, assessment: Assessment
-) -> AssessmentResponse:
-    questions = list_assessment_questions(
-        db, assessment_id=assessment.id, owner_id=assessment.owner_id
-    )
+def assessment_response(db: Session, assessment: Assessment) -> AssessmentResponse:
+    questions = list_assessment_questions(db, assessment_id=assessment.id, owner_id=assessment.owner_id)
     return AssessmentResponse(
         id=str(assessment.id),
         format=assessment.format,
@@ -97,8 +89,13 @@ def assessment_response(
     )
 
 
-def summary_response(assessment: Assessment, *, question_count: int = 0, submitted_attempt_count: int = 0,
-                     completed_scores: list[AssessmentScore] | None = None) -> AssessmentSummary:
+def summary_response(
+    assessment: Assessment,
+    *,
+    question_count: int = 0,
+    submitted_attempt_count: int = 0,
+    completed_scores: list[AssessmentScore] | None = None,
+) -> AssessmentSummary:
     return AssessmentSummary(
         id=str(assessment.id),
         context_id=str(assessment.context_id),
@@ -119,7 +116,9 @@ def list_formats() -> list[dict[str, str]]:
 
 @router.get("", response_model=list[AssessmentSummary])
 def list_assessments(
-    learner: CurrentLearner, db: Db, context_id: UUID,
+    learner: CurrentLearner,
+    db: Db,
+    context_id: UUID,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[AssessmentSummary]:
@@ -134,64 +133,88 @@ def list_assessments(
     # One GROUP BY instead of one COUNT per assessment (N+1).
     counts = dict(
         db.execute(
-            select(
-                AssessmentQuestion.assessment_id, func.count(AssessmentQuestion.id)
-            )
-            .where(
-                AssessmentQuestion.assessment_id.in_([item.id for item in assessments])
-            )
+            select(AssessmentQuestion.assessment_id, func.count(AssessmentQuestion.id))
+            .where(AssessmentQuestion.assessment_id.in_([item.id for item in assessments]))
             .group_by(AssessmentQuestion.assessment_id)
         ).all()
     )
-    submitted = dict(db.execute(
-        select(AssessmentAttempt.assessment_id, func.count(AssessmentAttempt.id))
+    submitted = dict(
+        db.execute(
+            select(AssessmentAttempt.assessment_id, func.count(AssessmentAttempt.id))
+            .where(
+                AssessmentAttempt.assessment_id.in_([item.id for item in assessments]),
+                AssessmentAttempt.owner_id == learner.id,
+                AssessmentAttempt.status == "SUBMITTED",
+            )
+            .group_by(AssessmentAttempt.assessment_id)
+        ).all()
+    )
+    scores: dict[UUID, list[AssessmentScore]] = {}
+    ranked = (
+        select(
+            AssessmentAttempt.assessment_id,
+            AssessmentAttempt.id.label("attempt_id"),
+            Evaluation.id.label("evaluation_id"),
+            func.row_number()
+            .over(
+                partition_by=AssessmentAttempt.assessment_id,
+                order_by=(Evaluation.created_at.desc(), Evaluation.id.desc()),
+            )
+            .label("score_rank"),
+        )
+        .join(Evaluation, Evaluation.attempt_id == AssessmentAttempt.id)
         .where(
             AssessmentAttempt.assessment_id.in_([item.id for item in assessments]),
             AssessmentAttempt.owner_id == learner.id,
+            Evaluation.owner_id == learner.id,
             AssessmentAttempt.status == "SUBMITTED",
-        ).group_by(AssessmentAttempt.assessment_id)
-    ).all())
-    scores: dict[UUID, list[AssessmentScore]] = {}
-    ranked = (
-        select(AssessmentAttempt.assessment_id, AssessmentAttempt.id.label("attempt_id"), Evaluation.id.label("evaluation_id"),
-               func.row_number().over(partition_by=AssessmentAttempt.assessment_id,
-                                      order_by=(Evaluation.created_at.desc(), Evaluation.id.desc())).label("score_rank"))
-        .join(Evaluation, Evaluation.attempt_id == AssessmentAttempt.id)
-        .where(AssessmentAttempt.assessment_id.in_([item.id for item in assessments]),
-               AssessmentAttempt.owner_id == learner.id, Evaluation.owner_id == learner.id,
-               AssessmentAttempt.status == "SUBMITTED", Evaluation.status == "COMPLETED")
+            Evaluation.status == "COMPLETED",
+        )
     ).subquery()
-    results = db.execute(select(ranked.c.assessment_id, ranked.c.attempt_id, Evaluation)
+    results = db.execute(
+        select(ranked.c.assessment_id, ranked.c.attempt_id, Evaluation)
         .join(Evaluation, Evaluation.id == ranked.c.evaluation_id)
         .where(ranked.c.score_rank <= 20)
-        .order_by(Evaluation.created_at, Evaluation.id)).all()
+        .order_by(Evaluation.created_at, Evaluation.id)
+    ).all()
     for assessment_id, attempt_id, evaluation in results:
         total = evaluation.details.get("total")
         score = evaluation.score
-        if not isinstance(total, int) or isinstance(total, bool) or total <= 0 or score is None or not 0 <= score <= total:
+        if (
+            not isinstance(total, int)
+            or isinstance(total, bool)
+            or total <= 0
+            or score is None
+            or not 0 <= score <= total
+        ):
             continue
-        scores.setdefault(assessment_id, []).append(AssessmentScore(
-            attempt_id=str(attempt_id), score=score, total=total, completed_at=evaluation.created_at,
-        ))
-    return [summary_response(assessment, question_count=counts.get(assessment.id, 0),
-                             submitted_attempt_count=submitted.get(assessment.id, 0),
-                             completed_scores=scores.get(assessment.id)) for assessment in assessments]
+        scores.setdefault(assessment_id, []).append(
+            AssessmentScore(
+                attempt_id=str(attempt_id),
+                score=score,
+                total=total,
+                completed_at=evaluation.created_at,
+            )
+        )
+    return [
+        summary_response(
+            assessment,
+            question_count=counts.get(assessment.id, 0),
+            submitted_attempt_count=submitted.get(assessment.id, 0),
+            completed_scores=scores.get(assessment.id),
+        )
+        for assessment in assessments
+    ]
 
 
 @router.get("/{assessment_id}", response_model=AssessmentResponse)
-def get_assessment_detail(
-    assessment_id: UUID, learner: CurrentLearner, db: Db
-) -> AssessmentResponse:
+def get_assessment_detail(assessment_id: UUID, learner: CurrentLearner, db: Db) -> AssessmentResponse:
     assessment = get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
     return assessment_response(db, assessment)
 
 
-@router.post(
-    "", response_model=AssessmentResponse, status_code=201, dependencies=[Depends(_ai_rate_limit())]
-)
-async def create(
-    request: AssessmentCreateRequest, learner: CurrentLearner, db: Db
-) -> AssessmentResponse:
+@router.post("", response_model=AssessmentResponse, status_code=201, dependencies=[Depends(_ai_rate_limit())])
+async def create(request: AssessmentCreateRequest, learner: CurrentLearner, db: Db) -> AssessmentResponse:
     get_owned_context(db, context_id=request.context_id, owner_id=learner.id)
     try:
         assessment = await create_assessment(
@@ -210,14 +233,10 @@ async def create(
 
 
 @router.post("/{assessment_id}/attempts", response_model=AttemptStartResponse, status_code=201)
-def start(
-    assessment_id: UUID, learner: CurrentLearner, db: Db
-) -> AttemptStartResponse:
+def start(assessment_id: UUID, learner: CurrentLearner, db: Db) -> AttemptStartResponse:
     assessment = get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
     attempt = start_attempt(db, owner_id=learner.id, assessment_id=assessment.id)
-    questions = list_assessment_questions(
-        db, assessment_id=assessment.id, owner_id=learner.id
-    )
+    questions = list_assessment_questions(db, assessment_id=assessment.id, owner_id=learner.id)
     return AttemptStartResponse(
         attempt_id=str(attempt.id),
         assessment_id=str(assessment.id),
@@ -238,9 +257,7 @@ def save_answers_route(
     if owned_attempt is None or owned_attempt.assessment_id != assessment.id:
         raise HTTPException(status_code=404, detail="Attempt does not belong to assessment")
     try:
-        attempt = save_answers(
-            db, owner_id=learner.id, attempt_id=attempt_id, answers=request.answers
-        )
+        attempt = save_answers(db, owner_id=learner.id, attempt_id=attempt_id, answers=request.answers)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if attempt.assessment_id != assessment.id:
@@ -281,7 +298,10 @@ def submit(
         raise HTTPException(status_code=404, detail="Attempt does not belong to assessment")
     run_learner_loop(db, owner_id=learner.id, context_id=assessment.context_id)
     apply_daily_review_results(
-        db, owner_id=learner.id, assessment_id=assessment.id, evaluation_id=evaluation.id,
+        db,
+        owner_id=learner.id,
+        assessment_id=assessment.id,
+        evaluation_id=evaluation.id,
     )
     record_activity(db, owner_id=learner.id, activity_type="assessment", source_id=attempt.id)
     return AttemptResultResponse(

@@ -3,10 +3,9 @@
 import collections
 import json
 import math
-from pathlib import Path
 import re
 import subprocess
-
+from pathlib import Path
 
 PATTERN = re.compile(rb"(?:gsk_|sk-(?:proj-)?)[A-Za-z0-9_-]{25,}")
 
@@ -41,7 +40,11 @@ def main():
     objects = git("rev-list", "--objects", "--all").decode().splitlines()
     names = {line.split(" ", 1)[0]: line.split(" ", 1)[1] for line in objects if " " in line}
     checks = git("cat-file", "--batch-check", input=("\n".join(names) + "\n").encode()).decode().splitlines()
-    ids = [line.split()[0] for line in checks if len(line.split()) == 3 and line.split()[1] == "blob" and int(line.split()[2]) < 2_000_000]
+    ids = [
+        line.split()[0]
+        for line in checks
+        if len(line.split()) == 3 and line.split()[1] == "blob" and int(line.split()[2]) < 2_000_000
+    ]
     batch = subprocess.Popen(["git", "cat-file", "--batch"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     for object_id in ids:
         batch.stdin.write((object_id + "\n").encode())
@@ -53,7 +56,11 @@ def main():
             findings.append({"scope": "history", "blob": object_id, "path": names[object_id]})
     batch.stdin.close()
     batch.wait()
-    print(json.dumps({"candidate_files": len(set(paths) - {""}), "historical_blobs": len(ids), "findings": findings}, indent=2))
+    print(
+        json.dumps(
+            {"candidate_files": len(set(paths) - {""}), "historical_blobs": len(ids), "findings": findings}, indent=2
+        )
+    )
     return 1 if findings else 0
 
 
