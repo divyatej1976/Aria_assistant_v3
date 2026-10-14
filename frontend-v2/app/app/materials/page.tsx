@@ -12,6 +12,7 @@ import { ConfirmDialog, type ConfirmState } from "@/components/confirm";
 import { ErrorState, Loading } from "@/components/states";
 import { ResourceProcessing } from "@/components/resource-processing";
 import { RequestStatus } from "@/components/request-status";
+import { noteReviewLabel } from "@/lib/note-review-label";
 
 type Note = {
   id: string;
@@ -234,12 +235,12 @@ function ContextMaterials() {
     <div>
       <div className="section-head">
         <div>
-          <h1 className="pg-title">Materials Library</h1>
+          <h1 className="pg-title">Materials library</h1>
           <p className="pg-sub">Keep your sources and saved learning notes together.</p>
         </div>
         <div className="page-actions">
-          <button className="btn btn-secondary" onClick={() => { setGenerationError(""); setGenOpen(true); }} title="Save notes from a conversation or your study material"><Icon name="sparkles" /> Generate Notes</button>
-          <button className="btn btn-primary" onClick={() => { setUploadError(""); setResOpen(true); }} title="Upload a PDF or image, or paste text"><Icon name="plus" /> Add Material</button>
+          <button className="btn btn-secondary" onClick={() => { setGenerationError(""); setGenOpen(true); }} title="Save notes from a conversation or your study material"><Icon name="sparkles" /> Generate notes</button>
+          <button className="btn btn-primary" onClick={() => { setUploadError(""); setResOpen(true); }} title="Upload a PDF or image, or paste text"><Icon name="plus" /> Add material</button>
         </div>
       </div>
 
@@ -251,21 +252,21 @@ function ContextMaterials() {
             No saved notes yet. Generate your first note from a chat session or your study material.
           </p>
             <button className="btn btn-primary" onClick={() => { setGenerationError(""); setGenOpen(true); }} style={{ justifyContent: "center" }}>
-            <Icon name="plus" /> Generate Notes
+            <Icon name="plus" /> Generate notes
           </button>
         </div>
       ) : (
         notes.map((n) => (
           <div className="audio-card" key={n.id}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div className="card-header">
               <div className="fsq-ic" style={{ width: 46, height: 46 }}><Icon name="file" size={21} /></div>
               <div>
                 <b style={{ fontSize: 15 }}>{n.title}</b>
                 <div style={{ fontSize: 12, color: "var(--text-3)" }}>Generated {fmtDate(n.created_at)}</div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              {n.state && <span className="type-tag">{n.state}</span>}
+            <div className="ui-row ui-gap-10 ui-wrap">
+              {n.state && <span className="type-tag">{noteReviewLabel(n.state)}</span>}
               {n.next_review_at && (
                 <span style={{ fontSize: 11, color: "var(--text-3)" }}>Due {fmtDate(n.next_review_at)}</span>
               )}
@@ -286,7 +287,7 @@ function ContextMaterials() {
       <div style={{ margin: "26px 0 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span className="nav-sec" style={{ marginBottom: 0 }}>Resources</span>
         <button className="btn btn-secondary" onClick={() => { setUploadError(""); setResOpen(true); }}>
-          <Icon name="plus" /> Add Resource
+          <Icon name="plus" /> Add resource
         </button>
       </div>
       {resources.length === 0 ? (
@@ -297,7 +298,7 @@ function ContextMaterials() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
           {resources.map((r) => (
             <div className="resource-card motion-reveal" key={r.id}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="ui-row ui-gap-12">
                 <div className="fsq-ic" style={{ width: 46, height: 46 }}><Icon name={r.resource_type === "PDF" ? "book" : r.resource_type === "IMAGE" ? "image" : "file"} size={21} /></div>
                 <div>
                   <b style={{ fontSize: 15 }}>{r.title}</b>
@@ -307,7 +308,7 @@ function ContextMaterials() {
               </div>
               {r.processing_status === "READY" && <Link href="/app/map" className="text-link">Explore connected concepts <Icon name="arrow" size={15} /></Link>}
               {r.error_detail && <p style={{ fontSize: 12, color: "var(--danger-strong)" }}>{r.error_detail}</p>}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="ui-flex ui-gap-8">
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setConfirm({ title: "Delete resource", body: `Delete "${r.title}"? Chunks and generated audio go with it.`, confirmLabel: "Delete resource", onConfirm: () => void removeResource(r.id) })} aria-label={`Delete ${r.title}`}>
                   Delete
                 </button>
@@ -318,10 +319,10 @@ function ContextMaterials() {
       )}
 
       {/* generate-material modal */}
-      <Modal open={genOpen} title="Generate Notes" onClose={() => { setGenerationError(""); setGenOpen(false); }}>
+      <Modal open={genOpen} title="Generate notes" onClose={() => { setGenerationError(""); setGenOpen(false); }}>
         <div className="modal">
-          <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
-            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="file" size={20} /> Generate Notes</h3>
+          <div className="m-head dialog-heading">
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="file" size={20} /> Generate notes</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setGenOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div className="form-group">
@@ -338,20 +339,20 @@ function ContextMaterials() {
           </div>
           {generationError && <div className="inline-error" role="alert"><b>Notes could not be saved</b><p>{generationError}</p></div>}
           {busy && <RequestStatus label="Preparing your learning notes…" />}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
+          <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" onClick={() => setGenOpen(false)}>Cancel</button>
             <button className="btn btn-primary" onClick={generate} disabled={busy}>
-              {busy ? "Preparing…" : "Generate Notes"} <Icon name="arrow" />
+              {busy ? "Preparing…" : "Generate notes"} <Icon name="arrow" />
             </button>
           </div>
         </div>
       </Modal>
 
       {/* add-resource modal */}
-      <Modal open={resOpen} title="Add Resource" onClose={() => { setResOpen(false); setResFile(null); }}>
+      <Modal open={resOpen} title="Add resource" onClose={() => { setResOpen(false); setResFile(null); }}>
         <div className="modal">
-          <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
-            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="folder" size={20} /> Add Resource</h3>
+          <div className="m-head dialog-heading">
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="folder" size={20} /> Add resource</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setResOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -361,7 +362,7 @@ function ContextMaterials() {
               style={{ flex: 1, justifyContent: "center", fontSize: 13, padding: "8px 12px" }}
               onClick={() => setResMode("file")}
             >
-              <Icon name="image" size={15} /> Upload File (PDF / Image OCR)
+              <Icon name="image" size={15} /> Upload file (PDF / Image OCR)
             </button>
             <button
               type="button"
@@ -369,7 +370,7 @@ function ContextMaterials() {
               style={{ flex: 1, justifyContent: "center", fontSize: 13, padding: "8px 12px" }}
               onClick={() => setResMode("text")}
             >
-              <Icon name="file" size={15} /> Paste Text
+              <Icon name="file" size={15} /> Paste text
             </button>
           </div>
           <div className="form-group">
@@ -405,10 +406,10 @@ function ContextMaterials() {
           )}
           {resOpen && busy && <ResourceProcessing kind={resMode} />}
           {uploadError && <div className="inline-error" role="alert"><b>Material needs attention</b><p>{uploadError}</p></div>}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
+          <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" disabled={busy} onClick={() => { setResOpen(false); setResFile(null); }}>Cancel</button>
             <button className="btn btn-primary" onClick={addResource} disabled={busy}>
-              {busy ? "Processing material…" : "Add Resource"} <Icon name="arrow" />
+              {busy ? "Processing material…" : "Add resource"} <Icon name="arrow" />
             </button>
           </div>
         </div>
