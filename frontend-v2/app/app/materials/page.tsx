@@ -1,12 +1,17 @@
 "use client";
 
+import { Modal } from "@/components/modal";
+
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/icons";
-import { api, apiBlob, ApiError } from "@/lib/api";
+import { api, apiBlob, apiUpload, ApiError } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog, type ConfirmState } from "@/components/confirm";
 import { ErrorState, Loading } from "@/components/states";
+import { ResourceProcessing } from "@/components/resource-processing";
+import { RequestStatus } from "@/components/request-status";
 
 type Note = {
   id: string;
@@ -44,6 +49,12 @@ function fmtDate(value: string): string {
 
 export default function MaterialsPage() {
   const { context } = useActiveContext();
+  if (!context) return <Loading label="Loading your materials" />;
+  return <ContextMaterials key={context.id} />;
+}
+
+function ContextMaterials() {
+  const { context } = useActiveContext();
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Note[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -51,9 +62,13 @@ export default function MaterialsPage() {
   const [genOpen, setGenOpen] = useState(false);
   const [resOpen, setResOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [generationError, setGenerationError] = useState("");
+  const [uploadError, setUploadError] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [resTitle, setResTitle] = useState("");
   const [resText, setResText] = useState("");
+  const [resMode, setResMode] = useState<"file" | "text">("file");
+  const [resFile, setResFile] = useState<File | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
 
   const [failed, setFailed] = useState(false);
@@ -105,7 +120,7 @@ export default function MaterialsPage() {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not download the note.");
+      toast(e instanceof ApiError ? e.message : "Could not download the note.", "error");
     }
   };
 
@@ -118,13 +133,14 @@ export default function MaterialsPage() {
       setNotes((list) => list.map((n) => (n.id === updated.id ? updated : n)));
       toast(outcome === "good" ? "Marked as known — review scheduled." : "Noted — we will revisit this soon.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not save the review.");
+      toast(e instanceof ApiError ? e.message : "Could not save the review.", "error");
     }
   };
 
   const generate = async () => {
-    if (!context) return;
+    if (!context || busy) return;
     setBusy(true);
+    setGenerationError("");
     try {
       const created = await api<Note>("/api/v1/notes/generate", {
         method: "POST",
@@ -136,17 +152,46 @@ export default function MaterialsPage() {
       setNotes((list) => [created, ...list]);
       setGenOpen(false);
       setSessionId("");
-      toast("Material generated.");
+      toast("Learning notes saved.", "success");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not generate material.");
+      setGenerationError(e instanceof ApiError ? e.message : "Could not generate your notes. Please try again.");
     } finally {
       setBusy(false);
     }
   };
 
   const addResource = async () => {
-    if (!context || !resTitle.trim() || !resText.trim()) {
-      toast("Please enter a title and some text.");
+    if (!context || busy) return;
+    setUploadError("");
+    if (resMode === "file") {
+      if (!resFile) {
+        setUploadError("Choose a PDF or image to upload.");
+        return;
+      }
+      const title = resTitle.trim() || resFile.name.replace(/\.[^/.]+$/, "");
+      setBusy(true);
+      try {
+        const isPdf = resFile.name.toLowerCase().endsWith(".pdf") || resFile.type === "application/pdf";
+        const endpoint = isPdf
+          ? `/api/v1/resources/pdf?context_id=${context.id}&title=${encodeURIComponent(title)}`
+          : `/api/v1/resources/image?context_id=${context.id}&title=${encodeURIComponent(title)}`;
+        const mime = isPdf ? "application/pdf" : (resFile.type || "image/png");
+        await apiUpload<Resource>(endpoint, resFile, mime);
+        setResOpen(false);
+        setResTitle("");
+        setResFile(null);
+        await load(context.id);
+        toast("Resource uploaded and processed.");
+      } catch (e) {
+        setUploadError(e instanceof ApiError ? e.message : "Could not upload your material. Please try again.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (!resTitle.trim() || !resText.trim()) {
+      setUploadError("Enter a title and the text you want to study.");
       return;
     }
     setBusy(true);
@@ -161,7 +206,7 @@ export default function MaterialsPage() {
       await load(context.id);
       toast("Resource added.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not add the resource.");
+      setUploadError(e instanceof ApiError ? e.message : "Could not save your material. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -174,7 +219,7 @@ export default function MaterialsPage() {
       setResources((list) => list.filter((r) => r.id !== id));
       toast("Resource deleted.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not delete the resource.");
+      toast(e instanceof ApiError ? e.message : "Could not delete the resource.", "error");
     }
   };
 
@@ -190,11 +235,12 @@ export default function MaterialsPage() {
       <div className="section-head">
         <div>
           <h1 className="pg-title">Materials Library</h1>
-          <p className="pg-sub">Download the material you learned — generated from your chat sessions.</p>
+          <p className="pg-sub">Keep your sources and saved learning notes together.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setGenOpen(true)}>
-          <Icon name="plus" /> Add Material
-        </button>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={() => { setGenerationError(""); setGenOpen(true); }} title="Save notes from a conversation or your study material"><Icon name="sparkles" /> Generate Notes</button>
+          <button className="btn btn-primary" onClick={() => { setUploadError(""); setResOpen(true); }} title="Upload a PDF or image, or paste text"><Icon name="plus" /> Add Material</button>
+        </div>
       </div>
 
       <div style={{ marginBottom: 8 }} className="nav-sec">Generated from your learning</div>
@@ -202,9 +248,9 @@ export default function MaterialsPage() {
         <div className="empty-state">
           <Icon name="file" size={30} />
           <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
-            No materials yet. Generate your first note from a chat session or your study material.
+            No saved notes yet. Generate your first note from a chat session or your study material.
           </p>
-          <button className="btn btn-primary" onClick={() => setGenOpen(true)} style={{ justifyContent: "center" }}>
+            <button className="btn btn-primary" onClick={() => { setGenerationError(""); setGenOpen(true); }} style={{ justifyContent: "center" }}>
             <Icon name="plus" /> Generate Notes
           </button>
         </div>
@@ -239,7 +285,7 @@ export default function MaterialsPage() {
 
       <div style={{ margin: "26px 0 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span className="nav-sec" style={{ marginBottom: 0 }}>Resources</span>
-        <button className="btn btn-secondary" onClick={() => setResOpen(true)}>
+        <button className="btn btn-secondary" onClick={() => { setUploadError(""); setResOpen(true); }}>
           <Icon name="plus" /> Add Resource
         </button>
       </div>
@@ -250,15 +296,17 @@ export default function MaterialsPage() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
           {resources.map((r) => (
-            <div className="resource-card" key={r.id}>
+            <div className="resource-card motion-reveal" key={r.id}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div className="fsq-ic" style={{ width: 46, height: 46 }}><Icon name={r.resource_type === "PDF" ? "book" : "file"} size={21} /></div>
+                <div className="fsq-ic" style={{ width: 46, height: 46 }}><Icon name={r.resource_type === "PDF" ? "book" : r.resource_type === "IMAGE" ? "image" : "file"} size={21} /></div>
                 <div>
                   <b style={{ fontSize: 15 }}>{r.title}</b>
-                  <div style={{ fontSize: 11, color: "var(--text-3)" }}>{r.resource_type} · {r.chunk_count} chunks</div>
+                  <div style={{ fontSize: 11, color: "var(--text-3)" }}>{r.resource_type === "TEXT" ? "Text" : r.resource_type === "IMAGE" ? "Image" : r.resource_type}</div>
                 </div>
-                <span className="type-tag" style={{ marginLeft: "auto" }}>{r.processing_status}</span>
+                <span className="type-tag" style={{ marginLeft: "auto" }}>{r.processing_status === "READY" ? "Ready" : r.processing_status === "FAILED" ? "Needs attention" : "Processing"}</span>
               </div>
+              {r.processing_status === "READY" && <Link href="/app/map" className="text-link">Explore connected concepts <Icon name="arrow" size={15} /></Link>}
+              {r.error_detail && <p style={{ fontSize: 12, color: "var(--danger-strong)" }}>{r.error_detail}</p>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setConfirm({ title: "Delete resource", body: `Delete "${r.title}"? Chunks and generated audio go with it.`, confirmLabel: "Delete resource", onConfirm: () => void removeResource(r.id) })} aria-label={`Delete ${r.title}`}>
                   Delete
@@ -270,10 +318,10 @@ export default function MaterialsPage() {
       )}
 
       {/* generate-material modal */}
-      <div className="modal-bg show" style={{ display: genOpen ? "flex" : "none" }}>
+      <Modal open={genOpen} title="Generate Notes" onClose={() => { setGenerationError(""); setGenOpen(false); }}>
         <div className="modal">
           <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
-            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="file" size={20} /> Create Material</h3>
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="file" size={20} /> Generate Notes</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setGenOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div className="form-group">
@@ -281,45 +329,90 @@ export default function MaterialsPage() {
             <select id="note-source" className="input" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
               <option value="">Context study material</option>
               {sessions.map((s) => (
-                <option key={s.id} value={s.id}>Chat · {fmtDate(s.created_at)} ({s.mode})</option>
+                  <option key={s.id} value={s.id}>Conversation · {fmtDate(s.created_at)}</option>
               ))}
             </select>
           </div>
           <div style={{ fontSize: 12, color: "var(--text-3)", margin: "0 0 8px" }}>
-            Generates downloadable study notes via ARIA.
+            Save a summary from your conversation or study material. Uploaded notes are optional when you choose a conversation.
           </div>
+          {generationError && <div className="inline-error" role="alert"><b>Notes could not be saved</b><p>{generationError}</p></div>}
+          {busy && <RequestStatus label="Preparing your learning notes…" />}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
             <button className="btn btn-ghost" onClick={() => setGenOpen(false)}>Cancel</button>
             <button className="btn btn-primary" onClick={generate} disabled={busy}>
-              Create Material <Icon name="arrow" />
+              {busy ? "Preparing…" : "Generate Notes"} <Icon name="arrow" />
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
 
       {/* add-resource modal */}
-      <div className="modal-bg show" style={{ display: resOpen ? "flex" : "none" }}>
+      <Modal open={resOpen} title="Add Resource" onClose={() => { setResOpen(false); setResFile(null); }}>
         <div className="modal">
           <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="folder" size={20} /> Add Resource</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setResOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <button
+              type="button"
+              className={`btn ${resMode === "file" ? "btn-primary" : "btn-ghost"}`}
+              style={{ flex: 1, justifyContent: "center", fontSize: 13, padding: "8px 12px" }}
+              onClick={() => setResMode("file")}
+            >
+              <Icon name="image" size={15} /> Upload File (PDF / Image OCR)
+            </button>
+            <button
+              type="button"
+              className={`btn ${resMode === "text" ? "btn-primary" : "btn-ghost"}`}
+              style={{ flex: 1, justifyContent: "center", fontSize: 13, padding: "8px 12px" }}
+              onClick={() => setResMode("text")}
+            >
+              <Icon name="file" size={15} /> Paste Text
+            </button>
+          </div>
           <div className="form-group">
             <label className="field-label" htmlFor="resource-title">Title</label>
-            <input id="resource-title" className="input" value={resTitle} onChange={(e) => setResTitle(e.target.value)} placeholder="Python basics article" />
+            <input id="resource-title" className="input" value={resTitle} onChange={(e) => setResTitle(e.target.value)} placeholder="e.g. Lecture 4 Notes, Textbook scan, Architecture diagram" />
           </div>
-          <div className="form-group">
-            <label className="field-label" htmlFor="resource-text">Text</label>
-            <textarea id="resource-text" className="input" rows={7} value={resText} onChange={(e) => setResText(e.target.value)} placeholder="Paste or type the study text…" />
-          </div>
+          {resMode === "file" ? (
+            <div className="form-group">
+              <label className="field-label" htmlFor="resource-file">File (PDF, PNG, JPG, WEBP)</label>
+              <input
+                id="resource-file"
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                className="input"
+                style={{ padding: "8px" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setResFile(f);
+                  if (f && !resTitle) {
+                    setResTitle(f.name.replace(/\.[^/.]+$/, ""));
+                  }
+                }}
+              />
+              <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>
+                Scanned PDFs and photo/whiteboard images are transcribed automatically using OCR. Max 10 MB.
+              </div>
+            </div>
+          ) : (
+            <div className="form-group">
+              <label className="field-label" htmlFor="resource-text">Text</label>
+              <textarea id="resource-text" className="input" rows={7} value={resText} onChange={(e) => setResText(e.target.value)} placeholder="Paste or type the study text…" />
+            </div>
+          )}
+          {resOpen && busy && <ResourceProcessing kind={resMode} />}
+          {uploadError && <div className="inline-error" role="alert"><b>Material needs attention</b><p>{uploadError}</p></div>}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 18, marginTop: 16 }}>
-            <button className="btn btn-ghost" onClick={() => setResOpen(false)}>Cancel</button>
+            <button className="btn btn-ghost" disabled={busy} onClick={() => { setResOpen(false); setResFile(null); }}>Cancel</button>
             <button className="btn btn-primary" onClick={addResource} disabled={busy}>
-              Add Resource <Icon name="arrow" />
+              {busy ? "Processing material…" : "Add Resource"} <Icon name="arrow" />
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );

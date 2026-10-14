@@ -1,5 +1,7 @@
 "use client";
 
+import { Modal } from "@/components/modal";
+
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
@@ -53,6 +55,11 @@ function fmtDur(seconds: number | null | undefined): string {
 
 export default function AudioPage() {
   const { context } = useActiveContext();
+  return <AudioPageWorkspace key={context?.id ?? "no-subject"} />;
+}
+
+function AudioPageWorkspace() {
+  const { context } = useActiveContext();
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -65,8 +72,39 @@ export default function AudioPage() {
   const [audioUrl, setAudioUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [speechSetup, setSpeechSetup] = useState<boolean | null>(null);
   const lastSavedRef = useRef<Record<string, number>>({});
   const timeRef = useRef<Record<string, number>>({});
+  const pendingProgress = useRef<Record<string, Progress>>({});
+  const urlsRef = useRef<Record<string, string>>({});
+  const mountedRef = useRef(false);
+  const playbackVersions = useRef<Record<string, number>>({});
+
+  const invalidateAudio = useCallback((id: string) => {
+    playbackVersions.current[id] = (playbackVersions.current[id] ?? 0) + 1;
+    if (urlsRef.current[id]) URL.revokeObjectURL(urlsRef.current[id]);
+    delete urlsRef.current[id];
+    setAudioUrl((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    setPlaying((current) => current === id ? null : current);
+    delete timeRef.current[id];
+    delete lastSavedRef.current[id];
+    delete pendingProgress.current[id];
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const unsaved = pendingProgress.current;
+    return () => {
+      mountedRef.current = false;
+      for (const [id, update] of Object.entries(unsaved)) {
+        void api(`/api/v1/audio/${id}/progress`, {
+          method: "PUT", body: JSON.stringify(update), keepalive: true,
+        }).catch(() => {});
+      }
+      for (const url of Object.values(urlsRef.current)) URL.revokeObjectURL(url);
+      urlsRef.current = {};
+    };
+  }, []);
 
   // Durable server-side listing (GET /api/v1/audio?context_id=…). No more
   // per-browser localStorage index: artifacts appear on every device and
@@ -74,9 +112,9 @@ export default function AudioPage() {
   const hydrate = useCallback(async (cid: string) => {
     const listed = await api<AudioListItem[]>(`/api/v1/audio?context_id=${cid}`);
     setArtifacts((prev) => {
-      // Keep already-blobbed items (playable in this session) and merge fresh rows.
+      // Server status is authoritative; preserve only client detail fields.
       const byId = new Map(prev.map((a) => [a.id, a]));
-      return listed.map((row) => byId.get(row.id) ?? ({ ...row, text: "", error_detail: null } as Artifact));
+      return listed.map((row) => ({ text: "", error_detail: null, ...byId.get(row.id), ...row } as Artifact));
     });    const pr: Record<string, Progress> = {};
     for (const row of listed) {
       pr[row.id] = { position_seconds: row.position_seconds, completed: row.completed };
@@ -86,12 +124,14 @@ export default function AudioPage() {
 
   const load = useCallback(
     async (cid: string) => {
-      const [n, r] = await Promise.all([
+      const [n, r, capabilities] = await Promise.all([
         api<Note[]>(`/api/v1/notes?context_id=${cid}`),
         api<Resource[]>(`/api/v1/resources?context_id=${cid}`),
+        api<{ cloud_speech_configured: boolean }>("/api/v1/settings/capabilities").catch(() => null),
       ]);
       setNotes(n);
       setResources(r);
+      setSpeechSetup(typeof capabilities?.cloud_speech_configured === "boolean" ? capabilities.cloud_speech_configured : null);
       await hydrate(cid);
     },
     [hydrate],
@@ -126,9 +166,7 @@ export default function AudioPage() {
         `/api/v1/audio/${kind === "note" ? "notes" : "resources"}/${id}/generate`,
         { method: "POST" },
       );
-      if (artifact.duration_seconds === null && artifact.text) {
-        artifact.duration_seconds = Math.max(1, Math.round(artifact.text.length / 14));
-      }
+      invalidateAudio(artifact.id);
       artifact.title =
         kind === "note"
           ? notes.find((n) => n.id === id)?.title ?? "Note"
@@ -137,15 +175,22 @@ export default function AudioPage() {
       setProgress((prev) => ({ ...prev, [artifact.id]: { position_seconds: 0, completed: false } }));
       setOpen(false);
       setSource("");
-      toast("Audio ready.");
+      if (artifact.status === "READY") toast("Audio ready.", "success");
+      else if (artifact.status === "FAILED") toast("Audio generation failed. Please retry or check audio setup.", "error");
+      else toast("Audio is processing. It will be playable when ready.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not generate audio.");
+      toast(e instanceof ApiError ? e.message : "Could not generate audio.", "error");
     } finally {
       setBusy(false);
     }
   };
 
   const togglePlay = async (id: string) => {
+    if (artifacts.find(artifact => artifact.id === id)?.status !== "READY") return;
+    if (playing && playing !== id) {
+      await saveProgress(playing, timeRef.current[playing] ?? progress[playing]?.position_seconds ?? 0,
+        progress[playing]?.completed ?? false);
+    }
     if (playing === id) {
       // Persist the exact current position before unmounting the element so
       // pause never loses up to the 5-second autosave delta.
@@ -156,10 +201,15 @@ export default function AudioPage() {
     }
     if (!audioUrl[id]) {
       try {
+        const version = playbackVersions.current[id] ?? 0;
         const blob = await apiBlob(`/api/v1/audio/${id}/play`);
-        setAudioUrl((prev) => ({ ...prev, [id]: URL.createObjectURL(blob) }));
+        if (!mountedRef.current || version !== (playbackVersions.current[id] ?? 0)) return;
+        const url = URL.createObjectURL(blob);
+        if (urlsRef.current[id]) URL.revokeObjectURL(urlsRef.current[id]);
+        urlsRef.current[id] = url;
+        setAudioUrl((prev) => ({ ...prev, [id]: url }));
       } catch (e) {
-        toast(e instanceof ApiError ? e.message : "Audio is not ready yet.");
+        toast(e instanceof ApiError ? e.message : "Audio is not ready yet.", "error");
         return;
       }
     }
@@ -167,12 +217,17 @@ export default function AudioPage() {
   };
 
   const saveProgress = async (id: string, position: number, completed: boolean) => {
+    const update = { position_seconds: Math.round(position), completed };
+    pendingProgress.current[id] = update;
     try {
       const saved = await api<Progress>(`/api/v1/audio/${id}/progress`, {
         method: "PUT",
-        body: JSON.stringify({ position_seconds: Math.round(position), completed }),
+        body: JSON.stringify(update),
       });
-      setProgress((prev) => ({ ...prev, [id]: saved }));
+      if (pendingProgress.current[id] === update) {
+        delete pendingProgress.current[id];
+        if (mountedRef.current) setProgress((prev) => ({ ...prev, [id]: saved }));
+      }
     } catch {
       // silent — progress is best-effort
     }
@@ -181,11 +236,12 @@ export default function AudioPage() {
   const remove = async (id: string) => {
     try {
       await api(`/api/v1/audio/${id}`, { method: "DELETE" });
+      invalidateAudio(id);
       setArtifacts((prev) => prev.filter((a) => a.id !== id));
       if (playing === id) setPlaying(null);
       toast("Audio deleted.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not delete audio.");
+      toast(e instanceof ApiError ? e.message : "Could not delete audio.", "error");
     }
   };
 
@@ -213,6 +269,14 @@ export default function AudioPage() {
         </button>
       </div>
 
+      <p className="banner" role="status" style={{ marginBottom: 16 }}>
+        {speechSetup === true
+          ? "Choose a source to create an audio episode. If a voice service is unavailable, we’ll help you try again."
+          : speechSetup === false
+            ? "Choose a source to create an audio episode with local speech, where available."
+            : "Choose a source to create an audio episode. We’ll let you know if audio creation needs attention."}
+      </p>
+
       {artifacts.length === 0 ? (
         <div className="empty-state">
           <Icon name="headphones" size={30} />
@@ -232,6 +296,7 @@ export default function AudioPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <button
                   className="play-btn"
+                  disabled={a.status !== "READY"}
                   onClick={() => togglePlay(a.id)}
                   aria-label={isPlaying ? "Pause" : `Play ${a.source_type} audio`}
                 >
@@ -260,7 +325,12 @@ export default function AudioPage() {
                   Delete
                 </button>
               </div>
-              {isPlaying && (
+              {a.status === "FAILED" && (
+                <p role="alert" style={{ marginTop: 10 }}>
+                  Audio generation failed. Use Convert to Audio to retry this source.
+                </p>
+              )}
+              {isPlaying && a.status === "READY" && (
                 <audio
                   autoPlay
                   controls
@@ -276,6 +346,7 @@ export default function AudioPage() {
                   onTimeUpdate={(e) => {
                     const t = e.currentTarget.currentTime;
                     timeRef.current[a.id] = t;
+                    pendingProgress.current[a.id] = { position_seconds: Math.round(t), completed: false };
                     const last = lastSavedRef.current[a.id] ?? -Infinity;
                     if (t - last >= 5) {
                       lastSavedRef.current[a.id] = t;
@@ -323,7 +394,7 @@ export default function AudioPage() {
       </div>
 
       {/* convert modal */}
-      <div className="modal-bg show" style={{ display: open ? "flex" : "none" }}>
+      <Modal open={open} title="Convert to Audio" onClose={() => setOpen(false)}>
         <div className="modal">
           <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="headphones" size={20} /> Convert to Audio</h3>
@@ -353,7 +424,7 @@ export default function AudioPage() {
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
