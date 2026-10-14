@@ -12,7 +12,9 @@ from app.db.models import Assessment, LearningContext
 
 
 def test_daily_review_migration_preserves_assessments_and_enforces_one_per_day(engine):
-    spec = importlib.util.spec_from_file_location("daily_review_migration", Path("database/migrations/versions/0026_daily_review.py"))
+    spec = importlib.util.spec_from_file_location(
+        "daily_review_migration", Path("database/migrations/versions/0026_daily_review.py")
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     owner, context = uuid4(), uuid4()
@@ -23,8 +25,19 @@ def test_daily_review_migration_preserves_assessments_and_enforces_one_per_day(e
         module.downgrade()
         assert "daily_review_date" not in {column["name"] for column in inspect(connection).get_columns("assessments")}
         module.upgrade()
+        # Fresh baseline installs and repeated upgrades already contain both
+        # objects; upgrading must preserve their data and uniqueness.
+        module.upgrade()
         assert connection.execute(text("SELECT COUNT(*) FROM assessments")).scalar() == 1
         for day in ["2026-10-14", "2026-10-15", None, None]:
-            connection.execute(Assessment.__table__.insert().values(id=uuid4(), owner_id=owner, context_id=context, daily_review_date=day))
+            connection.execute(
+                Assessment.__table__.insert().values(
+                    id=uuid4(), owner_id=owner, context_id=context, daily_review_date=day
+                )
+            )
         with pytest.raises(IntegrityError), connection.begin_nested():
-            connection.execute(Assessment.__table__.insert().values(id=uuid4(), owner_id=owner, context_id=context, daily_review_date="2026-10-14"))
+            connection.execute(
+                Assessment.__table__.insert().values(
+                    id=uuid4(), owner_id=owner, context_id=context, daily_review_date="2026-10-14"
+                )
+            )
