@@ -223,6 +223,7 @@ def test_audio_from_text_saves_source_reuses_episode_and_isolates_owner(client, 
 
 def test_audio_from_chat_uses_ordered_owned_messages(client, monkeypatch, tmp_audio_storage, session_factory):
     from uuid import UUID
+
     from app.db.models import ConversationMessage, StudySession
     monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: FakeTTS())
     auth = register(client, "chat-audio@example.com")
@@ -231,7 +232,8 @@ def test_audio_from_chat_uses_ordered_owned_messages(client, monkeypatch, tmp_au
     owner = UUID(client.get("/api/v1/auth/me", headers=headers(token)).json()["id"])
     with session_factory() as db:
         session = StudySession(owner_id=owner, context_id=UUID(cid))
-        db.add(session); db.flush()
+        db.add(session)
+        db.flush()
         sid = str(session.id)
         db.add_all([ConversationMessage(owner_id=owner, study_session_id=session.id, role="assistant", content="A transaction is a unit of work.", position=1),
                     ConversationMessage(owner_id=owner, study_session_id=session.id, role="user", content="What is a transaction?", position=0)])
@@ -245,7 +247,9 @@ def test_audio_from_chat_uses_ordered_owned_messages(client, monkeypatch, tmp_au
     assert client.post(path, headers=headers(other)).status_code == 404
     with session_factory() as db:
         empty = StudySession(owner_id=owner, context_id=UUID(cid))
-        db.add(empty); db.commit(); empty_id = empty.id
+        db.add(empty)
+        db.commit()
+        empty_id = empty.id
     assert client.post(f"/api/v1/audio/sessions/{empty_id}/generate", headers=headers(token)).status_code == 422
 
 
