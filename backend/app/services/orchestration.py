@@ -121,6 +121,15 @@ def _agent(handler, *, capabilities: list[str], needs_approval: bool = False) ->
     }
 
 
+async def _agent_audio(db, *, owner_id: UUID, context_id: UUID | None, payload: dict) -> dict:
+    from app.services.brain.capabilities import execute_capability
+
+    result = await execute_capability(db, owner_id=owner_id, name="audio.from_session", payload=payload)
+    if result["status"] == "FAILED":
+        raise ValidationError("Audio generation failed. The source is saved for retry.")
+    return result
+
+
 AGENTS = {
     "study": _agent(_agent_study, capabilities=["answer"]),
     "assessment": _agent(_agent_assessment, capabilities=["create"]),
@@ -130,6 +139,7 @@ AGENTS = {
     "progress": _agent(_agent_progress, capabilities=["consistency"]),
     "data_reset": _agent(_agent_data_reset, capabilities=["delete_all"], needs_approval=True),
     "evidence": _agent(_agent_evidence, capabilities=["invalidate"], needs_approval=True),
+    "audio.from_session": _agent(_agent_audio, capabilities=["generate"]),
 }
 
 WORKFLOWS = {
@@ -140,6 +150,7 @@ WORKFLOWS = {
     "exam_prep": {"steps": [{"agent": "planner"}, {"agent": "notes"}, {"agent": "progress"}]},
     "data_reset": {"steps": [{"agent": "data_reset"}]},
     "evidence_invalidate": {"steps": [{"agent": "evidence"}]},
+    "audio_from_session": {"steps": [{"agent": "audio.from_session"}]},
 }
 
 
@@ -304,6 +315,14 @@ class WorkflowPayload(BaseModel):
 
 
 def _validate_payload(db: Session, *, owner_id: UUID, name: str, payload: dict) -> dict:
+    if name == "audio_from_session":
+        from app.services.brain.capabilities import get_capability
+        from app.services.study import get_owned_session
+
+        params = get_capability("audio.from_session").validate(payload)
+        get_owned_context(db, owner_id=owner_id, context_id=params.context_id)
+        get_owned_session(db, owner_id=owner_id, session_id=params.session_id, context_id=params.context_id)
+        return params.model_dump(mode="json")
     try:
         validated = WorkflowPayload.model_validate(payload)
     except PayloadValidationError as exc:

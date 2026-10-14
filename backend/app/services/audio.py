@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.ai.providers import (
@@ -19,7 +19,16 @@ from app.ai.providers import (
 )
 from app.core.config import get_settings
 from app.core.errors import ValidationError
-from app.db.models import AudioArtifact, AudioProgress, Note, Resource, ResourceChunk
+from app.db.models import (
+    AudioArtifact,
+    AudioProgress,
+    ConversationMessage,
+    LearningContext,
+    Note,
+    Resource,
+    ResourceChunk,
+    StudySession,
+)
 from app.services.audio_storage import get_audio_storage
 from app.services.progress import record_activity
 
@@ -31,6 +40,77 @@ RESOURCE = "RESOURCE"
 # synchronous TTS calls: sources above this many characters are rejected.
 # Cloud providers segment the complete source within each request's limit.
 MAX_AUDIO_CHARS = 20_000
+
+
+class AudioSourceNotFound(ValidationError):
+    """Owned source is absent; API adapters map this to a 404."""
+
+
+async def generate_text_audio(db: Session, *, owner_id: UUID, context_id: UUID,
+                              title: str, text: str) -> AudioArtifact:
+    from starlette.concurrency import run_in_threadpool
+
+    from app.services.resource_ingestion import create_text_resource
+
+    if not db.scalar(select(LearningContext).where(
+        LearningContext.id == context_id, LearningContext.owner_id == owner_id,
+    )):
+        raise AudioSourceNotFound("Learning context not found")
+    text, title = text.strip(), title.strip()
+    if not text or not title:
+        raise ValidationError("Enter a title and some text to create audio")
+    if len(text) > MAX_AUDIO_CHARS:
+        raise ValidationError(
+            "This conversation is too long for one episode. "
+            "Paste a section of up to 20,000 characters in Audio studio."
+        )
+    resource = db.scalar(select(Resource).where(
+        Resource.owner_id == owner_id, Resource.context_id == context_id,
+        Resource.title == title, Resource.source_text == text, Resource.resource_type == "TEXT",
+    ).order_by(Resource.created_at, Resource.id))
+    if resource is None:
+        resource = await create_text_resource(db, owner_id=owner_id,
+            context_id=context_id, title=title, text=text)
+    else:
+        ready = db.scalar(select(AudioArtifact).where(
+            AudioArtifact.owner_id == owner_id, AudioArtifact.source_type == RESOURCE,
+            AudioArtifact.source_id == resource.id, AudioArtifact.status == "READY",
+        ).order_by(AudioArtifact.created_at, AudioArtifact.id))
+        if ready is not None:
+            return ready
+    return await run_in_threadpool(generate_audio, db, owner_id=owner_id,
+                                  source_type=RESOURCE, source_id=resource.id)
+
+
+async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUID,
+                                 through_position: int | None = None) -> AudioArtifact:
+    session = db.scalar(select(StudySession).where(
+        StudySession.id == session_id, StudySession.owner_id == owner_id,
+    ))
+    if session is None:
+        raise AudioSourceNotFound("Conversation not found")
+    query = select(ConversationMessage).where(
+        ConversationMessage.study_session_id == session.id,
+        ConversationMessage.owner_id == owner_id,
+    )
+    if through_position is not None:
+        latest = db.scalar(select(func.max(ConversationMessage.position)).where(
+            ConversationMessage.study_session_id == session.id, ConversationMessage.owner_id == owner_id,
+        ))
+        if through_position < 0 or latest is None or through_position > latest:
+            raise ValidationError("Conversation cutoff must refer to existing messages")
+        query = query.where(ConversationMessage.position <= through_position)
+    messages = db.scalars(query.order_by(ConversationMessage.position,
+        ConversationMessage.created_at, ConversationMessage.id)).all()
+    if not any(m.role in ("assistant", "aria") and m.content.strip() for m in messages):
+        raise ValidationError("Get a tutor response before creating audio from this conversation")
+    text = "\n\n".join(
+        f"{'You' if m.role == 'user' else 'ARIA'}: {m.content.strip()}"
+        for m in messages if m.role in ("user", "assistant", "aria") and m.content.strip()
+    )
+    first_question = next((m.content for m in messages if m.role == "user"), "Tutor conversation")
+    return await generate_text_audio(db, owner_id=owner_id, context_id=session.context_id,
+                                     title=f"Chat: {first_question}"[:200], text=text)
 
 
 def get_tts_provider():
