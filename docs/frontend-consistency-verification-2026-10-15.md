@@ -40,10 +40,13 @@ The full npm audit remains a merge blocker: it reports five high-severity packag
 | Production npm audit | Zero vulnerabilities |
 | Full npm audit | Blocked by the unpatched development dependency above |
 | Python dependency audit | Passed with two pre-existing exclusions |
-| Full browser run after consistency edits | 162 passed in 17.6 minutes, including all six new consistency tests |
+| Full browser run before final entrance-contrast fix | 162 passed in 17.6 minutes, including all six initial consistency tests |
+| Entrance-contrast regression check | Passed at the start and midpoint of normal entrance motion |
 | Expanded Account/Progress visual recheck | 2 passed; eight screenshots across both widths/palettes |
 
 PostgreSQL, backend, backup/restore, secret scanning, build and production preflight passed in CI at revision `1c0e87b`. The remaining commits adjust two escaped headings, profile-note spacing, screenshot capture and documentation; backend code is unchanged. The full npm audit remains blocking. The separate backend run verifies SQLite locally, while PostgreSQL and migration round-trip validation run in CI.
+
+The CI browser run at `1c0e87b` completed with 161 passed and one failed. Its dashboard contrast check caught small “Explore” labels during the entrance fade: compositing temporarily reduced their contrast below 4.5:1. Local checks had run after the fade. The final fix keeps the slide while leaving text fully opaque throughout the shared entrance animation. The new regression check pauses normal animations at their start and midpoint and runs Axe at both positions; no accessibility rule is suppressed. The affected-route, responsive and screenshot checks are being rerun after this final CSS change.
 
 The final browser run used blank cloud keys, disposable `e2e-consistency-verification.db`, frontend port 3150 and backend port 8050. The [56-state screenshot index](ui-polish-release-verification-2026-10-14.md#screenshot-index) is refreshed for the current labels and layouts. No live Groq call was made.
 

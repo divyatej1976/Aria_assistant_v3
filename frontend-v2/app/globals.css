@@ -44,7 +44,8 @@ html[data-theme="noir"].noir-gold { --on-accent: #22190d; }
 .motion-reveal { animation: studio-arrive 420ms var(--motion-ease) backwards; animation-delay: var(--reveal-delay, 0ms); min-width: 0; }
 .route-arrival { animation: studio-arrive var(--motion-panel) var(--motion-ease); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
-@keyframes studio-arrive { from { opacity: .35; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+/* Keep text contrast intact throughout entrance motion, including its delay. */
+@keyframes studio-arrive { from { transform: translateY(12px); } to { transform: none; } }
 .learning-dashboard { max-width: 1220px; margin: 0 auto; }
 .dashboard-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 6px 0 30px; }
 .eyebrow { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 800; letter-spacing: 1.7px; color: var(--accent-strong); }

@@ -19,6 +19,30 @@ async function fixture(page: Page) {
   });
 }
 
+test("dashboard text retains contrast during entrance motion", async ({ page }) => {
+  await fixture(page);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/app");
+  await expect(page.locator(".learning-tool").first()).toBeVisible();
+  await page.addStyleTag({ content: ".motion-reveal, .route-arrival { animation-duration: 10000ms !important; animation-delay: 0ms !important; }" });
+  for (const fraction of [0, 0.5]) {
+    const count = await page.evaluate(progress => {
+      const animations = document.getAnimations().filter(animation => {
+        const effect = animation.effect as KeyframeEffect | null;
+        return effect?.target instanceof Element && effect.target.matches(".motion-reveal, .route-arrival");
+      });
+      for (const animation of animations) {
+        animation.pause();
+        animation.currentTime = 10000 * progress;
+      }
+      return animations.length;
+    }, fraction);
+    expect(count).toBeGreaterThan(0);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations.filter(v => v.impact === "serious" || v.impact === "critical")).toEqual([]);
+  }
+});
+
 test("note review states stay readable without leaking backend enums", async ({ page }) => {
   await fixture(page);
   await page.route("**/api/v1/notes?*", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(
