@@ -152,6 +152,9 @@ function ContextLearn() {
   const { context, loading: ctxLoading } = useActiveContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [creatingAudio, setCreatingAudio] = useState(false);
+  const [chatAudio, setChatAudio] = useState<{ sessionId: string; status: string } | null>(null);
+  const [chatAudioError, setChatAudioError] = useState<{ sessionId: string; message: string } | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
@@ -360,6 +363,22 @@ function ContextLearn() {
     };
   }, []);
 
+  const createChatAudio = async () => {
+    if (!activeId || creatingAudio || typing || responding) return;
+    const sessionId = activeId;
+    const version = conversationVersion.current;
+    setCreatingAudio(true);
+    setChatAudioError(null);
+    try {
+      const result = await api<{ status: string }>(`/api/v1/audio/sessions/${sessionId}/generate`, { method: "POST" });
+      if (version === conversationVersion.current) setChatAudio({ sessionId, status: result.status });
+    } catch (error) {
+      if (version === conversationVersion.current) setChatAudioError({ sessionId, message: error instanceof ApiError ? error.message : "Could not create audio. Please retry." });
+    } finally {
+      setCreatingAudio(false);
+    }
+  };
+
   const toggleRecording = async () => {
     const version = conversationVersion.current;
     if (recording) {
@@ -377,8 +396,15 @@ function ContextLearn() {
       return;
     }
 
+    if (typeof MediaRecorder === "undefined") {
+      toast("This browser cannot record audio. Open ARIA in Chrome or Edge to use voice input.", "error");
+      return;
+    }
+
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recordingStream = stream;
       if (version !== conversationVersion.current) {
         stream.getTracks().forEach(track => track.stop());
         return;
@@ -397,7 +423,7 @@ function ContextLearn() {
       };
 
       recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
+        recordingStream.getTracks().forEach((track) => track.stop());
         if (version !== conversationVersion.current) return;
         const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (blob.size === 0) return;
@@ -425,8 +451,18 @@ function ContextLearn() {
       mediaRecorderRef.current = recorder;
       setRecording(true);
       toast("Listening... Click microphone again when finished.");
-    } catch {
-      if (version === conversationVersion.current) toast("Microphone access was denied or unavailable.", "error");
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      if (version !== conversationVersion.current) return;
+      const name = error instanceof Error ? error.name : "";
+      const message = name === "NotAllowedError" || name === "SecurityError"
+        ? "Microphone access is blocked. Allow microphone access for this site and in Windows privacy settings, then retry. If the in-app browser cannot request access, open ARIA in Chrome or Edge."
+        : name === "NotFoundError" || name === "DevicesNotFoundError"
+          ? "No microphone was found. Connect a microphone or select an input device in Windows sound settings, then retry."
+          : name === "NotReadableError" || name === "TrackStartError"
+            ? "Your microphone could not be opened. Check Windows microphone access and close other apps using the device, then retry."
+            : "Audio recording could not start. Check your microphone, or open ARIA in Chrome or Edge and retry.";
+      toast(message, "error");
     }
   };
 
@@ -543,6 +579,11 @@ function ContextLearn() {
             <AssistantPresence state={recording ? "listening" : typing || transcribing ? "thinking" : replyError ? "error" : responding ? "responding" : "idle"} />
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn btn-secondary" onClick={() => void createChatAudio()}
+              disabled={!activeId || creatingAudio || typing || responding || !msgs.some(m => m.role === "aria")}
+              title="Save a copy of this conversation and read it aloud">
+              <Icon name="headphones" size={15} /> {creatingAudio ? "Creating audio…" : "Create audio"}
+            </button>
             <button className="btn btn-secondary daily-finish" onClick={() => void finishDay()}
               disabled={!context || finishingDay || typing || attaching || transcribing || recording || !visibleSessions.length}
               title="Create a review of today's learning in this subject">
@@ -562,6 +603,11 @@ function ContextLearn() {
           </div>
         </div>
 
+        {chatAudio?.sessionId === activeId && <div className="banner" role="status">
+          <span>{chatAudio.status === "READY" ? "Your conversation audio is ready." : chatAudio.status === "FAILED" ? "Audio creation failed. Your source is saved; retry in Audio studio." : "Your conversation audio is processing."}</span>
+          <Link className="btn btn-secondary" href="/app/audio">Open Audio studio</Link>
+        </div>}
+        {chatAudioError?.sessionId === activeId && <div className="banner" role="alert"><span>{chatAudioError.message}</span><button className="btn btn-secondary" disabled={creatingAudio} onClick={() => void createChatAudio()}>Retry audio</button></div>}
         {dailyReview && <div className="banner daily-review-ready" role="status">
           <Icon name="check" size={20} />
           <div><b>Your daily review is ready.</b><p>Practise what you discussed today. Questions grounded in your material also update your knowledge map.</p></div>

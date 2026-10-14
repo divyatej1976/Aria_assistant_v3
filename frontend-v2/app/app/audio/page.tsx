@@ -5,7 +5,7 @@ import { Modal } from "@/components/modal";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
-import { api, apiBlob, ApiError } from "@/lib/api";
+import { api, apiBlob, apiUpload, ApiError } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { toast } from "@/lib/toast";
 import { ErrorState, Loading } from "@/components/states";
@@ -68,6 +68,13 @@ function AudioPageWorkspace() {
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState(""); // "note:<id>" | "resource:<id>"
+  const [sourceMode, setSourceMode] = useState("text");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftText, setDraftText] = useState("");
+  const [conversionError, setConversionError] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadedSource, setUploadedSource] = useState<string | null>(null);
+  const [sourcePreview, setSourcePreview] = useState<Artifact | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -154,32 +161,57 @@ function AudioPageWorkspace() {
     };
   }, [context, load]);
 
+  const hasPendingAudio = artifacts.some(a => a.status === "PENDING" || a.status === "PROCESSING");
+  useEffect(() => {
+    if (!context || !hasPendingAudio) return;
+    const timer = setInterval(() => { void hydrate(context.id).catch(() => {}); }, 5000);
+    return () => clearInterval(timer);
+  }, [context, hasPendingAudio, hydrate]);
+
   const convert = async () => {
-    if (!context || !source) {
-      toast("Choose a note or resource to convert.");
+    if (!context || busy || (sourceMode === "saved" ? !source : sourceMode === "file" ? !uploadFile : !draftText.trim())) {
       return;
     }
     setBusy(true);
+    setConversionError("");
     try {
-      const [kind, id] = source.split(":", 2);
+      let [kind, id] = source.split(":", 2);
+      if (sourceMode === "file") {
+        if (!uploadFile) return;
+        if (uploadFile.size > 10 * 1024 * 1024) throw new Error("Choose a file smaller than 10 MB.");
+        kind = "resource";
+        if (uploadedSource) id = uploadedSource;
+        else {
+          const isPdf = uploadFile.type === "application/pdf" || uploadFile.name.toLowerCase().endsWith(".pdf");
+          const saved = await apiUpload<Resource>(`/api/v1/resources/${isPdf ? "pdf" : "image"}?context_id=${context.id}&title=${encodeURIComponent(uploadFile.name)}`, uploadFile, isPdf ? "application/pdf" : uploadFile.type);
+          id = saved.id;
+          if (mountedRef.current) setUploadedSource(id);
+        }
+      }
       const artifact = await api<Artifact>(
-        `/api/v1/audio/${kind === "note" ? "notes" : "resources"}/${id}/generate`,
-        { method: "POST" },
+        sourceMode === "text" ? "/api/v1/audio/text/generate" : `/api/v1/audio/${kind === "note" ? "notes" : "resources"}/${id}/generate`,
+        { method: "POST", ...(sourceMode === "text" ? { body: JSON.stringify({context_id: context.id, title: draftTitle.trim() || "Audio from text", text: draftText.trim()}) } : {}) },
       );
+      if (!mountedRef.current) return;
       invalidateAudio(artifact.id);
       artifact.title =
-        kind === "note"
+        sourceMode === "text" ? draftTitle.trim() || "Audio from text" : sourceMode === "file" ? uploadFile?.name : kind === "note"
           ? notes.find((n) => n.id === id)?.title ?? "Note"
           : resources.find((r) => r.id === id)?.title ?? "Resource";
       setArtifacts((prev) => [artifact, ...prev.filter((a) => a.id !== artifact.id)]);
       setProgress((prev) => ({ ...prev, [artifact.id]: { position_seconds: 0, completed: false } }));
       setOpen(false);
       setSource("");
+      setDraftText("");
+      setDraftTitle("");
+      setUploadFile(null);
+      setUploadedSource(null);
+      await load(context.id);
       if (artifact.status === "READY") toast("Audio ready.", "success");
       else if (artifact.status === "FAILED") toast("Audio generation failed. Please retry or check audio setup.", "error");
       else toast("Audio is processing. It will be playable when ready.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not generate audio.", "error");
+      if (mountedRef.current) setConversionError(e instanceof Error ? e.message : "Could not generate audio. Your source is kept here so you can retry.");
     } finally {
       setBusy(false);
     }
@@ -281,7 +313,7 @@ function AudioPageWorkspace() {
         <div className="empty-state">
           <Icon name="headphones" size={30} />
           <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
-            No audio yet. Convert a note or resource to listen on the go.
+            No audio yet. Paste text or turn a tutor conversation into audio. No saved materials needed.
           </p>
           <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ justifyContent: "center" }}>
             <Icon name="plus" /> Convert to audio
@@ -326,10 +358,15 @@ function AudioPageWorkspace() {
                 </button>
               </div>
               {a.status === "FAILED" && (
-                <p role="alert" style={{ marginTop: 10 }}>
-                  Audio generation failed. Use Convert to audio to retry this source.
-                </p>
+                <div role="alert" className="ui-mt-16">
+                  <p>Audio generation failed. Your source is saved so you can retry.</p>
+                  <button className="btn btn-secondary" onClick={() => { setSourceMode("saved"); setSource(`${a.source_type === "NOTE" ? "note" : "resource"}:${a.source_id}`); setConversionError(""); setOpen(true); }}>Retry audio</button>
+                </div>
               )}
+              <button className="btn btn-ghost" onClick={async () => {
+                try { const detail = await api<Artifact>(`/api/v1/audio/${a.id}`); if (mountedRef.current) setSourcePreview({ ...detail, title: a.title }); }
+                catch { toast("Could not load the source. Please retry.", "error"); }
+              }}>View saved source</button>
               {isPlaying && a.status === "READY" && (
                 <audio
                   autoPlay
@@ -384,7 +421,7 @@ function AudioPageWorkspace() {
         {sources.length === 0 && (
           <div className="card card-pad" style={{ gridColumn: "1 / -1" }}>
             <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>
-              Generate notes or add resources first.{" "}
+              You can paste text here or create audio from a conversation in Learn.{" "}
               <Link href="/app/materials" style={{ color: "var(--accent-strong)", fontWeight: 700 }}>
                 Open materials library
               </Link>
@@ -394,15 +431,31 @@ function AudioPageWorkspace() {
       </div>
 
       {/* convert modal */}
-      <Modal open={open} title="Convert to audio" onClose={() => setOpen(false)}>
+      <Modal open={open} title="Convert to audio" onClose={() => { if (!busy) setOpen(false); }}>
         <div className="modal">
           <div className="m-head dialog-heading">
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="headphones" size={20} /> Convert to audio</h3>
-            <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
+            <button className="btn btn-ghost" style={{ padding: 6 }} disabled={busy} onClick={() => setOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
           <div className="form-group">
+            <label className="field-label" htmlFor="audio-mode">Create from</label>
+            <select id="audio-mode" className="input" value={sourceMode} disabled={busy} onChange={e => { setSourceMode(e.target.value); setConversionError(""); }}>
+              <option value="text">Paste text</option>
+              <option value="file">Upload PDF or image</option>
+              <option value="saved">Saved material</option>
+            </select>
+          </div>
+          {sourceMode === "text" ? <>
+            <div className="form-group"><label className="field-label" htmlFor="audio-title">Episode title (optional)</label><input id="audio-title" className="input" maxLength={200} value={draftTitle} disabled={busy} onChange={e => setDraftTitle(e.target.value)} /></div>
+            <div className="form-group"><label className="field-label" htmlFor="audio-text">Text to read aloud</label><textarea id="audio-text" className="input" rows={7} maxLength={20000} value={draftText} disabled={busy} onChange={e => setDraftText(e.target.value)} /><p>{draftText.length.toLocaleString()} / 20,000 characters. A copy is saved to Materials automatically.</p></div>
+          </> : sourceMode === "file" ? <div className="form-group">
+            <label className="field-label" htmlFor="audio-file">PDF or image (up to 10 MB)</label>
+            <input id="audio-file" className="input" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" disabled={busy} onChange={e => { setUploadFile(e.target.files?.[0] ?? null); setUploadedSource(null); }} />
+            <p>We’ll extract the text and save the source to Materials automatically.</p>
+          </div> : <>
+          <div className="form-group">
             <label className="field-label" htmlFor="audio-source">Source</label>
-            <select id="audio-source" className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+            <select id="audio-source" className="input" value={source} disabled={busy} onChange={(e) => setSource(e.target.value)}>
               <option value="">Choose a note or resource…</option>
               {notes.map((n) => (
                 <option key={`note-${n.id}`} value={`note:${n.id}`}>Note · {n.title}</option>
@@ -414,16 +467,22 @@ function AudioPageWorkspace() {
           </div>
           {sources.length === 0 && (
             <p style={{ fontSize: 12, color: "var(--text-1)", margin: "0 0 8px" }}>
-              No sources available — generate notes or add resources in the Materials library first.
+              No saved materials yet. Choose Paste text to create audio now.
             </p>
           )}
+          </>}
+          {conversionError && <p role="alert">{conversionError}</p>}
+          {busy && <p role="status">Creating your audio… This may take a minute. Your episode will be saved in this library.</p>}
           <div className="dialog-actions ui-mt-16">
-            <button className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={convert} disabled={busy || !source}>
-              Create audio <Icon name="arrow" />
+            <button className="btn btn-ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={convert} disabled={busy || (sourceMode === "saved" ? !source : sourceMode === "file" ? !uploadFile : !draftText.trim())}>
+              {busy ? "Creating audio…" : "Create audio"} <Icon name="arrow" />
             </button>
           </div>
         </div>
+      </Modal>
+      <Modal open={!!sourcePreview} title="Saved audio source" onClose={() => setSourcePreview(null)}>
+        <div className="modal"><h3>{sourcePreview?.title ?? "Saved audio source"}</h3><div style={{ whiteSpace: "pre-wrap", maxHeight: "60vh", overflowY: "auto" }}>{sourcePreview?.text}</div><div className="dialog-actions"><Link href="/app/materials">Open Materials</Link><button className="btn btn-secondary" onClick={() => setSourcePreview(null)}>Close</button></div></div>
       </Modal>
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>

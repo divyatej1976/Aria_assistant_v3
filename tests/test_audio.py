@@ -198,6 +198,57 @@ def test_audio_storage_failure_falls_back_to_db_bytes(
         assert artifact.audio_bytes == b"FAKEAUDIO"
 
 
+def test_audio_from_text_saves_source_reuses_episode_and_isolates_owner(client, monkeypatch, tmp_audio_storage):
+    monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: FakeTTS())
+    token = register(client, "direct-audio@example.com")["access_token"]
+    other = register(client, "other-direct-audio@example.com")["access_token"]
+    cid = create_context(client, token)
+    payload = {"context_id": cid, "title": "Direct episode", "text": MATERIAL}
+    response = client.post("/api/v1/audio/text/generate", json=payload, headers=headers(token))
+    assert response.status_code == 201, response.text
+    artifact = response.json()
+    assert artifact["status"] == "READY"
+    assert artifact["text"] == MATERIAL
+    retry = client.post("/api/v1/audio/text/generate", json=payload, headers=headers(token))
+    assert retry.json()["id"] == artifact["id"]
+    listed = client.get(f"/api/v1/audio?context_id={cid}", headers=headers(token)).json()
+    assert len(listed) == 1 and listed[0]["title"] == "Direct episode"
+    resources = client.get(f"/api/v1/resources?context_id={cid}", headers=headers(token)).json()
+    assert len(resources) == 1
+    assert client.post("/api/v1/audio/text/generate", json=payload, headers=headers(other)).status_code == 404
+    assert client.get(f"/api/v1/audio/{artifact['id']}/play", headers=headers(other)).status_code == 404
+    for text in ["   ", "x" * 20001]:
+        assert client.post("/api/v1/audio/text/generate", json={**payload, "text": text}, headers=headers(token)).status_code == 422
+
+
+def test_audio_from_chat_uses_ordered_owned_messages(client, monkeypatch, tmp_audio_storage, session_factory):
+    from uuid import UUID
+    from app.db.models import ConversationMessage, StudySession
+    monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: FakeTTS())
+    auth = register(client, "chat-audio@example.com")
+    token = auth["access_token"]
+    cid = create_context(client, token)
+    owner = UUID(client.get("/api/v1/auth/me", headers=headers(token)).json()["id"])
+    with session_factory() as db:
+        session = StudySession(owner_id=owner, context_id=UUID(cid))
+        db.add(session); db.flush()
+        sid = str(session.id)
+        db.add_all([ConversationMessage(owner_id=owner, study_session_id=session.id, role="assistant", content="A transaction is a unit of work.", position=1),
+                    ConversationMessage(owner_id=owner, study_session_id=session.id, role="user", content="What is a transaction?", position=0)])
+        db.commit()
+    path = f"/api/v1/audio/sessions/{sid}/generate"
+    response = client.post(path, headers=headers(token))
+    assert response.status_code == 201, response.text
+    assert response.json()["text"] == "You: What is a transaction?\n\nARIA: A transaction is a unit of work."
+    assert client.post(path, headers=headers(token)).json()["id"] == response.json()["id"]
+    other = register(client, "other-chat-audio@example.com")["access_token"]
+    assert client.post(path, headers=headers(other)).status_code == 404
+    with session_factory() as db:
+        empty = StudySession(owner_id=owner, context_id=UUID(cid))
+        db.add(empty); db.commit(); empty_id = empty.id
+    assert client.post(f"/api/v1/audio/sessions/{empty_id}/generate", headers=headers(token)).status_code == 422
+
+
 def test_audio_generate_and_play(client: TestClient, monkeypatch, tmp_audio_storage) -> None:
     monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: FakeTTS())
     session = register(client, "audio@example.com")

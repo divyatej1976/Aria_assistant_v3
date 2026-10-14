@@ -1,6 +1,13 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+
+class TextAudioRequest(BaseModel):
+    context_id: UUID
+    title: str = Field(default="Audio from text", min_length=1, max_length=200)
+    text: str = Field(min_length=1, max_length=20_000)
 
 
 class AudioResponse(BaseModel):

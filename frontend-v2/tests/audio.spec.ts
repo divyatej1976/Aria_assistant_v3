@@ -68,6 +68,7 @@ test("convert a note to audio, save progress, and restore it after reload", asyn
 
   // open the convert modal and pick the note source
   await page.getByRole("button", { name: /Convert to audio/i }).first().click();
+  await page.getByLabel("Create from", { exact: true }).selectOption("saved");
   const noteValue = await page.locator("#audio-source option").nth(1).getAttribute("value");
   expect(noteValue).toContain("note:");
   await page.getByLabel("Source").selectOption(noteValue!);
