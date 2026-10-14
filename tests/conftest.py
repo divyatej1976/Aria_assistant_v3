@@ -10,7 +10,7 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -45,6 +45,10 @@ def _engine():
 @pytest.fixture()
 def engine():
     engine = _engine()
+    if engine.dialect.name == "postgresql":
+        # Installing pgvector's image does not enable its type in each database.
+        with engine.begin() as connection:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(engine)
     yield engine
     Base.metadata.drop_all(engine)

@@ -36,6 +36,12 @@ jobs:
         run: pip install -r requirements-dev.txt
         working-directory: .
       - name: Regenerate API types against the backend
+        env:
+          PYTHONPATH: backend
+          GROQ_API_KEY: ""
+          ARIA_TTS_API_KEY: ""
+          ARIA_STT_API_KEY: ""
+          ARIA_EMBEDDING_API_KEY: ""
         run: |
           cd ..
           python frontend-v2/tests/create_test_db.py e2e-smoke-v2.db
