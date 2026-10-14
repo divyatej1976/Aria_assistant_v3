@@ -1,5 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 
 async function fixture(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -55,8 +57,10 @@ for (const palette of ["aurora", "noir"]) {
   test(`earned badges and profile foreground remain accessible in ${palette}`, async ({ page }) => {
     await fixture(page);
     await page.addInitScript(theme => localStorage.setItem("aria.palette", theme), palette);
-    await page.setViewportSize({ width: 375, height: 812 });
-    for (const route of ["progress", "account"]) {
+    const evidence = path.resolve("../docs/screenshots/consistency");
+    mkdirSync(evidence, { recursive: true });
+    for (const width of [375, 1440]) for (const route of ["progress", "account"]) {
+      await page.setViewportSize({ width, height: 900 });
       await page.goto(`/app/${route}`);
       await expect(page.locator("html")).toHaveAttribute("data-theme", palette);
       await expect(page.locator(".loading-state")).toHaveCount(0);
@@ -64,6 +68,7 @@ for (const palette of ["aurora", "noir"]) {
       const results = await new AxeBuilder({ page }).analyze();
       expect(results.violations.filter(v => v.impact === "serious" || v.impact === "critical")).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: path.join(evidence, `${palette}-${width}-${route}.png`), fullPage: true, animations: "disabled" });
     }
   });
 }
