@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
-import { useActiveContext } from "@/components/use-active-context";
+import { useActiveContext, type ActiveContext } from "@/components/use-active-context";
 import { toast } from "@/lib/toast";
 import { ErrorState, Loading } from "@/components/states";
+import { KnowledgeConstellation } from "@/components/knowledge-constellation";
 
 type ConceptState = {
   concept_id: string;
@@ -24,29 +25,6 @@ type EvidenceItem = {
   created_at: string;
 };
 
-const STATE_COLOR: Record<string, string> = {
-  SUPPORTED: "var(--success)",
-  DEVELOPING: "var(--accent)",
-  NEEDS_REVIEW: "var(--danger)",
-  UNTESTED: "var(--text-3)",
-};
-
-const STATE_TEXT: Record<string, string> = {
-  SUPPORTED: "var(--success-strong)",
-  DEVELOPING: "var(--accent-strong)",
-  NEEDS_REVIEW: "var(--danger-strong)",
-  UNTESTED: "var(--text-2)",
-};
-
-const STATE_LABEL: Record<string, string> = {
-  SUPPORTED: "Supported",
-  DEVELOPING: "Developing",
-  NEEDS_REVIEW: "Needs review",
-  UNTESTED: "Untested",
-};
-
-const RX = 33;
-const RY = 37;
 
 const FILTERS: { key: "ALL" | "SUPPORTED" | "DEVELOPING" | "NEEDS_REVIEW" | "UNTESTED"; label: string }[] = [
   { key: "ALL", label: "All" },
@@ -58,6 +36,10 @@ const FILTERS: { key: "ALL" | "SUPPORTED" | "DEVELOPING" | "NEEDS_REVIEW" | "UNT
 
 export default function MapPage() {
   const { context } = useActiveContext();
+  return <ContextMap key={context?.id ?? "empty"} context={context} />;
+}
+
+function ContextMap({ context }: { context: ActiveContext | null }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [states, setStates] = useState<ConceptState[]>([]);
@@ -65,38 +47,56 @@ export default function MapPage() {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"ALL" | "SUPPORTED" | "DEVELOPING" | "NEEDS_REVIEW" | "UNTESTED">("ALL");
   const [prereqs, setPrereqs] = useState<Record<string, string[]>>({});
+  const [prereqUnavailable, setPrereqUnavailable] = useState(0);
+  const [prereqsLoading, setPrereqsLoading] = useState(false);
 
-  const load = useCallback(async (cid: string) => {
+  const load = useCallback(async (cid: string, signal?: AbortSignal) => {
     const [adaptation, ev, concepts] = await Promise.all([
-      api<{ states: ConceptState[] }>(`/api/v1/contexts/${cid}/adaptation`),
-      api<EvidenceItem[]>(`/api/v1/contexts/${cid}/evidence`),
-      api<{ id: string; name: string }[]>(`/api/v1/contexts/${cid}/concepts`),
+      api<{ states: ConceptState[] }>(`/api/v1/contexts/${cid}/adaptation`, { signal }),
+      api<EvidenceItem[]>(`/api/v1/contexts/${cid}/evidence`, { signal }),
+      api<{ id: string; name: string }[]>(`/api/v1/contexts/${cid}/concepts`, { signal }),
     ]);
+    if (signal?.aborted) return;
     setStates(adaptation.states);
     setEvidence(ev);
-    // prerequisite edges for badges (best-effort; missing = no badge)
+    setPrereqs({});
+    setPrereqUnavailable(0);
+    setPrereqsLoading(concepts.length > 0);
+    setLoading(false);
+    // Missing edge data stays unknown; it never becomes a fabricated connection.
     const map: Record<string, string[]> = {};
+    let unavailable = 0;
+    let next = 0;
+    // Bound request concurrency until the API provides a batch edge endpoint.
     await Promise.all(
-      concepts.map(async (c) => {
-        try {
-          const pr = await api<{ prerequisite_concept_id: string }[]>(
-            `/api/v1/contexts/${cid}/concepts/${c.id}/prerequisites`,
-          );
-          map[c.id] = pr.map((p) => p.prerequisite_concept_id);
-        } catch {
-          map[c.id] = [];
+      Array.from({ length: Math.min(6, concepts.length) }, async () => {
+        while (next < concepts.length && !signal?.aborted) {
+          const c = concepts[next++];
+          try {
+            const pr = await api<{ prerequisite_concept_id: string }[]>(
+              `/api/v1/contexts/${cid}/concepts/${c.id}/prerequisites`,
+              { signal },
+            );
+            map[c.id] = pr.map((p) => p.prerequisite_concept_id);
+          } catch {
+            unavailable++;
+          }
         }
       }),
     );
+    if (signal?.aborted) return;
     setPrereqs(map);
+    setPrereqUnavailable(unavailable);
+    setPrereqsLoading(false);
   }, []);
 
   useEffect(() => {
     if (!context) return;
     let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        await load(context.id);
+        await load(context.id, controller.signal);
       } catch {
         if (!cancelled) setFailed(true);
       } finally {
@@ -105,6 +105,7 @@ export default function MapPage() {
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [context, load]);
 
@@ -115,7 +116,7 @@ export default function MapPage() {
       toast("Evidence invalidated — learner state recalculated.");
       await load(context.id);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not invalidate evidence.");
+      toast(e instanceof ApiError ? e.message : "Could not invalidate evidence.", "error");
     }
   };
 
@@ -142,14 +143,14 @@ export default function MapPage() {
       (stateFilter === "ALL" || s.state === stateFilter) &&
       (searchLc === "" || s.concept_name.toLowerCase().includes(searchLc)),
   );
-  const n = visible.length;
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h1 className="pg-title">Knowledge Map</h1>
-          <p className="pg-sub">Neural Topology Map — see how well you master each concept in this context.</p>
+          <p className="eyebrow">{context?.title}</p>
+          <p className="pg-sub">Your learning universe — explore concepts, prerequisites, and the evidence behind your understanding.</p>
         </div>
       </div>
 
@@ -205,91 +206,11 @@ export default function MapPage() {
               </button>
             </div>
           ) : (
-          <div
-            style={{
-              position: "relative",
-              height: 520,
-              borderRadius: 28,
-              overflow: "hidden",
-              background: "var(--bg-1)",
-              boxShadow: "var(--shadow-2)",
-            }}
-          >
-            {/* connector lines */}
-            <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-              {visible.map((c, i) => {
-                const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
-                const x2 = 50 + RX * Math.cos(angle);
-                const y2 = 50 + RY * Math.sin(angle);
-                return <line key={c.concept_id} x1="50%" y1="50%" x2={`${x2}%`} y2={`${y2}%`} stroke="var(--border-hi)" strokeWidth="1.5" />;
-              })}
-            </svg>
-            {/* center hub */}
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%,-50%)",
-                width: 136,
-                height: 136,
-                borderRadius: "50%",
-                background: "var(--bg-2)",
-                boxShadow: "var(--shadow-2)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 4,
-              }}
-            >
-              <Icon name="target" size={26} />
-              <b style={{ fontSize: 13, textAlign: "center", padding: "0 8px" }}>{context?.title ?? "Knowledge Map"}</b>
-            </div>
-            {visible.map((c, i) => {
-              const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
-              const x = 50 + RX * Math.cos(angle);
-              const y = 50 + RY * Math.sin(angle);
-              const color = STATE_COLOR[c.state] ?? "var(--text-3)";
-              const textColor = STATE_TEXT[c.state] ?? "var(--text-2)";
-              return (
-                <div
-                  key={c.concept_id}
-                  style={{
-                    position: "absolute",
-                    left: `${x}%`,
-                    top: `${y}%`,
-                    transform: "translate(-50%,-50%)",
-                    width: 136,
-                    padding: "12px 10px",
-                    borderRadius: 14,
-                    background: "var(--bg-1)",
-                    boxShadow: "var(--shadow-2)",
-                    border: `2px solid ${color}`,
-                    textAlign: "center",
-                  }}
-                >
-                  <b style={{ fontSize: 13, display: "block" }}>{c.concept_name}</b>
-                  <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>{STATE_LABEL[c.state] ?? c.state.replace("_", " ")}</div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: textColor, marginTop: 2 }}>{c.confidence}%</div>
-                </div>
-              );
-            })}
-          </div>
+          <>
+          {prereqsLoading && <p role="status" className="pg-sub">Loading confirmed connections… You can explore your concepts now.</p>}
+          <KnowledgeConstellation concepts={states} visible={visible} prerequisites={prereqs} evidence={evidence} unavailable={prereqUnavailable} />
+          </>
           )}
-
-          <div className="grid-2" style={{ gap: 14, marginTop: 22 }}>
-            {visible.map((c) => (
-              <div className="card card-pad" key={c.concept_id} style={{ padding: 16, display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: STATE_COLOR[c.state] ?? "var(--text-3)", marginTop: 4, flexShrink: 0 }} />
-                <div>
-                  <b style={{ fontSize: 14 }}>{c.concept_name}</b>{" "}
-                  <span style={{ fontSize: 11, color: "var(--text-3)" }}>· {STATE_LABEL[c.state] ?? c.state.replace("_", " ")}</span>{(prereqs[c.concept_id]?.length ?? 0) > 0 && (<span className="tag-chip" style={{ marginLeft: 6 }}>↑ {(prereqs[c.concept_id] ?? []).length} prereq</span>) }
-                  <p style={{ fontSize: 12, color: "var(--text-2)", marginTop: 3 }}>{c.reason}</p>
-                </div>
-              </div>
-            ))}
-          </div>
 
           <div className="card card-pad" style={{ marginTop: 22 }}>
             <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Evidence</h2>

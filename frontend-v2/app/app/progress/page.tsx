@@ -5,6 +5,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { api } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { ErrorState, Loading } from "@/components/states";
+import { ProgressRing, Reveal } from "@/components/motion-system";
 
 type Consistency = {
   current_streak: number;
@@ -107,10 +108,26 @@ export default function ProgressPage() {
       : "Last 26 weeks";
 
   const rings = [
-    { label: "Overall", v: supportedPct ?? 0 },
-    { label: "Weekly", v: consistency ? Math.round((consistency.active_this_week / 7) * 100) : 0 },
-    { label: "Monthly", v: consistency ? Math.round((consistency.active_this_month / 30) * 100) : 0 },
+    { label: "Overall", caption: "concepts", v: supportedPct ?? 0 },
+    { label: "Weekly", caption: "of 7 days", v: consistency ? Math.round((consistency.active_this_week / 7) * 100) : 0 },
+    { label: "Monthly", caption: "of 30 days", v: consistency ? Math.round((consistency.active_this_month / 30) * 100) : 0 },
   ];
+
+  // Month labels for the heatmap: the column where each new month first appears.
+  const monthMarks: { col: number; label: string }[] = [];
+  if (consistency) {
+    let lastMonth = -1;
+    consistency.heatmap.forEach((d, i) => {
+      const date = new Date(d.date.length === 10 ? d.date + "T00:00:00" : d.date);
+      const m = date.getMonth();
+      if (m !== lastMonth) {
+        monthMarks.push({ col: Math.floor(i / 7), label: date.toLocaleDateString(undefined, { month: "short" }) });
+        lastMonth = m;
+      }
+    });
+  }
+  const totalSessions = consistency?.heatmap.reduce((sum, d) => sum + d.count, 0) ?? 0;
+  const heatCols = consistency ? Math.ceil(consistency.heatmap.length / 7) : 0;
 
   return (
     <div>
@@ -121,45 +138,66 @@ export default function ProgressPage() {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", gap: 52, flexWrap: "wrap", marginBottom: 34 }}>
-        {rings.map((m) => (
-          <div key={m.label} style={{ textAlign: "center" }}>
-            <div className="ring" style={{ "--p": m.v, "--r": "60px" } as React.CSSProperties}>
-              <span className="r-n" style={{ color: "var(--accent)" }}>{m.v}%</span>
+      <Reveal>
+        <div className="pg-rings">
+          {rings.map((m) => (
+            <div key={m.label} className="pg-ring-col">
+              <ProgressRing value={m.v} label={`${m.label} progress`} caption={m.caption} size={132} />
+              <div className="pg-ring-label">{m.label} Progress</div>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-2)", marginTop: 14, textTransform: "uppercase", letterSpacing: 1 }}>{m.label} Progress</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Reveal>
 
+      <Reveal delay={60}>
       <div className="card card-pad" style={{ marginBottom: 26 }}>
         <div className="section-head">
           <h2 style={{ fontSize: 19, fontWeight: 800 }}>Learning Activity</h2>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-2)" }}>{rangeLabel}</span>
         </div>
-        <div style={{ display: "flex", gap: 44, margin: "8px 0 18px", flexWrap: "wrap" }}>
+        <div className="activity-block">
+        <div className="pg-stats">
           <div className="stat-col"><div className="n">{consistency?.active_this_week ?? 0}</div><div className="l">Active Days · Week</div></div>
           <div className="stat-col"><div className="n">{consistency?.active_this_month ?? 0}</div><div className="l">Active Days · Month</div></div>
-          <div className="stat-col"><div className="n" style={{ color: "var(--streak)", display: "flex", alignItems: "center", gap: 4 }}><Icon name="flame" size={22} /> {consistency?.current_streak ?? 0}</div><div className="l">Current Streak</div></div>
+          <div className="stat-col"><div className="n" style={{ color: "var(--streak)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Icon name="flame" size={22} /> {consistency?.current_streak ?? 0}</div><div className="l">Current Streak</div></div>
           <div className="stat-col"><div className="n" style={{ color: "var(--accent)" }}>{consistency?.longest_streak ?? 0}</div><div className="l">Longest Streak</div></div>
         </div>
         {consistency ? (
+          <>
           <div className="heat-wrap">
-            <div className="heat in">
-              {consistency.heatmap.map((d) => (
-                <div
-                  key={d.date}
-                  className={`cell l${heatLevel(d.count)}`}
-                  title={`${dayLabel(d.date)} · ${d.count} ${d.count === 1 ? "session" : "sessions"}`}
-                />
-              ))}
+            <div className="heat-inner" style={{ "--heat-cols": heatCols } as React.CSSProperties}>
+              <div className="heat-months">
+                {monthMarks.map((m, i) => (
+                  <span key={`${m.label}-${i}`} style={{ gridColumn: m.col + 1 }}>{m.label}</span>
+                ))}
+              </div>
+              <div className="heat in">
+                {consistency.heatmap.map((d) => (
+                  <div
+                    key={d.date}
+                    className={`cell l${heatLevel(d.count)}`}
+                    title={`${dayLabel(d.date)} · ${d.count} ${d.count === 1 ? "session" : "sessions"}`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
+          <div className="heat-footer">
+            <span>{totalSessions} {totalSessions === 1 ? "session" : "sessions"} in this range</span>
+            <span className="heat-legend">Less
+              <i className="cell l0" /><i className="cell l1" /><i className="cell l2" /><i className="cell l3" /><i className="cell l4" />
+              More
+            </span>
+          </div>
+          </>
         ) : (
           <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>No activity data yet.</p>
         )}
+        </div>
       </div>
+      </Reveal>
 
+      <Reveal delay={120}>
       <h2 style={{ fontSize: 19, fontWeight: 800, marginBottom: 16 }}>Achievements &amp; Badges</h2>
       {badges.length === 0 ? (
         <div className="empty-state">
@@ -171,23 +209,27 @@ export default function ProgressPage() {
           {badges.map((b) => {
             const meta = BADGE_META[b.code] ?? { icon: "trophy" as IconName, gradient: "var(--accent-grad)" };
             return (
-              <div className="badge-card" key={b.code}>
-                <div
-                  className="badge-ic"
-                  style={b.earned ? { background: meta.gradient } : { background: "var(--bg-2)", border: "1px solid var(--border)" }}
-                >
+              <div className={`badge-card${b.earned ? " earned" : " locked"}`} key={b.code}>
+                {b.earned && <span className="badge-check" aria-hidden="true"><Icon name="check" size={12} /></span>}
+                <div className="badge-ic" style={b.earned ? { background: meta.gradient } : undefined}>
                   <Icon name={b.earned ? meta.icon : "lock"} size={26} />
                 </div>
-                <b style={{ fontSize: 13, display: "block" }}>{b.label}</b>
-                <span style={{ fontSize: 10, color: "var(--text-1)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>
-                  {b.earned ? "Unlocked" : "Locked"}
+                <b>{b.label}</b>
+                <span className="badge-state">
+                  {b.earned
+                    ? b.earned_at
+                      ? dayLabel(b.earned_at)
+                      : "Unlocked"
+                    : "Locked"}
                 </span>
               </div>
             );
           })}
         </div>
       )}
+      </Reveal>
 
+      <Reveal delay={180}>
       <div className="card card-pad">
         <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Recent Activity</h2>
         {activity.length === 0 ? (
@@ -206,6 +248,7 @@ export default function ProgressPage() {
           })
         )}
       </div>
+      </Reveal>
     </div>
   );
 }
