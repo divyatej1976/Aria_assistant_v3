@@ -1,5 +1,7 @@
 "use client";
 
+import { Modal } from "@/components/modal";
+
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
@@ -55,6 +57,11 @@ let remindersCheckedThisSession = false;
 const tomorrowIso = () => new Date(Date.now() + 86_400_000).toISOString();
 
 export default function PlannerPage() {
+  const { context } = useActiveContext();
+  return <PlannerPageWorkspace key={context?.id ?? "no-subject"} />;
+}
+
+function PlannerPageWorkspace() {
   const { context, loading: ctxLoading } = useActiveContext();
   const [tab, setTab] = useState<"exams" | "tasks">("exams");
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
@@ -130,7 +137,7 @@ export default function PlannerPage() {
       setAddedSuggestions((s) => ({ ...s, [name]: true }));
       toast(`Study task added for ${name}.`);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not add the study task.");
+      toast(e instanceof ApiError ? e.message : "Could not add the study task.", "error");
     }
   };
   const rescheduleMissed = async (t: Task) => {
@@ -144,7 +151,7 @@ export default function PlannerPage() {
       setTasks((p) => [...p.filter((x) => x.id !== moved.id), moved]);
       toast("Rescheduled to tomorrow.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not reschedule.");
+      toast(e instanceof ApiError ? e.message : "Could not reschedule.", "error");
     }
   };
   const tasksToday = tasks.filter(
@@ -173,7 +180,7 @@ export default function PlannerPage() {
       setDueAt("");
       setReminderDays(5);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not create exam.");
+      toast(e instanceof ApiError ? e.message : "Could not create exam.", "error");
     } finally {
       setBusy(false);
     }
@@ -186,7 +193,7 @@ export default function PlannerPage() {
       setSelected((s) => (s?.id === id ? updated : s));
       toast("Exam marked complete");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not complete the exam.");
+      toast(e instanceof ApiError ? e.message : "Could not complete the exam.", "error");
     }
   };
 
@@ -197,7 +204,7 @@ export default function PlannerPage() {
       setSelected((s) => (s?.id === id ? null : s));
       toast("Exam deleted");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not delete the exam.");
+      toast(e instanceof ApiError ? e.message : "Could not delete the exam.", "error");
     }
   };
 
@@ -221,7 +228,7 @@ export default function PlannerPage() {
       setTitle("");
       setDueAt("");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not create task.");
+      toast(e instanceof ApiError ? e.message : "Could not create task.", "error");
     } finally {
       setBusy(false);
     }
@@ -233,7 +240,7 @@ export default function PlannerPage() {
       setTasks((p) => p.map((t) => (t.id === id ? updated : t)));
       toast("Task completed");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not complete the task.");
+      toast(e instanceof ApiError ? e.message : "Could not complete the task.", "error");
     }
   };
 
@@ -243,7 +250,7 @@ export default function PlannerPage() {
       setTasks((p) => p.filter((t) => t.id !== id));
       toast("Task deleted");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not delete the task.");
+      toast(e instanceof ApiError ? e.message : "Could not delete the task.", "error");
     }
   };
 
@@ -253,7 +260,7 @@ export default function PlannerPage() {
       setReminderResult(`${res.notifications_created} reminder(s) created`);
       toast(res.notifications_created > 0 ? `${res.notifications_created} reminders created` : "No new reminders");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not run the reminder check.");
+      toast(e instanceof ApiError ? e.message : "Could not run the reminder check.", "error");
     }
   };
 
@@ -367,7 +374,7 @@ export default function PlannerPage() {
                 aria-pressed={selected?.id === d.id}
                 aria-label={`Select exam ${d.title}`}
                 className={`ws-row${selected?.id === d.id ? " on" : ""}`}
-                style={{ marginBottom: 8, width: "100%", textAlign: "left", background: "none", border: "none" }}
+                style={{ marginBottom: 8, width: "100%", textAlign: "left" }}
                 onClick={() => setSelected(d)}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -468,13 +475,13 @@ export default function PlannerPage() {
       )}
 
       {open && (
-        <div className="modal-bg show" style={{ display: "flex" }}>
+        <Modal open={Boolean(open)} title={open === "deadline" ? "Create Exam" : "Create Task"} onClose={() => setOpen(null)}>
           <div className="modal">
             <div className="m-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 14, marginBottom: 18 }}>
               <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}>
                 <Icon name={open === "deadline" ? "calendar" : "check"} size={20} /> {open === "deadline" ? "Create Exam" : "Create Task"}
               </h3>
-              <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(null)}><Icon name="x" size={16} /></button>
+              <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(null)} aria-label="Close"><Icon name="x" size={16} /></button>
             </div>
             <div className="form-group"><label className="field-label" htmlFor="pl-title">{open === "deadline" ? "Exam name" : "Task name"}</label><input id="pl-title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={open === "deadline" ? "e.g. Data Structures" : "e.g. Solve LeetCode problems"} /></div>
             <div className="form-group"><label className="field-label" htmlFor="pl-due">Due date</label><input id="pl-due" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} /></div>
@@ -488,7 +495,7 @@ export default function PlannerPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>

@@ -14,9 +14,9 @@ import { ErrorState } from "@/components/states";
 type Me = { id: string; email: string; display_name: string | null; verified: boolean };
 type Preference = { key: string; value: string };
 type SessionRecord = { id: string; device_label: string | null; is_current: boolean; created_at: string };
-type LlmKeyStatus = { configured: boolean; provider: string | null; model: string | null; hint: string | null };
+type LlmKeyStatus = { configured: boolean; usable?: boolean; issue?: string | null; provider: string | null; model: string | null; hint: string | null };
 
-const LLM_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+type Capabilities = { allowed_models: string[]; model: string; personal_keys_enabled: boolean; personal_key: LlmKeyStatus };
 
 const PREF_REMINDERS = "notify_reminders";
 const PREF_PUSH = "notify_push";
@@ -102,7 +102,9 @@ export default function AccountPage() {
   const [llmStatus, setLlmStatus] = useState<LlmKeyStatus | null>(null);
   const [llmUnavailable, setLlmUnavailable] = useState(false);
   const [llmKey, setLlmKey] = useState("");
-  const [llmModel, setLlmModel] = useState(LLM_MODELS[0]);
+  const [llmModel, setLlmModel] = useState("");
+  const [llmModels, setLlmModels] = useState<string[]>([]);
+  const [personalKeysEnabled, setPersonalKeysEnabled] = useState(false);
   const [llmBusy, setLlmBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -116,13 +118,16 @@ export default function AccountPage() {
     const active = await api<SessionRecord[]>("/api/v1/auth/sessions");
     setSessions(active);
     try {
-      const status = await api<LlmKeyStatus>("/api/v1/settings/llm-key");
+      const capabilities = await api<Capabilities>("/api/v1/settings/capabilities");
+      const status = capabilities.personal_key;
       setLlmStatus(status);
+      setLlmModels(capabilities.allowed_models);
+      setPersonalKeysEnabled(capabilities.personal_keys_enabled);
       setLlmUnavailable(false);
-      if (status.model) setLlmModel(status.model);
+      const preferred = status.model ?? capabilities.model;
+      setLlmModel(capabilities.allowed_models.includes(preferred) ? preferred : capabilities.allowed_models[0] ?? "");
     } catch {
-      // BYO keys are disabled on this deployment: hide the form, never
-      // pretend to be loading.
+      // A failed request is an unknown capability, not a disabled feature.
       setLlmStatus(null);
       setLlmUnavailable(true);
     }
@@ -160,7 +165,7 @@ export default function AccountPage() {
       setUser({ id: updated.id, email: updated.email, display_name: updated.display_name, verified: updated.verified });
       toast("Profile updated.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not update your profile.");
+      toast(e instanceof ApiError ? e.message : "Could not update your profile.", "error");
     } finally {
       setSavingProfile(false);
     }
@@ -190,7 +195,7 @@ export default function AccountPage() {
       setConfirmPw("");
       toast("Password changed — other devices were signed out.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not change the password.");
+      toast(e instanceof ApiError ? e.message : "Could not change the password.", "error");
     } finally {
       setPwBusy(false);
     }
@@ -203,7 +208,7 @@ export default function AccountPage() {
       setSessions((prev) => prev.filter((s) => s.id !== id));
       toast("Session signed out.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not revoke the session.");
+      toast(e instanceof ApiError ? e.message : "Could not revoke the session.", "error");
     } finally {
       setRevokingId(null);
     }
@@ -286,7 +291,7 @@ export default function AccountPage() {
       setLlmKey("");
       toast("Your AI key was saved — only you use it.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not save the AI key.");
+      toast(e instanceof ApiError ? e.message : "Could not save the AI key.", "error");
     } finally {
       setLlmBusy(false);
     }
@@ -299,7 +304,7 @@ export default function AccountPage() {
       setLlmStatus({ configured: false, provider: null, model: null, hint: null });
       toast("Your AI key was removed.");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not remove the AI key.");
+      toast(e instanceof ApiError ? e.message : "Could not remove the AI key.", "error");
     } finally {
       setLlmBusy(false);
     }
@@ -314,7 +319,7 @@ export default function AccountPage() {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not export your data.");
+      toast(e instanceof ApiError ? e.message : "Could not export your data.", "error");
     }
   };
 
@@ -333,7 +338,7 @@ export default function AccountPage() {
         router.push("/onboarding");
       }
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not delete the context.");
+      toast(e instanceof ApiError ? e.message : "Could not delete the context.", "error");
     }
   };
 
@@ -350,18 +355,18 @@ export default function AccountPage() {
       <div className="grid-2">
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Profile Picture <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600 }} title="This preview is not persisted — it will disappear on refresh. A future backend upload will make it permanent.">Preview only — not saved</span></h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Profile Picture <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600 }} title="This picture is a temporary preview and disappears when you leave or refresh this page.">Preview only — not saved</span></h2>
             <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 14 }}>
               <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--accent-grad)", color: "#fff", fontWeight: 800, fontSize: 30, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "var(--shadow-2)", flexShrink: 0 }}>
                 {pic ? (
                   // eslint-disable-next-line @next/next/no-img-element -- local data-URL preview; next/image adds nothing for blob previews
-                  <img src={pic} alt="profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src={pic} alt="Temporary profile preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   initials
                 )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}><Icon name="user" /> Upload Photo</button>
+                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}><Icon name="user" /> Preview Photo</button>
                 {pic && <button className="btn btn-ghost" onClick={() => setPic(null)}>Remove</button>}
                 <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = () => setPic(r.result as string); r.readAsDataURL(f); } }} />
               </div>
@@ -397,14 +402,20 @@ export default function AccountPage() {
             {llmStatus === null ? (
               llmUnavailable ? (
                 <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>
-                  Personal AI keys are not available on this deployment right now — ARIA will
-                  use the shared model.
+                  AI key status could not be loaded. Retry this page to check your configuration.
                 </p>
               ) : (
                 <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>Loading AI key status…</p>
               )
             ) : llmStatus.configured ? (
               <div>
+                <p role={llmStatus.usable === false ? "alert" : undefined} style={{ fontSize: 13, marginBottom: 12 }}>
+                  {llmStatus.usable === false
+                    ? "Your saved key cannot currently be used. Remove it and save it again, or ask the administrator to restore its configuration. ARIA will use a shared key when available, otherwise its offline fallback."
+                    : llmStatus.usable === true
+                      ? "Your key can be loaded. Provider availability is checked when you send a request."
+                      : "Your key is saved; usability has not been checked."}
+                </p>
                 <div className="kv">
                   <span className="k"><Icon name="lock" size={16} /> Saved key</span>
                   <span className="v" style={{ fontWeight: 800 }}>{llmStatus.hint ?? "configured"}</span>
@@ -430,6 +441,8 @@ export default function AccountPage() {
                   </button>
                 </div>
               </div>
+            ) : !personalKeysEnabled ? (
+              <p>Personal AI keys are disabled on this deployment. Contact the administrator to enable secure key storage.</p>
             ) : (
               <div>
                 <div className="form-group">
@@ -447,12 +460,12 @@ export default function AccountPage() {
                 <div className="form-group">
                   <label className="field-label" htmlFor="llm-model">Model</label>
                   <select id="llm-model" className="input" value={llmModel} onChange={(e) => setLlmModel(e.target.value)}>
-                    {LLM_MODELS.map((m) => (
+                    {llmModels.map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
                 </div>
-                <button className="btn btn-primary" onClick={() => void saveLlmKey()} disabled={llmBusy}>
+                <button className="btn btn-primary" onClick={() => void saveLlmKey()} disabled={llmBusy || !llmModel}>
                   <Icon name="lock" /> Save my key
                 </button>
               </div>
