@@ -82,11 +82,11 @@ function ResetPasswordForm() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label className="field-label" htmlFor="rp-new">New Password</label>
+              <label className="field-label" htmlFor="rp-new">New password</label>
               <input id="rp-new" className="input" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
             <div>
-              <label className="field-label" htmlFor="rp-confirm">Confirm New Password</label>
+              <label className="field-label" htmlFor="rp-confirm">Confirm new password</label>
               <input id="rp-confirm" className="input" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
             </div>
             {error && <p role="alert" style={{ color: "var(--danger)", fontSize: 13, fontWeight: 600 }}>{error}</p>}

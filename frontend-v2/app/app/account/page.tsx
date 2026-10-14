@@ -9,7 +9,7 @@ import { disablePush, enablePush, pushSupported } from "@/lib/push";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog, type ConfirmState } from "@/components/confirm";
 import { toast } from "@/lib/toast";
-import { ErrorState } from "@/components/states";
+import { ErrorState, Loading } from "@/components/states";
 
 type Me = { id: string; email: string; display_name: string | null; verified: boolean };
 type Preference = { key: string; value: string };
@@ -348,16 +348,18 @@ export default function AccountPage() {
     return <ErrorState message="This screen could not be loaded." onRetry={() => window.location.reload()} />;
   }
 
+  if (!me || !prefsLoaded) return <Loading label="your account" />;
+
   return (
     <div>
-      <h1 className="pg-title" style={{ marginBottom: 24 }}>Account &amp; Settings</h1>
+      <h1 className="pg-title" style={{ marginBottom: 24 }}>Account &amp; settings</h1>
 
       <div className="grid-2">
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="ui-stack ui-gap-18">
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Profile Picture <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600 }} title="This picture is a temporary preview and disappears when you leave or refresh this page.">Preview only — not saved</span></h2>
+            <h2 className="card-heading">Profile picture <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600 }} title="This picture is a temporary preview and disappears when you leave or refresh this page.">Preview only — not saved</span></h2>
             <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 14 }}>
-              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--accent-grad)", color: "#fff", fontWeight: 800, fontSize: 30, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "var(--shadow-2)", flexShrink: 0 }}>
+              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--accent-grad)", color: "var(--on-accent)", fontWeight: 800, fontSize: 30, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "var(--shadow-2)", flexShrink: 0 }}>
                 {pic ? (
                   // eslint-disable-next-line @next/next/no-img-element -- local data-URL preview; next/image adds nothing for blob previews
                   <img src={pic} alt="Temporary profile preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -365,8 +367,8 @@ export default function AccountPage() {
                   initials
                 )}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}><Icon name="user" /> Preview Photo</button>
+              <div className="ui-stack ui-gap-8">
+                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}><Icon name="user" /> Preview photo</button>
                 {pic && <button className="btn btn-ghost" onClick={() => setPic(null)}>Remove</button>}
                 <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = () => setPic(r.result as string); r.readAsDataURL(f); } }} />
               </div>
@@ -377,14 +379,14 @@ export default function AccountPage() {
             <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Notifications</h2>
             <ToggleRow
               icon="bell"
-              label="Learning Reminders"
+              label="Learning reminders"
               on={remindersOn}
               onToggle={() => void toggleReminders()}
               disabled={!prefsLoaded}
             />
             <ToggleRow
               icon="zap"
-              label="Push Notifications"
+              label="Push notifications"
               on={pushOn}
               onToggle={() => void togglePush()}
               disabled={!prefsLoaded || pushBusy}
@@ -392,7 +394,7 @@ export default function AccountPage() {
           </div>
 
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Your AI Key</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Your AI key</h2>
             <p style={{ fontSize: 12.5, color: "var(--text-2)", margin: "0 0 12px" }}>
               ARIA answers with a shared model until you add your own Groq key. Your key is
               stored encrypted, only ever used for your requests, and never shown again — not
@@ -473,35 +475,35 @@ export default function AccountPage() {
           </div>
 
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Change Password</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Change password</h2>
             <p style={{ fontSize: 12, color: "var(--text-3)", margin: "0 0 12px" }}>Changing your password signs out every other device.</p>
-            <div className="form-group"><label className="field-label" htmlFor="pw-current">Current Password</label><input id="pw-current" type="password" className="input" autoComplete="current-password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} /></div>
-            <div className="form-group"><label className="field-label" htmlFor="pw-new">New Password</label><input id="pw-new" type="password" className="input" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} /></div>
-            <div className="form-group"><label className="field-label" htmlFor="pw-confirm">Confirm New Password</label><input id="pw-confirm" type="password" className="input" autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} /></div>
+            <div className="form-group"><label className="field-label" htmlFor="pw-current">Current password</label><input id="pw-current" type="password" className="input" autoComplete="current-password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} /></div>
+            <div className="form-group"><label className="field-label" htmlFor="pw-new">New password</label><input id="pw-new" type="password" className="input" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} /></div>
+            <div className="form-group"><label className="field-label" htmlFor="pw-confirm">Confirm new password</label><input id="pw-confirm" type="password" className="input" autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} /></div>
             <button className="btn btn-primary" onClick={() => void changePassword()} disabled={pwBusy}>
-              <Icon name="lock" /> Change Password
+              <Icon name="lock" /> Change password
             </button>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="ui-stack ui-gap-18">
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 18 }}>Personal Details {me?.verified && <span className="tag-chip" style={{ marginLeft: 8 }}>Verified</span>}</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 18 }}>Personal details {me?.verified && <span className="tag-chip" style={{ marginLeft: 8 }}>Verified</span>}</h2>
             <div className="form-group"><label className="field-label" htmlFor="acct-name">Name</label><input id="acct-name" className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
             <div className="form-group"><label className="field-label" htmlFor="acct-email">Email</label><input id="acct-email" type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div className="ui-flex ui-gap-10 ui-wrap">
               <button className="btn btn-primary" onClick={() => void saveProfile()} disabled={savingProfile}>
-                <Icon name="edit" /> Save Changes
+                <Icon name="edit" /> Save changes
               </button>
             </div>
           </div>
 
           <div className="card card-pad" style={{ borderColor: "var(--danger)" }}>
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: "var(--danger-strong)" }}>Data & Privacy</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: "var(--danger-strong)" }}>Data & privacy</h2>
             <p style={{ fontSize: 12.5, color: "var(--text-2)", margin: "0 0 12px" }}>
               Export everything ARIA stores about this account, or permanently delete the current learning context and all of its materials, sessions, assessments, and evidence.
             </p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div className="ui-flex ui-gap-10 ui-wrap">
               <button className="btn btn-secondary" onClick={() => void exportData()}>
                 <Icon name="download" /> Export my data
               </button>
@@ -525,7 +527,7 @@ export default function AccountPage() {
           </div>
 
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Active Sessions</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Active sessions</h2>
             {sessions.length === 0 ? (
               <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>{me ? "No other active sessions." : "Loading sessions…"}</p>
             ) : (
