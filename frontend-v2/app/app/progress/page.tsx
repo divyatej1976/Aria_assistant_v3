@@ -20,14 +20,14 @@ type Activity = { id: string; activity_type: string; occurred_on: string };
 type ConceptState = { state: string };
 
 const BADGE_META: Record<string, { icon: IconName; gradient: string }> = {
-  first_assessment: { icon: "clipboard", gradient: "linear-gradient(135deg,#fbbf24,#f97316)" },
-  first_study: { icon: "book", gradient: "linear-gradient(135deg,#34d399,#0ea5e9)" },
-  first_revision: { icon: "refresh", gradient: "linear-gradient(135deg,#38bdf8,#6366f1)" },
-  first_planned_task: { icon: "check", gradient: "linear-gradient(135deg,#a78bfa,#ec4899)" },
-  streak_3: { icon: "flame", gradient: "linear-gradient(135deg,#fb923c,#ef4444)" },
-  streak_7: { icon: "flame", gradient: "linear-gradient(135deg,#fb7185,#dc2626)" },
-  streak_30: { icon: "crown", gradient: "linear-gradient(135deg,#e2b93b,#d97706)" },
-  concept_supported: { icon: "lightbulb", gradient: "linear-gradient(135deg,#a78bfa,#ec4899)" },
+  first_assessment: { icon: "clipboard", gradient: "var(--badge-grad-milestone)" },
+  first_study: { icon: "book", gradient: "var(--badge-grad-study)" },
+  first_revision: { icon: "refresh", gradient: "var(--badge-grad-review)" },
+  first_planned_task: { icon: "check", gradient: "var(--badge-grad-study)" },
+  streak_3: { icon: "flame", gradient: "var(--badge-grad-streak)" },
+  streak_7: { icon: "flame", gradient: "var(--badge-grad-streak)" },
+  streak_30: { icon: "crown", gradient: "var(--badge-grad-milestone)" },
+  concept_supported: { icon: "lightbulb", gradient: "var(--badge-grad-review)" },
 };
 
 const ACTIVITY_META: Record<string, { label: string; icon: IconName }> = {
@@ -133,7 +133,7 @@ export default function ProgressPage() {
     <div>
       <div className="section-head">
         <div>
-          <h1 className="pg-title">Your Progress</h1>
+          <h1 className="pg-title">Your progress</h1>
           <p className="pg-sub">See how far you&apos;ve come.</p>
         </div>
       </div>
@@ -152,15 +152,15 @@ export default function ProgressPage() {
       <Reveal delay={60}>
       <div className="card card-pad" style={{ marginBottom: 26 }}>
         <div className="section-head">
-          <h2 style={{ fontSize: 19, fontWeight: 800 }}>Learning Activity</h2>
+          <h2 style={{ fontSize: 19, fontWeight: 800 }}>Learning activity</h2>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-2)" }}>{rangeLabel}</span>
         </div>
         <div className="activity-block">
         <div className="pg-stats">
-          <div className="stat-col"><div className="n">{consistency?.active_this_week ?? 0}</div><div className="l">Active Days · Week</div></div>
-          <div className="stat-col"><div className="n">{consistency?.active_this_month ?? 0}</div><div className="l">Active Days · Month</div></div>
-          <div className="stat-col"><div className="n" style={{ color: "var(--streak)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Icon name="flame" size={22} /> {consistency?.current_streak ?? 0}</div><div className="l">Current Streak</div></div>
-          <div className="stat-col"><div className="n" style={{ color: "var(--accent)" }}>{consistency?.longest_streak ?? 0}</div><div className="l">Longest Streak</div></div>
+          <div className="stat-col"><div className="n">{consistency?.active_this_week ?? 0}</div><div className="l">Active days · Week</div></div>
+          <div className="stat-col"><div className="n">{consistency?.active_this_month ?? 0}</div><div className="l">Active days · Month</div></div>
+          <div className="stat-col"><div className="n" style={{ color: "var(--streak)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Icon name="flame" size={22} /> {consistency?.current_streak ?? 0}</div><div className="l">Current streak</div></div>
+          <div className="stat-col"><div className="n" style={{ color: "var(--accent)" }}>{consistency?.longest_streak ?? 0}</div><div className="l">Longest streak</div></div>
         </div>
         {consistency ? (
           <>
@@ -231,7 +231,7 @@ export default function ProgressPage() {
 
       <Reveal delay={180}>
       <div className="card card-pad">
-        <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Recent Activity</h2>
+        <h2 className="card-heading">Recent activity</h2>
         {activity.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>
             No learning activity yet — start a study session or take an assessment.
