@@ -9,18 +9,20 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
-from app.ai.registry import get_llm_provider
+from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.schema import NoteDraftSchema
-from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.models import (
+    Concept,
     ConversationMessage,
     LearningContext,
     Note,
     RevisionItem,
+    StudySession,
 )
 from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
 from app.services.concepts import context_chunks
+from app.services.contexts import get_owned_context, get_owned_related
 
 REVIEW_INTERVALS = [1, 3, 7, 14, 30]
 
@@ -38,14 +40,31 @@ def get_owned_note(db: Session, *, owner_id: UUID, note_id: UUID) -> Note:
     return note
 
 
-def list_notes(db: Session, *, owner_id: UUID, context_id: UUID) -> list[Note]:
+def list_notes(
+    db: Session, *, owner_id: UUID, context_id: UUID, limit: int = 100
+) -> list[Note]:
     return list(
         db.scalars(
             select(Note)
             .where(Note.owner_id == owner_id, Note.context_id == context_id)
             .order_by(Note.created_at.desc())
+            .limit(limit)
         )
     )
+
+
+def revision_items_for(
+    db: Session, *, owner_id: UUID, note_ids: list[UUID]
+) -> dict[UUID, RevisionItem]:
+    """Batch-load revision items for many notes in one query (avoids N+1)."""
+    if not note_ids:
+        return {}
+    rows = db.scalars(
+        select(RevisionItem).where(
+            RevisionItem.owner_id == owner_id, RevisionItem.note_id.in_(note_ids)
+        )
+    ).all()
+    return {row.note_id: row for row in rows}
 
 
 def revision_item(db: Session, *, owner_id: UUID, note_id: UUID) -> RevisionItem | None:
@@ -67,6 +86,13 @@ def create_note(
     study_session_id: UUID | None = None,
     source_refs: list[dict] | None = None,
 ) -> Note:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    if concept_id is not None:
+        get_owned_related(db, Concept, owner_id=owner_id, context_id=context_id,
+                          related_id=concept_id, label="Concept")
+    if study_session_id is not None:
+        get_owned_related(db, StudySession, owner_id=owner_id, context_id=context_id,
+                          related_id=study_session_id, label="Study session")
     note = Note(
         owner_id=owner_id,
         context_id=context_id,
@@ -121,6 +147,13 @@ def _note_material(
     db: Session, *, owner_id: UUID, context_id: UUID, study_session_id: UUID | None
 ) -> str:
     if study_session_id is not None:
+        session = db.scalar(select(StudySession).where(
+            StudySession.id == study_session_id,
+            StudySession.owner_id == owner_id,
+            StudySession.context_id == context_id,
+        ))
+        if session is None:
+            raise ValidationError("Study session does not belong to this subject")
         messages = db.scalars(
             select(ConversationMessage)
             .where(
@@ -168,19 +201,15 @@ async def generate_note(
     if not material:
         raise ValidationError("No study material or conversation to generate from")
 
-    settings = get_settings()
-    if settings.groq_api_key:
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    if provider is not None:
         try:
             prompt_version = get_prompt("note_draft")
-            provider = get_llm_provider()
-            if provider is not None:
-                draft = await provider.generate_structured(
-                    prompt=prompt_version.render(material=material),
-                    schema=NoteDraftSchema,
-                    prompt_version=prompt_version.label(),
-                )
-            else:
-                draft = _deterministic_draft(material, context.title)
+            draft = await provider.generate_structured(
+                prompt=prompt_version.render(material=material),
+                schema=NoteDraftSchema,
+                prompt_version=prompt_version.label(),
+            )
         except Exception:
             draft = _deterministic_draft(material, context.title)
     else:

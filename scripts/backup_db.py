@@ -4,30 +4,17 @@ Usage:
     python scripts/backup_db.py [--out DIR]
 
 Defaults to the BACKUP_DIR env or ./backups. Prunes backups older than
---keep (default 14) to bound disk usage.
+--keep (default 14) to bound disk usage. Delegates to app.services.backup;
+the scheduler runs the same routine daily when ARIA_BACKUP_ENABLED=true.
 """
 
 import argparse
-import datetime
-import gzip
 import os
-import subprocess
 import sys
 from pathlib import Path
 
-from sqlalchemy.engine import make_url
-
-
-def _pg_env(url) -> dict[str, str]:
-    parsed = make_url(url)
-    return {
-        **os.environ,
-        "PGHOST": parsed.host or "localhost",
-        "PGPORT": str(parsed.port or 5432),
-        "PGUSER": parsed.username or "",
-        "PGPASSWORD": parsed.password or "",
-        "PGDATABASE": parsed.database or "",
-    }
+# Make the script runnable from the repo root without PYTHONPATH=backend.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 
 def main() -> int:
@@ -41,26 +28,17 @@ def main() -> int:
         print("DATABASE_URL must point at a PostgreSQL database", file=sys.stderr)
         return 2
 
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
-    destination = out_dir / f"aria-{stamp}.dump.gz"
+    from app.services.backup import create_backup
 
-    env = _pg_env(url)
-    pg_dump = os.environ.get("PG_DUMP", "pg_dump")
-    with gzip.GzipFile(str(destination), mode="wb") as handle:
-        subprocess.run(
-            [pg_dump, "-Fc", "--no-owner", "-f", "-"],
-            env=env,
-            check=True,
-            stdout=handle,
+    try:
+        destination = create_backup(
+            database_url=url, out_dir=args.out, keep=args.keep,
+            encryption_key=os.environ.get("ARIA_BACKUP_ENCRYPTION_KEY") or None,
         )
+    except Exception as exc:
+        print(f"backup failed (error_type={type(exc).__name__})", file=sys.stderr)
+        return 1
     print(f"backup written to {destination}")
-
-    backups = sorted(out_dir.glob("aria-*.dump.gz"), reverse=True)
-    for stale in backups[args.keep :]:
-        stale.unlink()
-        print(f"pruned {stale}")
     return 0
 
 

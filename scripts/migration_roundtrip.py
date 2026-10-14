@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run(*args: str) -> None:
     env = {**os.environ, "DATABASE_URL": os.environ["DATABASE_URL"]}
+    # Migration scripts import `app` at load time; ensure backend/ is on the
+    # path even when the package is not pip-installed (dev-machine parity).
+    backend = str(ROOT / "backend")
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = backend + (os.pathsep + existing if existing else "")
     result = subprocess.run(
         [sys.executable, "-m", "alembic", *args],
         cwd=ROOT,

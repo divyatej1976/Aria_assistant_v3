@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Concept, Evidence, LearnerConceptState
 from app.services.concepts import list_concepts
+from app.services.contexts import get_owned_context
 from app.services.evidence import SIGNAL_CORRECT, SIGNAL_INCORRECT
 
 STATE_UNTESTED = "UNTESTED"
@@ -58,30 +59,30 @@ def reason_for(state: str, correct: int, incorrect: int) -> str:
 def recompute_learner_states(
     db: Session, *, owner_id: UUID, context_id: UUID
 ) -> list[LearnerConceptState]:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
     concepts = list_concepts(db, owner_id=owner_id, context_id=context_id)
     states: list[LearnerConceptState] = []
-    for concept in concepts:
-        evidence = list(
-            db.scalars(
-                select(Evidence)
-                .where(
-                    Evidence.owner_id == owner_id,
-                    Evidence.concept_id == concept.id,
-                    Evidence.valid.is_(True),
-                )
-                .order_by(Evidence.created_at)
-            )
+    evidence_by_concept: dict[UUID, list[Evidence]] = {}
+    for item in db.scalars(
+        select(Evidence).join(Concept, Concept.id == Evidence.concept_id).where(
+            Evidence.owner_id == owner_id, Concept.owner_id == owner_id,
+            Concept.context_id == context_id, Evidence.valid.is_(True),
+        ).order_by(Evidence.created_at)
+    ):
+        evidence_by_concept.setdefault(item.concept_id, []).append(item)
+    existing_states = {item.concept_id: item for item in db.scalars(
+        select(LearnerConceptState).join(Concept, Concept.id == LearnerConceptState.concept_id).where(
+            LearnerConceptState.owner_id == owner_id, Concept.owner_id == owner_id,
+            Concept.context_id == context_id,
         )
+    )}
+    for concept in concepts:
+        evidence = evidence_by_concept.get(concept.id, [])
         signals = [item.signal for item in evidence]
         state, confidence = compute_state(signals)
         correct = sum(1 for item in evidence if item.signal == SIGNAL_CORRECT)
         incorrect = len(evidence) - correct
-        learner_state = db.scalar(
-            select(LearnerConceptState).where(
-                LearnerConceptState.owner_id == owner_id,
-                LearnerConceptState.concept_id == concept.id,
-            )
-        )
+        learner_state = existing_states.get(concept.id)
         if learner_state is None:
             learner_state = LearnerConceptState(
                 owner_id=owner_id,

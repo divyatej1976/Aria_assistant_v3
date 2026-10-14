@@ -1,10 +1,11 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class TextResourceCreate(BaseModel):
-    context_id: str
+    context_id: UUID
     title: str = Field(min_length=1, max_length=255)
     text: str = Field(min_length=1)
 

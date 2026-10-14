@@ -1,0 +1,40 @@
+# ARIA production reverse proxy (Caddy 2).
+#
+# Automatic HTTPS via Let's Encrypt for ARIA_DOMAIN (compose passes it in).
+# Routes: /api/* -> backend (path preserved; backend routes carry /api/v1),
+# /ready -> backend readiness probe (path preserved), everything else ->
+# Next.js frontend. NOTE: never append a path to an upstream address — Caddy
+# parses "host:port/path" as <network>/<address> and the dial fails with
+# "unknown network". The request path is preserved as-is.
+{$ARIA_DOMAIN} {
+	encode gzip
+
+	handle /metrics {
+		# Prometheus metrics are unauthenticated on the backend by design;
+		# never expose them publicly.
+		respond 403
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /health {
+		respond 403
+	}
+
+	handle /ready {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

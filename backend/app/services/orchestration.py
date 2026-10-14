@@ -8,9 +8,12 @@ stay outside the agents.
 import inspect
 import logging
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as PayloadValidationError
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
@@ -23,6 +26,7 @@ from app.db.models import (
 )
 from app.services.adaptation import run_learner_loop
 from app.services.assessment import create_assessment
+from app.services.contexts import get_owned_context
 from app.services.evidence import invalidate_evidence
 from app.services.notes import generate_note
 from app.services.planner import upcoming_deadlines
@@ -99,9 +103,13 @@ def _agent_data_reset(db, *, owner_id: UUID, context_id: UUID | None, payload: d
 
 def _agent_evidence(db, *, owner_id: UUID, context_id: UUID | None, payload: dict) -> dict:
     evidence_id = UUID(payload["evidence_id"])
-    invalidate_evidence(db, owner_id=owner_id, evidence_id=evidence_id)
-    if context_id is not None:
-        run_learner_loop(db, owner_id=owner_id, context_id=context_id)
+    effective_context_id = context_id
+    if effective_context_id is None and payload.get("context_id"):
+        effective_context_id = UUID(str(payload["context_id"]))
+    if effective_context_id is None:
+        raise ValidationError("context_id is required for evidence invalidation")
+    invalidate_evidence(db, owner_id=owner_id, evidence_id=evidence_id, context_id=effective_context_id)
+    run_learner_loop(db, owner_id=owner_id, context_id=effective_context_id)
     return {"evidence_id": str(evidence_id), "invalidated": True}
 
 
@@ -149,47 +157,65 @@ def record_audit(db: Session, *, owner_id: UUID, agent: str, action: str, detail
 
 
 async def _run_step(
-    db: Session,
-    *,
-    owner_id: UUID,
-    workflow: Workflow,
-    task: AgentTask,
-    agent: dict,
-    context_id: UUID | None,
-    payload: dict,
+    db: Session, *, owner_id: UUID, workflow: Workflow, task: AgentTask,
+    agent: dict, context_id: UUID | None, payload: dict,
 ) -> bool:
-    handler = agent["handler"]
+    output = None
+    handler_finished = False
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        task.attempt = attempt
-        task.status = "RUNNING"
-        db.add(task)
-        db.commit()
+        committed = False
+        def mark_commit(session):
+            nonlocal committed
+            committed = True
         try:
-            result = handler(db, owner_id=owner_id, context_id=context_id, payload=payload)
-            output = await result if inspect.isawaitable(result) else result
+            task.attempt = attempt
+            task.status = "RUNNING"
+            db.add(task)
+            db.commit()
+            if not handler_finished:
+                # Observe domain commits, not our own task/audit metadata writes.
+                event.listen(db, "after_commit", mark_commit)
+                try:
+                    result = agent["handler"](
+                        db, owner_id=owner_id, context_id=context_id, payload=payload
+                    )
+                    output = await result if inspect.isawaitable(result) else result
+                    handler_finished = True
+                finally:
+                    event.remove(db, "after_commit", mark_commit)
             task.status = "SUCCEEDED"
+            task.error_detail = None
             task.output_refs = {"output": output}
             db.add(task)
-            db.commit()
-            record_audit(
-                db,
-                owner_id=owner_id,
-                agent=task.agent,
-                action="succeeded",
+            db.add(AuditLog(
+                owner_id=owner_id, agent=task.agent, action="succeeded",
                 detail={"workflow_id": str(workflow.id), "output": output},
-            )
-            return True
-        except Exception as exc:  # noqa: BLE001 - workflow steps must be resilient
-            task.error_detail = str(exc)[:500]
-            db.add(task)
+                request_id=request_id_context.get(),
+            ))
             db.commit()
-            record_audit(
-                db,
-                owner_id=owner_id,
-                agent=task.agent,
-                action="failed",
-                detail={"workflow_id": str(workflow.id), "error": str(exc)[:200]},
+            return True
+        except Exception as exc:
+            # Failed SQL sessions must roll back before recovery writes.
+            db.rollback()
+            message = (
+                "Step failed after committing changes. Review the result before retrying."
+                if committed and not handler_finished
+                else "Workflow step failed. Please retry or contact support."
             )
+            logger.warning("workflow step failed agent=%s error_type=%s", task.agent, type(exc).__name__)
+            task.error_detail = message
+            db.add(task)
+            db.add(AuditLog(
+                owner_id=owner_id, agent=task.agent, action="failed",
+                detail={"workflow_id": str(workflow.id), "error": message},
+                request_id=request_id_context.get(),
+            ))
+            db.commit()
+            if committed and not handler_finished:
+                # An unknown post-commit outcome is not safe to replay. Once a
+                # handler returns, however, retries persist its cached output
+                # without executing its domain work a second time.
+                break
     task.status = "FAILED"
     db.add(task)
     db.commit()
@@ -267,13 +293,45 @@ async def _advance(
     return None
 
 
+class WorkflowPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    context_id: UUID | None = None
+    evidence_id: UUID | None = None
+    question: str = Field(default="Explain the current material", min_length=1, max_length=10000)
+    question_count: int = Field(default=3, ge=1, le=20)
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
+    days: int = Field(default=14, ge=1, le=365)
+
+
+def _validate_payload(db: Session, *, owner_id: UUID, name: str, payload: dict) -> dict:
+    try:
+        validated = WorkflowPayload.model_validate(payload)
+    except PayloadValidationError as exc:
+        raise ValidationError("Invalid workflow parameters") from exc
+    if name != "data_reset" and validated.context_id is None:
+        raise ValidationError("context_id is required for this workflow")
+    if name == "evidence_invalidate" and validated.evidence_id is None:
+        raise ValidationError("evidence_id is required for this workflow")
+    if validated.context_id is not None:
+        get_owned_context(db, owner_id=owner_id, context_id=validated.context_id)
+    return validated.model_dump(mode="json", exclude_none=True)
+
+
 async def run_workflow(
-    db: Session, *, owner_id: UUID, name: str, payload: dict
+    db: Session, *, owner_id: UUID, name: str, payload: dict,
+    idempotency_claim: tuple[str, str, UUID] | None = None,
 ) -> tuple[Workflow, ApprovalRequest | None]:
     if name not in WORKFLOWS:
         raise ValidationError(f"Unknown workflow: {name}")
+    payload = _validate_payload(db, owner_id=owner_id, name=name, payload=payload or {})
     workflow = Workflow(owner_id=owner_id, name=name, status="RUNNING", payload=payload or {})
     db.add(workflow)
+    if idempotency_claim is not None:
+        from app.services.idempotency import bind_workflow
+
+        db.flush()
+        scope, key, claim_id = idempotency_claim
+        bind_workflow(db, owner_id=owner_id, scope=scope, key=key, claim_id=claim_id, workflow_id=workflow.id)
     db.commit()
     db.refresh(workflow)
     approval = await _advance(db, owner_id=owner_id, workflow=workflow, payload=workflow.payload)
@@ -300,6 +358,8 @@ async def decide_approval(
     )
     if workflow is None:
         raise ValidationError("Workflow not found")
+    if approved:
+        workflow.payload = _validate_payload(db, owner_id=owner_id, name=workflow.name, payload=workflow.payload)
     approval.status = "APPROVED" if approved else "REJECTED"
     approval.decided_at = _now()
     db.add(approval)
@@ -317,9 +377,9 @@ async def decide_approval(
         _notify_terminal(db, owner_id=owner_id, workflow=workflow)
         return workflow, None
 
-    workflow.status = "RUNNING"
-    db.add(workflow)
-    db.commit()
+    # Validate the waiting task BEFORE consuming the approval, so a mismatch
+    # leaves the approval pending and the workflow retryable instead of
+    # committing an irreversible state and stranding the workflow RUNNING.
     task = db.scalar(
         select(AgentTask).where(
             AgentTask.workflow_id == workflow.id,
@@ -329,6 +389,9 @@ async def decide_approval(
     )
     if task is None:
         raise ValidationError("Waiting task not found")
+    workflow.status = "RUNNING"
+    db.add(workflow)
+    db.commit()
     record_audit(
         db,
         owner_id=owner_id,

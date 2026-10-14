@@ -1,8 +1,10 @@
-# Production backend image: runtime dependencies only, multi-worker uvicorn.
+# Production backend image: runtime dependencies only, single-worker uvicorn
+# (intentional — rate-limit memory backend and in-memory AI budget fallback
+# are per-process; see the note below).
 #
 # Also ships the Alembic config + migration scripts so the `migrate` service in
 # docker-compose.prod.yml can run `alembic upgrade head` from this same image.
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -10,20 +12,44 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# postgresql-client ships pg_dump for the scheduled backup job
+# (ARIA_BACKUP_ENABLED=true; restore from any host with scripts/restore_db.py).
+# Pin the client major to the server major (pgvector/pgvector:pg16): newer
+# pg_dump/pg_restore emits statements the PG16 server rejects (e.g. SET
+# transaction_timeout), so restores exit non-zero despite succeeding.
+# The base explicitly selects Debian 13 to match the trixie-pgdg suite.
+# espeak-ng makes the local pyttsx3 TTS fallback work headless in containers
+# (auto provider chain: Groq -> OpenAI -> local).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates espeak-ng \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-16 \
+    && rm -rf /var/lib/apt/lists/* \
+    && speech_lib="$(find /usr/lib -name libespeak-ng.so.1 -print -quit)" \
+    && test -n "$speech_lib" \
+    && ln -s libespeak-ng.so.1 "$(dirname "$speech_lib")/libespeak.so.1"
+
 COPY pyproject.toml alembic.ini /app/
 COPY backend /app/backend
 COPY database /app/database
 
 RUN pip install --no-cache-dir -e "."
 
-# NOTE: rate limiting and the in-memory AI budget fallback are per-process
-# state. With multiple workers the effective login/register rate limit scales
-# with worker count and is not shared. Run a single worker, or replace the
-# limiter with a shared store, when that matters for the deployment.
+# Rate limits and production AI accounting use shared database state.
+# Process-local accounting fallback is development-only; production fails closed.
+# One worker is the default for bounded local resource use.
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Caddy terminates TLS in front of this container; trust its X-Forwarded-For so
+# rate limiting keys on the real client IP. The backend is only reachable on the
+# private compose network, so trusting forwarded headers from any peer is safe.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

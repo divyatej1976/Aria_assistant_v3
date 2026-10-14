@@ -15,36 +15,128 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://aria:aria@db:5432/aria
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./database:/app/database:ro
+    command: alembic upgrade head
+
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
       ARIA_ENV: development
+      WATCHFILES_FORCE_POLLING: "true"
       DATABASE_URL: postgresql+psycopg://aria:aria@db:5432/aria
-      ARIA_CORS_ORIGINS: http://localhost:3000
+      ARIA_CORS_ORIGINS: ${ARIA_CORS_ORIGINS:-http://localhost:3000,http://localhost:3100,http://localhost:3101}
+      ARIA_PUBLIC_URL: ${ARIA_PUBLIC_URL:-http://localhost:3000}
+      ARIA_SESSION_SECRET: ${ARIA_SESSION_SECRET:-development-only-change-me}
+      # Optional: picked up from the repo .env (never committed) when present.
+      # Without a key the tutor serves deterministic fallbacks.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-120b}
+      ARIA_SCHEDULER_ENABLED: ${ARIA_SCHEDULER_ENABLED:-true}
+      ARIA_AUDIO_DIR: /app/audiofiles
+      ARIA_BACKUP_DIR: /app/backups
+      ARIA_LOG_LEVEL: ${ARIA_LOG_LEVEL:-INFO}
+      ARIA_RATE_LIMIT_REQUESTS: ${ARIA_RATE_LIMIT_REQUESTS:-10}
+      ARIA_RATE_LIMIT_WINDOW_SECONDS: ${ARIA_RATE_LIMIT_WINDOW_SECONDS:-60}
+      ARIA_RATE_LIMIT_BACKEND: ${ARIA_RATE_LIMIT_BACKEND:-db}
+      ARIA_REMINDER_CHECK_INTERVAL_MINUTES: ${ARIA_REMINDER_CHECK_INTERVAL_MINUTES:-60}
+      ARIA_AUDIO_QUEUE_INTERVAL_SECONDS: ${ARIA_AUDIO_QUEUE_INTERVAL_SECONDS:-30}
+      ARIA_IDEMPOTENCY_SWEEP_INTERVAL_SECONDS: ${ARIA_IDEMPOTENCY_SWEEP_INTERVAL_SECONDS:-600}
+      ARIA_IDEMPOTENCY_TTL_SECONDS: ${ARIA_IDEMPOTENCY_TTL_SECONDS:-3600}
+      ARIA_AI_MONTHLY_BUDGET_USD: ${ARIA_AI_MONTHLY_BUDGET_USD:-0}
+      ARIA_LLM_KEYS_ENCRYPTION_KEY: ${ARIA_LLM_KEYS_ENCRYPTION_KEY:-}
+      ARIA_LLM_KEYS_ENCRYPTION_KEY_OLD: ${ARIA_LLM_KEYS_ENCRYPTION_KEY_OLD:-}
+      ARIA_LLM_ALLOWED_MODELS: ${ARIA_LLM_ALLOWED_MODELS:-openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b,llama-3.3-70b-versatile,llama-3.1-8b-instant}
+      ARIA_LLM_PER_USER_BUDGET_USD: ${ARIA_LLM_PER_USER_BUDGET_USD:-0}
+      ARIA_LLM_COMPLETION_RESERVE_TOKENS: ${ARIA_LLM_COMPLETION_RESERVE_TOKENS:-512}
+      ARIA_EMBEDDING_API_KEY: ${ARIA_EMBEDDING_API_KEY:-}
+      ARIA_EMBEDDING_MODEL: ${ARIA_EMBEDDING_MODEL:-text-embedding-3-small}
+      ARIA_EMBEDDING_BASE_URL: ${ARIA_EMBEDDING_BASE_URL:-}
+      ARIA_EMBEDDING_DIM: ${ARIA_EMBEDDING_DIM:-768}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-ARIA <noreply@example.com>}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      ARIA_VAPID_PUBLIC_KEY: ${ARIA_VAPID_PUBLIC_KEY:-}
+      ARIA_VAPID_PRIVATE_KEY: ${ARIA_VAPID_PRIVATE_KEY:-}
+      ARIA_VAPID_SUBJECT: ${ARIA_VAPID_SUBJECT:-mailto:noreply@aria.local}
+      ARIA_TTS_PROVIDER: ${ARIA_TTS_PROVIDER:-auto}
+      ARIA_TTS_API_KEY: ${ARIA_TTS_API_KEY:-}
+      ARIA_STT_API_KEY: ${ARIA_STT_API_KEY:-}
+      ARIA_TTS_MODEL: ${ARIA_TTS_MODEL:-canopylabs/orpheus-v1-english}
+      ARIA_TTS_VOICE: ${ARIA_TTS_VOICE:-tara}
+      ARIA_STT_MODEL: ${ARIA_STT_MODEL:-whisper-large-v3}
+      ARIA_BACKUP_ENABLED: ${ARIA_BACKUP_ENABLED:-false}
+      ARIA_BACKUP_INTERVAL_HOURS: ${ARIA_BACKUP_INTERVAL_HOURS:-24}
+      ARIA_BACKUP_KEEP: ${ARIA_BACKUP_KEEP:-14}
+      ARIA_BACKUP_ENCRYPTION_KEY: ${ARIA_BACKUP_ENCRYPTION_KEY:-}
+      ARIA_SENTRY_DSN: ${ARIA_SENTRY_DSN:-}
+      ARIA_LANGFUSE_PUBLIC_KEY: ${ARIA_LANGFUSE_PUBLIC_KEY:-}
+      ARIA_LANGFUSE_SECRET_KEY: ${ARIA_LANGFUSE_SECRET_KEY:-}
+      ARIA_LANGFUSE_HOST: ${ARIA_LANGFUSE_HOST:-}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app/backend
+      - audio-data:/app/audiofiles
+      - backup-data:/app/backups
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # frontend-v2 is the active learner UI; the legacy ./frontend is frozen and
+  # no longer deployed.
   frontend:
-    build: ./frontend
+    build: ./frontend-v2
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      ARIA_NEXT_DIST_DIR: .next-compose
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
       - /app/node_modules
-      - /app/.next
+      - /app/.next-compose
     depends_on:
       - backend
     command: npm run dev -- --hostname 0.0.0.0
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend-v2
+          target: /app
+          ignore:
+            - node_modules/
+            - .next*/
+            - test-results/
+            - playwright-report/
+            - .env*
+            - "*.log"
+            - package.json
+            - package-lock.json
+        - action: rebuild
+          path: ./frontend-v2/package.json
+        - action: rebuild
+          path: ./frontend-v2/package-lock.json
 
 volumes:
   postgres-data:
+  audio-data:
+  backup-data:

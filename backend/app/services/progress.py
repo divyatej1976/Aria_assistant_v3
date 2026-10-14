@@ -9,6 +9,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -80,7 +81,12 @@ def record_activity(
                 source_id=source_id,
             )
         )
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Concurrent request recorded the same activity first: the
+            # (owner, type, day, source) unique constraint caught the race.
+            db.rollback()
 
 
 def _activity_days(db: Session, *, owner_id: UUID) -> set[date]:

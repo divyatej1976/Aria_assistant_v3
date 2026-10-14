@@ -1,15 +1,16 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class AssessmentCreateRequest(BaseModel):
-    context_id: str
+    context_id: UUID
     format: str = Field(default="mcq", min_length=2, max_length=64)
     question_count: int = Field(default=5, ge=1, le=20)
     difficulty: str = Field(default="medium", max_length=32)
     mode: str = Field(default="BASELINE", max_length=32)
-    concept_ids: list[str] = Field(default_factory=list)
+    concept_ids: list[UUID] = Field(default_factory=list)
 
 
 class AssessmentQuestionResponse(BaseModel):
@@ -28,6 +29,13 @@ class AssessmentResponse(BaseModel):
     questions: list[AssessmentQuestionResponse]
 
 
+class AssessmentScore(BaseModel):
+    attempt_id: str
+    score: int
+    total: int
+    completed_at: datetime
+
+
 class AssessmentSummary(BaseModel):
     id: str
     context_id: str
@@ -35,6 +43,8 @@ class AssessmentSummary(BaseModel):
     mode: str
     status: str
     question_count: int
+    submitted_attempt_count: int = 0
+    completed_scores: list[AssessmentScore] = Field(default_factory=list)
     created_at: datetime
 
 

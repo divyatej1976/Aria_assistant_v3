@@ -1,16 +1,13 @@
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
 from app.db.models import (
     Concept,
     ConceptChunk,
     Evidence,
     LearnerConceptState,
+    LearningContext,
     Resource,
     ResourceChunk,
 )
@@ -41,6 +38,37 @@ def register(client: TestClient, email: str) -> dict[str, str]:
     )
     assert response.status_code == 201
     return response.json()
+
+
+def test_state_recomputation_reads_remain_constant_for_large_subject(client, session_factory, engine):
+    from uuid import UUID
+
+    from sqlalchemy import event
+
+    session = register(client, "state-batching@example.com")
+    owner = UUID(session["learner_id"])
+    context = UUID(create_context(client, session["access_token"]))
+    with session_factory() as db:
+        db.add_all([Concept(owner_id=owner, context_id=context, name=f"Concept {i}") for i in range(100)])
+        db.commit()
+        reads = []
+
+        def count(connection, cursor, statement, parameters, context, executemany):
+            if statement.lstrip().upper().startswith("SELECT"):
+                reads.append(statement)
+
+        event.listen(engine, "before_cursor_execute", count)
+        try:
+            states = recompute_learner_states(db, owner_id=owner, context_id=context)
+            assert len(reads) == 4
+            assert len(states) == 100
+            assert all(state.state == STATE_UNTESTED for state in states)
+            reads.clear()
+            again = recompute_learner_states(db, owner_id=owner, context_id=context)
+            assert len(reads) == 4
+            assert {state.id for state in again} == {state.id for state in states}
+        finally:
+            event.remove(engine, "before_cursor_execute", count)
 
 
 def headers(token: str) -> dict[str, str]:
@@ -243,15 +271,27 @@ def test_adaptation_is_isolated(client: TestClient) -> None:
     assert second_summary.json()["states"] == []
 
 
-def test_recompute_state_service() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+def test_recompute_state_service(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
+        from app.db.models import Assessment, AssessmentAttempt, Evaluation, LearningContext
+
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="State test"))
+        db.flush()
+        assessment = Assessment(owner_id=owner_id, context_id=context_id)
+        db.add(assessment)
+        db.flush()
+
+        def evaluation_id():
+            attempt = AssessmentAttempt(owner_id=owner_id, assessment_id=assessment.id, idempotency_key=str(uuid4()))
+            db.add(attempt)
+            db.flush()
+            evaluation = Evaluation(owner_id=owner_id, attempt_id=attempt.id)
+            db.add(evaluation)
+            db.flush()
+            return evaluation.id
+
         concept = Concept(owner_id=owner_id, context_id=context_id, name="locking")
         db.add(concept)
         db.flush()
@@ -260,7 +300,7 @@ def test_recompute_state_service() -> None:
                 Evidence(
                     owner_id=owner_id,
                     concept_id=concept.id,
-                    evaluation_id=uuid4(),
+                    evaluation_id=evaluation_id(),
                     signal=signal,
                     provenance={"attempt_id": str(uuid4()), "evaluation_id": str(uuid4())},
                 )
@@ -274,7 +314,7 @@ def test_recompute_state_service() -> None:
             Evidence(
                 owner_id=owner_id,
                 concept_id=concept.id,
-                evaluation_id=uuid4(),
+                evaluation_id=evaluation_id(),
                 signal=SIGNAL_INCORRECT,
                 provenance={"attempt_id": str(uuid4()), "evaluation_id": str(uuid4())},
             )
@@ -282,18 +322,14 @@ def test_recompute_state_service() -> None:
         db.commit()
         states = recompute_learner_states(db, owner_id=owner_id, context_id=context_id)
         assert states[0].state == STATE_NEEDS_REVIEW
-    engine.dispose()
 
 
-def test_weak_chunk_boosts_only_weak_concepts() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+def test_weak_chunk_boosts_only_weak_concepts(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Study"))
+        db.flush()
         resource = Resource(
             id=uuid4(),
             owner_id=owner_id,
@@ -340,6 +376,5 @@ def test_weak_chunk_boosts_only_weak_concepts() -> None:
         )
         db.commit()
         boosts = weak_chunk_boosts(db, owner_id=owner_id, context_id=context_id)
-    engine.dispose()
     assert boosts[str(weak_chunk.id)] == 1.3
     assert str(strong_chunk.id) not in boosts

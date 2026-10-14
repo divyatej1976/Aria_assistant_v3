@@ -6,6 +6,17 @@ on:
   pull_request:
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend:
     runs-on: ubuntu-latest
     steps:
@@ -49,27 +60,116 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
 
-  frontend:
+  backup-restore-verify:
+    # Proves pg_dump backups actually restore: migrate -> seed -> encrypted
+    # backup -> restore into a scratch DB -> data-fidelity smoke query.
+    # A corrupted dump must fail here, never at disaster time.
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: aria_test
+          POSTGRES_USER: aria
+          POSTGRES_PASSWORD: aria
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aria -d aria_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: python -m alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
+          PYTHONPATH: backend
+      - name: Seed one learner row
+        run: |
+          python -c "
+          import uuid
+          from sqlalchemy import create_engine, text
+          e = create_engine('postgresql+psycopg://aria:aria@localhost:5432/aria_test')
+          i = str(uuid.uuid4())
+          with e.begin() as c:
+              c.execute(text(\"INSERT INTO learners (id, owner_id, email) VALUES (:i, :i, 'restore-proof@example.com')\"), {'i': i})
+          "
+      - name: Generate backup encryption key
+        run: python -c "from cryptography.fernet import Fernet; print('ARIA_BACKUP_ENCRYPTION_KEY=' + Fernet.generate_key().decode())" >> "$GITHUB_ENV"
+      - name: Encrypted backup
+        run: python scripts/backup_db.py --out backups --keep 3
+        env:
+          DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
+      - run: ls backups/aria-*.dump.gz.enc
+      - name: Restore into scratch database
+        run: |
+          python -c "
+          from sqlalchemy import create_engine, text
+          e = create_engine('postgresql+psycopg://aria:aria@localhost:5432/postgres', isolation_level='AUTOCOMMIT')
+          with e.connect() as c:
+              c.execute(text('CREATE DATABASE aria_restore'))
+          "
+          DATABASE_URL=postgresql+psycopg://aria:aria@localhost:5432/aria_restore BACKUP_DIR=backups python scripts/restore_db.py
+      - name: Data-fidelity smoke query
+        run: |
+          python -c "
+          from sqlalchemy import create_engine, text
+          e = create_engine('postgresql+psycopg://aria:aria@localhost:5432/aria_restore')
+          with e.connect() as c:
+              assert c.execute(text(\"SELECT count(*) FROM learners WHERE email='restore-proof@example.com'\")).scalar() == 1
+              assert c.execute(text('SELECT count(*) FROM alembic_version')).scalar() >= 1
+          print('restore verified: seed row + migration history present')
+          "
+
+  production-preflight:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - working-directory: frontend
-        run: npm ci
-      - working-directory: frontend
-        run: npm audit --audit-level=high
-      - working-directory: frontend
-        run: npm run typecheck
-      - working-directory: frontend
-        run: npm run lint
-      - working-directory: frontend
-        run: npm run build
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m py_compile scripts/check_prod_secrets.py
+      - name: Strict preflight with synthetic safe values (no real secrets)
+        run: python scripts/check_prod_secrets.py --strict --ai-tutoring --semantic-enabled --audio --byo-keys
+        env:
+          POSTGRES_PASSWORD: ciPass-123_valid~.-
+          DATABASE_URL: postgresql+psycopg://aria:ciPass-123_valid~.-@db:5432/aria
+          ARIA_SESSION_SECRET: ci-test-secret-not-real-1234567890
+          ARIA_PUBLIC_URL: https://aria-ci.example.test
+          NEXT_PUBLIC_API_URL: https://aria-ci.example.test
+          ARIA_CORS_ORIGINS: https://aria-ci.example.test
+          ARIA_TRUSTED_HOSTS: aria-ci.example.test,localhost,127.0.0.1
+          SMTP_HOST: smtp.ci.example.test
+          SMTP_FROM: ARIA <noreply@ci.example.test>
+          SMTP_PORT: "587"
+          GROQ_API_KEY: ci-dummy-groq
+          ARIA_EMBEDDING_API_KEY: ci-dummy-embedding
+          # Format-valid dummy Fernet key (synthetic, never a real secret).
+          ARIA_LLM_KEYS_ENCRYPTION_KEY: OwZNo730HlYsnI8d2ZbUSOfw_n6fSiKLKeIN3bwLPfs=
+          # Format-valid dummy Fernet key for at-rest backup encryption (synthetic).
+          ARIA_BACKUP_ENCRYPTION_KEY: OwZNo730HlYsnI8d2ZbUSOfw_n6fSiKLKeIN3bwLPfs=
+      - name: Validate production compose (no secret output)
+        run: docker compose -f docker-compose.prod.yml config --quiet
+        env:
+          ARIA_DOMAIN: aria-ci.example.test
+          POSTGRES_PASSWORD: ciPass-123_valid~.-
+          DATABASE_URL: postgresql+psycopg://aria:ciPass-123_valid~.-@db:5432/aria
+          ARIA_SESSION_SECRET: ci-test-secret-not-real-1234567890
+          ARIA_PUBLIC_URL: https://aria-ci.example.test
+          NEXT_PUBLIC_API_URL: https://aria-ci.example.test
+          ARIA_CORS_ORIGINS: https://aria-ci.example.test
+          ARIA_TRUSTED_HOSTS: aria-ci.example.test,localhost,127.0.0.1
+          SMTP_HOST: smtp.ci.example.test
+          SMTP_FROM: ARIA <noreply@ci.example.test>
 
-  frontend-e2e:
+  frontend-v2-e2e:
     runs-on: ubuntu-latest
     services:
       db:
@@ -94,19 +194,49 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: frontend-v2/package-lock.json
       - run: pip install -r requirements-dev.txt
       - run: python -m alembic upgrade head
         env:
           DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
-      - working-directory: frontend
+          PYTHONPATH: backend
+      - working-directory: frontend-v2
         run: npm ci
-      - working-directory: frontend
+      - name: Enforce generated API types are current
+        working-directory: frontend-v2
+        env:
+          PYTHONPATH: ../backend
+          ARIA_SCHEDULER_ENABLED: "false"
+          DATABASE_URL: sqlite:///./e2e-smoke-types.db
+          ARIA_CORS_ORIGINS: http://localhost:3100
+          # Test-only Fernet key, same value as playwright.config.ts — required
+          # for the OpenAPI schema to include the BYO LLM-key endpoints.
+          ARIA_LLM_KEYS_ENCRYPTION_KEY: BcxusO8Zc5ehRqVpEJWCJ_zsEkhJYLh5GHtBs344Jp0=
+        run: |
+          python tests/create_test_db.py e2e-smoke-types.db
+          python -m uvicorn app.main:app --port 8011 &
+          server_pid=$!
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8011/health > /dev/null && break
+            sleep 1
+          done
+          npx openapi-typescript http://127.0.0.1:8011/openapi.json -o lib/api-types.d.ts
+          git diff --exit-code -- lib/api-types.d.ts
+          kill $server_pid
+      - working-directory: frontend-v2
         run: npx playwright install --with-deps chromium
-      - working-directory: frontend
+      - working-directory: frontend-v2
         run: npm run build
-      - working-directory: frontend
+      - name: Install espeak for the local TTS fallback (audio E2E)
+        run: sudo apt-get update && sudo apt-get install -y espeak-ng espeak
+      - working-directory: frontend-v2
         run: npx playwright test
         env:
           DATABASE_URL: postgresql+psycopg://aria:aria@localhost:5432/aria_test
-
+          PYTHONPATH: backend
+      # Keep the same blocking gate, while allowing browser verification to run
+      # independently of an unpatched development-tool dependency advisory.
+      - name: Frontend dependency audit
+        if: always()
+        working-directory: frontend-v2
+        run: npm audit --audit-level=high

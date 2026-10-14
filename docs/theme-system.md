@@ -10,6 +10,14 @@
 
 # Purpose
 
+### Frontend motion extension — 5 October 2026
+
+The learner frontend now adds a celestial studio motion layer to the existing Aurora, Noir, and optional Noir gold palettes. It uses palette tokens for borders, accents, and surfaces. Reading and assessment areas use static ambient backgrounds; dashboard and exploratory screens can retain restrained ambient movement.
+
+Shared motion uses short component transitions, finite section entrances, animated progress updates, and selective SVG choreography. The knowledge constellation connects actual prerequisites and communicates states through icons and labels as well as color. Reduced-motion preferences update live and cover CSS, Anime.js, Motion, and canvas visuals. Hidden-page ambient work is stopped, and scoped timelines are cleaned up when components unmount.
+
+Noir's secondary text token is raised to `#92928f` to preserve readable sidebar labels. Mobile active navigation uses a tinted surface and readable theme text instead of white text over light accent colors.
+
 This document defines ARIA's dark and light visual themes, their shared constraints, accessibility requirements, component behavior, and switching rules.
 
 ARIA uses **one product experience with two visual themes**. Dark and light mode must never become separate UX systems. Information architecture, navigation, interaction behavior, component semantics, content hierarchy, and user flows remain identical across themes.
@@ -22,17 +30,17 @@ The themes are visual expressions of the same ARIA design system.
 
 | Theme | Role | Decision |
 |---|---|---|
-| **Dark** | Primary/default experience | ✅ Fixed |
-| **Light** | Alternate accessible experience | ✅ Fixed |
+| **Dark (Noir)** | Alternate experience | ✅ Fixed |
+| **Light (Aurora)** | Primary/default experience | ✅ Fixed |
 | **System** | Optional preference following OS/browser setting | 🟡 Supported if practical |
 
 ### Default
 
-**Dark mode is ARIA's default theme.**
+**Light Aurora is ARIA's default theme.**
 
-The dark theme is intentionally used as the primary visual identity because it gives ARIA the sleek, premium, calm, and AI-native character desired for the product.
+Aurora provides the default bright learning studio. Learners can select Noir for a darker, calm visual environment; the choice persists in the browser.
 
-Light mode remains a first-class experience for users who prefer brighter interfaces or require a different visual environment for their workflow.
+Both palettes remain first-class experiences with the same learning flows and accessibility requirements.
 
 ---
 
@@ -74,7 +82,7 @@ The themes may use different surface, text, border, and accent tokens, but seman
 
 ---
 
-# Dark Theme — Primary
+# Dark Theme — Noir
 
 ## Design Intent
 
@@ -136,7 +144,7 @@ Glassmorphism must remain selective rather than becoming the default treatment f
 
 ---
 
-# Light Theme — Alternate
+# Light Theme — Aurora
 
 ## Design Intent
 

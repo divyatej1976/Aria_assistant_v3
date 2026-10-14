@@ -1,0 +1,13 @@
+# Exact historical findings reviewed on 2026-10-15. These are public synthetic
+# test Fernet keys, disposable test passwords, and generation_token=token code.
+# Fingerprints scope each exception to one commit, path, rule and line; future
+# credentials remain subject to the default scan. Never add real credentials.
+c46049b4f9f0781f1d59a193b784ddda04243e56:docs/ops/review-compose.override.yml:generic-api-key:20
+90e7458b2ffbbfd080d3b13875fa1a202a9841ab:frontend-v2/tests/run_integration_backend.py:generic-api-key:22
+90e7458b2ffbbfd080d3b13875fa1a202a9841ab:tests/test_prod_preflight.py:generic-api-key:81
+2817754c18aa19444d635dfa68ddded8cde75888:backend/app/services/audio.py:generic-api-key:289
+e63e0d294af5dc55b301d3a800c6aab66dd30e6a:.github/workflows/ci.yml:generic-api-key:157
+e102828a85f9f2bdfb16f650f60d22bb104fa467:.github/workflows/ci.yml:generic-api-key:77
+e102828a85f9f2bdfb16f650f60d22bb104fa467:.github/workflows/ci.yml:generic-api-key:136
+5e8afab081859e8eda1668f496d2f062b86a9ccc:frontend-v2/tests/api-smoke.spec.ts:generic-api-key:117
+5e8afab081859e8eda1668f496d2f062b86a9ccc:frontend-v2/tests/api-smoke.spec.ts:generic-api-key:130

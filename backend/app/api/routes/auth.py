@@ -1,7 +1,8 @@
+import logging
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -62,14 +63,21 @@ def learner_response(learner: Learner) -> LearnerResponse:
 
 
 def issue_token(
-    response: Response, db: Session, *, learner: Learner, device_label: str | None
+    response: Response,
+    db: Session,
+    *,
+    learner: Learner,
+    device_label: str | None,
+    expose_token: bool = True,
 ) -> SessionResponse:
     session = create_learner_session(db, learner_id=learner.id, device_label=device_label)
     db.commit()
     db.refresh(session)
     token = create_session_token(session_id=session.id, secret=get_session_secret())
     set_auth_cookies(response, token)
-    return SessionResponse(access_token=token, learner_id=str(learner.id))
+    return SessionResponse(
+        access_token=token if expose_token else None, learner_id=str(learner.id)
+    )
 
 
 @router.post(
@@ -78,7 +86,12 @@ def issue_token(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(_auth_rate_limit())],
 )
-def register(request: RegisterRequest, response: Response, db: Db) -> SessionResponse:
+def register(
+    request: RegisterRequest,
+    response: Response,
+    db: Db,
+    bearer: bool = Query(default=True),
+) -> SessionResponse:
     email = request.email.lower()
     if db.scalar(select(Learner).where(Learner.email == email)) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -89,7 +102,17 @@ def register(request: RegisterRequest, response: Response, db: Db) -> SessionRes
     learner.password_hash = hash_password(request.password)
     db.add(learner)
     db.flush()
-    return issue_token(response, db, learner=learner, device_label=request.device_label)
+    # kick off email verification right away (provider logs when SMTP unset)
+    from app.services.account_actions import request_email_verification
+
+    try:
+        request_email_verification(db, owner_id=learner.id)
+    except Exception:
+        logger = logging.getLogger(__name__)
+        logger.exception("post-registration verification email failed")
+    return issue_token(
+        response, db, learner=learner, device_label=request.device_label, expose_token=bearer
+    )
 
 
 @router.post(
@@ -97,7 +120,12 @@ def register(request: RegisterRequest, response: Response, db: Db) -> SessionRes
     response_model=SessionResponse,
     dependencies=[Depends(_auth_rate_limit())],
 )
-def login(request: LoginRequest, response: Response, db: Db) -> SessionResponse:
+def login(
+    request: LoginRequest,
+    response: Response,
+    db: Db,
+    bearer: bool = Query(default=True),
+) -> SessionResponse:
     learner = db.scalar(select(Learner).where(Learner.email == request.email.lower()))
     if (
         learner is None
@@ -105,7 +133,9 @@ def login(request: LoginRequest, response: Response, db: Db) -> SessionResponse:
         or not verify_password(request.password, learner.password_hash)
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    return issue_token(response, db, learner=learner, device_label=request.device_label)
+    return issue_token(
+        response, db, learner=learner, device_label=request.device_label, expose_token=bearer
+    )
 
 
 @router.get("/me", response_model=LearnerResponse)
@@ -174,13 +204,13 @@ def revoke(
     return {"detail": "Session signed out"}
 
 
-@router.post("/password-reset/request")
+@router.post("/password-reset/request", dependencies=[Depends(_auth_rate_limit())])
 def password_reset_request(request: PasswordResetRequest, db: Db) -> dict[str, str]:
     request_password_reset(db, email=request.email)
     return {"detail": "If that email is registered, a reset link has been sent"}
 
 
-@router.post("/password-reset/confirm")
+@router.post("/password-reset/confirm", dependencies=[Depends(_auth_rate_limit())])
 def password_reset_confirm(request: PasswordResetConfirm, db: Db) -> dict[str, str]:
     try:
         confirm_password_reset(
@@ -194,13 +224,13 @@ def password_reset_confirm(request: PasswordResetConfirm, db: Db) -> dict[str, s
     return {"detail": "Password updated. All devices signed out."}
 
 
-@router.post("/verify-email/request")
+@router.post("/verify-email/request", dependencies=[Depends(_auth_rate_limit())])
 def email_verify_request(learner: CurrentLearner, db: Db) -> dict[str, str]:
     request_email_verification(db, owner_id=learner.id)
     return {"detail": "If your email is not yet verified, a verification link has been sent"}
 
 
-@router.post("/verify-email/confirm")
+@router.post("/verify-email/confirm", dependencies=[Depends(_auth_rate_limit())])
 def email_verify_confirm(request: EmailVerifyConfirm, db: Db) -> dict[str, str]:
     try:
         confirm_email_verification(db, email=request.email, token=request.token)

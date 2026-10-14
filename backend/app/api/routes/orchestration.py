@@ -1,10 +1,11 @@
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
 from app.schemas.orchestration import (
@@ -15,9 +16,11 @@ from app.schemas.orchestration import (
     WorkflowStartResponse,
 )
 from app.security.dependencies import CurrentLearner
+from app.security.rate_limit import rate_limited
+from app.services.idempotency import ClaimLost, fingerprint, keep_claim_alive, replayable
 from app.services.idempotency import find as find_idempotency
 from app.services.idempotency import record as record_idempotency
-from app.services.idempotency import replayable
+from app.services.idempotency import release as release_idempotency
 from app.services.idempotency import reserve as reserve_idempotency
 from app.services.orchestration import (
     decide_approval,
@@ -30,6 +33,13 @@ from app.services.orchestration import (
 
 router = APIRouter(prefix="/api/v1/orchestration", tags=["orchestration"])
 Db = Annotated[Session, Depends(get_db)]
+
+
+def _ai_rate_limit():
+    settings = get_settings()
+    return rate_limited(
+        settings.aria_rate_limit_requests, settings.aria_rate_limit_window_seconds
+    )
 
 
 class WorkflowStartRequest(BaseModel):
@@ -88,7 +98,12 @@ def start_response(workflow, approval) -> WorkflowStartResponse:
     )
 
 
-@router.post("/workflows/{name}", response_model=WorkflowStartResponse, status_code=201)
+@router.post(
+    "/workflows/{name}",
+    response_model=WorkflowStartResponse,
+    status_code=201,
+    dependencies=[Depends(_ai_rate_limit())],
+)
 async def start(
     name: str,
     request: WorkflowStartRequest,
@@ -97,20 +112,56 @@ async def start(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> WorkflowStartResponse:
     scope = f"workflow:{name}"
+    request_hash = fingerprint(request.model_dump(mode="json"))
+    claim_id = uuid4()
     if idempotency_key:
         existing = find_idempotency(
             db, owner_id=learner.id, scope=scope, key=idempotency_key
         )
         if replayable(existing):
+            if existing.request_fingerprint != request_hash:
+                raise HTTPException(
+                    status_code=409, detail="Idempotency-Key was used for a different or untracked request"
+                )
             from fastapi.responses import JSONResponse
 
             return JSONResponse(
                 status_code=existing.response_status, content=existing.response_json
             )
         state = reserve_idempotency(
-            db, owner_id=learner.id, scope=scope, key=idempotency_key
+            db, owner_id=learner.id, scope=scope, key=idempotency_key, request_fingerprint=request_hash,
+            claim_id=claim_id,
         )
-        if state == "in_progress":
+        if state == "payload_conflict":
+            raise HTTPException(
+                    status_code=409, detail="Idempotency-Key was used for a different or untracked request"
+                )
+        if state == "completed":
+            # Completion may occur after the initial replay check, before claim.
+            db.expire_all()
+            completed = find_idempotency(db, owner_id=learner.id, scope=scope, key=idempotency_key)
+            if replayable(completed):
+                if completed.request_fingerprint != request_hash:
+                    raise HTTPException(
+                    status_code=409, detail="Idempotency-Key was used for a different or untracked request"
+                )
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse(status_code=completed.response_status, content=completed.response_json)
+        if state == "recovery_required":
+            checkpoint = find_idempotency(db, owner_id=learner.id, scope=scope, key=idempotency_key)
+            previous = get_workflow(db, owner_id=learner.id, workflow_id=checkpoint.workflow_id)
+            if previous.status == "RUNNING":
+                previous.status = "RECOVERY_REQUIRED"
+                previous.error_detail = "Worker interrupted; review committed results before retrying."
+                db.add(previous)
+                db.commit()
+            raise HTTPException(
+                status_code=409,
+                detail=f"Previous workflow {checkpoint.workflow_id} may have committed changes; "
+                       "review workflow history before starting another request",
+            )
+        if state != "ok":
             raise HTTPException(
                 status_code=409,
                 detail=(
@@ -119,21 +170,37 @@ async def start(
                 ),
             )
     try:
-        workflow, approval = await run_workflow(
-            db, owner_id=learner.id, name=name, payload=request.payload
-        )
+        if idempotency_key:
+            with keep_claim_alive(db, owner_id=learner.id, scope=scope, key=idempotency_key, claim_id=claim_id):
+                workflow, approval = await run_workflow(
+                    db, owner_id=learner.id, name=name, payload=request.payload,
+                    idempotency_claim=(scope, idempotency_key, claim_id),
+                )
+        else:
+            workflow, approval = await run_workflow(
+                db, owner_id=learner.id, name=name, payload=request.payload
+            )
+    except ClaimLost as exc:
+        raise HTTPException(
+            status_code=409, detail="Workflow reservation lost; check workflow history before retrying"
+        ) from exc
     except ValidationError as exc:
+        if idempotency_key:
+            # Release the reservation so the corrected retry is not stuck 409.
+            release_idempotency(db, owner_id=learner.id, scope=scope, key=idempotency_key, claim_id=claim_id)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     response = start_response(workflow, approval)
     if idempotency_key:
-        record_idempotency(
-            db,
-            owner_id=learner.id,
-            scope=scope,
-            key=idempotency_key,
-            status=201,
-            response=response.model_dump(mode="json"),
-        )
+        try:
+            record_idempotency(
+                db, owner_id=learner.id, scope=scope, key=idempotency_key,
+                status=201, response=response.model_dump(mode="json"), claim_id=claim_id,
+            )
+        except ClaimLost as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Workflow claim expired or was replaced; check workflow history before retrying",
+            ) from exc
     return response
 
 
@@ -161,7 +228,10 @@ def workflow_tasks(
 
     from app.db.models import AgentTask
 
-    get_workflow(db, owner_id=learner.id, workflow_id=workflow_id)
+    try:
+        get_workflow(db, owner_id=learner.id, workflow_id=workflow_id)
+    except ValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     tasks = db.scalars(
         select(AgentTask)
         .where(AgentTask.workflow_id == workflow_id, AgentTask.owner_id == learner.id)

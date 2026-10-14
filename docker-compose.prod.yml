@@ -1,10 +1,27 @@
 # Production stack: PostgreSQL (pgvector) + migrate + backend + frontend.
 #
-# Usage:
-#   export DATABASE_URL=postgresql+psycopg://aria:aria@db:5432/aria
-#   export ARIA_SESSION_SECRET=<long-random>
-#   export ARIA_CORS_ORIGINS=https://app.example.com
+# Bundled PostgreSQL only — external DATABASE_URL host requires a separate
+# compose file. Deploy requires:
+#   POSTGRES_PASSWORD=<url-safe: ^[A-Za-z0-9._~-]+$, not aria>
+#   DATABASE_URL=postgresql+psycopg://aria:<same password>@db:5432/aria
+#   ARIA_SESSION_SECRET=<long-random>
+#   ARIA_CORS_ORIGINS=https://<public-domain>
+#   ARIA_TRUSTED_HOSTS=<public-domain>,localhost,127.0.0.1
+#   ARIA_PUBLIC_URL=https://<public-domain>
+#   NEXT_PUBLIC_API_URL=https://<public-domain>
+# With SMTP/Groq/semantic/BYO required for unrestricted prod via preflight flags.
+# TLS termination: the bundled Caddy proxy (proxy service) terminates HTTPS for
+# ${ARIA_DOMAIN} and routes /api -> backend, /ready -> backend (path
+# preserved), and everything else to the frontend. /health is intentionally
+# NOT routed publicly (backend-internal liveness); /ready is the sole public
+# probe. backend/frontend are no longer published on host ports — only Caddy
+# exposes 80/443.
+# Deployment sequence:
+#   python scripts/check_prod_secrets.py --strict --ai-tutoring --semantic-enabled --audio
+#   docker compose -f docker-compose.prod.yml config --quiet
 #   docker compose -f docker-compose.prod.yml up -d --build
+#   curl http://localhost:8000/ready   # readiness DB check (keep /health for liveness)
+# Public /ready works via the bundled proxy rule: /ready -> backend:8000.
 #
 # A one-off `migrate` service applies alembic migrations before backend starts.
 
@@ -14,7 +31,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aria}
       POSTGRES_USER: ${POSTGRES_USER:-aria}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (url-safe ^[A-Za-z0-9._~-]+$, not aria)}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +46,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile.prod
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aria:aria@db:5432/aria}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+psycopg://aria:<password>@db:5432/aria)}
       ARIA_ENV: production
     command: ["alembic", "upgrade", "head"]
     depends_on:
@@ -41,41 +58,149 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile.prod
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=5)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       ARIA_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aria:aria@db:5432/aria}
-      ARIA_CORS_ORIGINS: ${ARIA_CORS_ORIGINS:-https://app.example.com}
-      ARIA_PUBLIC_URL: ${ARIA_PUBLIC_URL:-https://app.example.com}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+psycopg://aria:<password>@db:5432/aria)}
+      ARIA_CORS_ORIGINS: ${ARIA_CORS_ORIGINS:?ARIA_CORS_ORIGINS is required}
+      ARIA_PUBLIC_URL: ${ARIA_PUBLIC_URL:?ARIA_PUBLIC_URL is required (https://<public-domain>, no /api path)}
       ARIA_SESSION_SECRET: ${ARIA_SESSION_SECRET:?ARIA_SESSION_SECRET is required}
-      ARIA_TRUSTED_HOSTS: ${ARIA_TRUSTED_HOSTS:-app.example.com,localhost,127.0.0.1}
+      ARIA_TRUSTED_HOSTS: ${ARIA_TRUSTED_HOSTS:?ARIA_TRUSTED_HOSTS is required}
+      ARIA_LOG_LEVEL: ${ARIA_LOG_LEVEL:-INFO}
+      # No API-prefix override exists — routes hardcode /api/v1.
       ARIA_RATE_LIMIT_ENABLED: "true"
+      ARIA_RATE_LIMIT_REQUESTS: ${ARIA_RATE_LIMIT_REQUESTS:-10}
+      ARIA_RATE_LIMIT_WINDOW_SECONDS: ${ARIA_RATE_LIMIT_WINDOW_SECONDS:-60}
+      # Shared fixed-window buckets so rate limits hold across replicas.
+      ARIA_RATE_LIMIT_BACKEND: ${ARIA_RATE_LIMIT_BACKEND:-db}
       ARIA_SCHEDULER_ENABLED: "true"
+      ARIA_REMINDER_CHECK_INTERVAL_MINUTES: ${ARIA_REMINDER_CHECK_INTERVAL_MINUTES:-60}
+      ARIA_AUDIO_QUEUE_INTERVAL_SECONDS: ${ARIA_AUDIO_QUEUE_INTERVAL_SECONDS:-30}
+      ARIA_IDEMPOTENCY_SWEEP_INTERVAL_SECONDS: ${ARIA_IDEMPOTENCY_SWEEP_INTERVAL_SECONDS:-600}
+      ARIA_IDEMPOTENCY_TTL_SECONDS: ${ARIA_IDEMPOTENCY_TTL_SECONDS:-3600}
+      ARIA_AI_MONTHLY_BUDGET_USD: ${ARIA_AI_MONTHLY_BUDGET_USD:-0}
+      # --- AI / LLM (forwarded; strict preflight requires GROQ_API_KEY when --ai-tutoring) ---
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-oss-120b}
+      # --- BYO learner keys (Step 4): dedicated Fernet key, never the session
+      # secret. Required when learners supply their own Groq keys; see
+      # scripts/generate_llm_keys_key.py and scripts/rotate_llm_keys.py.
+      ARIA_LLM_KEYS_ENCRYPTION_KEY: ${ARIA_LLM_KEYS_ENCRYPTION_KEY:-}
+      ARIA_LLM_KEYS_ENCRYPTION_KEY_OLD: ${ARIA_LLM_KEYS_ENCRYPTION_KEY_OLD:-}
+      ARIA_LLM_ALLOWED_MODELS: ${ARIA_LLM_ALLOWED_MODELS:-openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b,llama-3.3-70b-versatile,llama-3.1-8b-instant}
+      ARIA_LLM_PER_USER_BUDGET_USD: ${ARIA_LLM_PER_USER_BUDGET_USD:-0}
+      ARIA_LLM_COMPLETION_RESERVE_TOKENS: ${ARIA_LLM_COMPLETION_RESERVE_TOKENS:-512}
+      # --- Embeddings (strict preflight requires key + DIM=768 when --semantic-enabled) ---
+      ARIA_EMBEDDING_API_KEY: ${ARIA_EMBEDDING_API_KEY:-}
+      ARIA_EMBEDDING_MODEL: ${ARIA_EMBEDDING_MODEL:-text-embedding-3-small}
+      ARIA_EMBEDDING_BASE_URL: ${ARIA_EMBEDDING_BASE_URL:-}
+      ARIA_EMBEDDING_DIM: ${ARIA_EMBEDDING_DIM:-768}
+      # --- Email (strict requires SMTP_HOST+FROM; PORT/TLS forwarded) ---
       SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-ARIA <noreply@example.com>}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      # --- Push / Audio ---
       ARIA_VAPID_PUBLIC_KEY: ${ARIA_VAPID_PUBLIC_KEY:-}
       ARIA_VAPID_PRIVATE_KEY: ${ARIA_VAPID_PRIVATE_KEY:-}
+      ARIA_VAPID_SUBJECT: ${ARIA_VAPID_SUBJECT:-mailto:noreply@aria.local}
+      ARIA_TTS_PROVIDER: ${ARIA_TTS_PROVIDER:-auto}
+      ARIA_TTS_API_KEY: ${ARIA_TTS_API_KEY:-}
+      ARIA_STT_API_KEY: ${ARIA_STT_API_KEY:-}
+      ARIA_TTS_MODEL: ${ARIA_TTS_MODEL:-canopylabs/orpheus-v1-english}
+      ARIA_TTS_VOICE: ${ARIA_TTS_VOICE:-tara}
+      ARIA_STT_MODEL: ${ARIA_STT_MODEL:-whisper-large-v3}
+      # Generated audio bytes (object/file storage, never the database).
+      ARIA_AUDIO_DIR: /audio
+      # --- Scheduled database backups (pg_dump into the shared backups volume;
+      # requires postgresql-client in the image; restore via scripts/restore_db.py)
+      ARIA_BACKUP_ENABLED: ${ARIA_BACKUP_ENABLED:-true}
+      ARIA_BACKUP_DIR: /backups
+      ARIA_BACKUP_INTERVAL_HOURS: ${ARIA_BACKUP_INTERVAL_HOURS:-24}
+      ARIA_BACKUP_KEEP: ${ARIA_BACKUP_KEEP:-14}
+      # Fernet key for at-rest backup encryption (dumps hold PII).
+      # Generate like: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      ARIA_BACKUP_ENCRYPTION_KEY: ${ARIA_BACKUP_ENCRYPTION_KEY:-}
+      # --- Observability (optional) ---
       ARIA_SENTRY_DSN: ${ARIA_SENTRY_DSN:-}
-    ports:
-      - "8000:8000"
+      ARIA_LANGFUSE_PUBLIC_KEY: ${ARIA_LANGFUSE_PUBLIC_KEY:-}
+      ARIA_LANGFUSE_SECRET_KEY: ${ARIA_LANGFUSE_SECRET_KEY:-}
+      ARIA_LANGFUSE_HOST: ${ARIA_LANGFUSE_HOST:-}
+    expose:
+      - "8000"
+    volumes:
+      - backups:/backups
+      - audiofiles:/audio
     depends_on:
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 512M
     restart: unless-stopped
 
+  # TLS termination + reverse proxy: public 80/443 only. /api/* and /ready go
+  # to the backend, everything else to the frontend.
+  proxy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ARIA_DOMAIN: ${ARIA_DOMAIN:?ARIA_DOMAIN is required (e.g. aria.example.com)}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # frontend-v2 is the active learner UI; the legacy ./frontend is frozen and
+  # no longer deployed. Served via the proxy; not published on host ports.
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend-v2
       dockerfile: Dockerfile.prod
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required (https://<public-domain>, origin only)}
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 512M
     depends_on:
       - backend
     restart: unless-stopped
 
 volumes:
   pgdata:
+  backups:
+  audiofiles:
+  caddy_data:
+  caddy_config:

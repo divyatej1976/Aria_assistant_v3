@@ -4,6 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AdaptationDecision, LearnerConceptState
+from app.services.contexts import get_owned_context
 from app.services.learner_state import (
     STATE_DEVELOPING,
     STATE_NEEDS_REVIEW,
@@ -36,6 +37,7 @@ def _decision_for_state(
 def generate_adaptation_decisions(
     db: Session, *, owner_id: UUID, context_id: UUID
 ) -> list[AdaptationDecision]:
+    get_owned_context(db, owner_id=owner_id, context_id=context_id)
     db.execute(
         delete(AdaptationDecision).where(
             AdaptationDecision.owner_id == owner_id,

@@ -15,6 +15,21 @@ class AudioResponse(BaseModel):
     created_at: datetime
 
 
+class AudioListItem(BaseModel):
+    """Lightweight durable-listing row (no bulky text; title resolved via source)."""
+
+    id: str
+    source_type: str
+    source_id: str
+    title: str
+    status: str
+    content_type: str | None
+    duration_seconds: int | None
+    position_seconds: int
+    completed: bool
+    created_at: datetime
+
+
 class ProgressUpdateRequest(BaseModel):
     position_seconds: int = Field(default=0, ge=0)
     completed: bool = False

@@ -22,6 +22,8 @@ _scheduler: AsyncIOScheduler | None = None
 
 REMINDERS_LOCK_KEY = 7001
 AUDIO_QUEUE_LOCK_KEY = 7002
+BACKUP_LOCK_KEY = 7003
+IDEMPOTENCY_SWEEP_LOCK_KEY = 7004
 
 
 def _try_advisory_lock(connection, key: int) -> bool:
@@ -86,12 +88,15 @@ def run_reminders_job() -> None:
 
 def run_audio_queue_job() -> None:
     from app.db.session import SessionLocal, engine
-    from app.services.audio import process_audio_queue
+    from app.services.audio import process_audio_queue, sweep_audio_files
 
     def work() -> None:
         db = SessionLocal()
         try:
             processed = process_audio_queue(db)
+            cleanup = sweep_audio_files(db)
+            if cleanup["deleted"]:
+                logger.info("scheduled audio cleanup removed %s files", cleanup["deleted"])
             if processed:
                 logger.info("scheduled audio generated %s artifacts", processed)
         except Exception:
@@ -102,6 +107,46 @@ def run_audio_queue_job() -> None:
     if not _run_locked(engine, key=AUDIO_QUEUE_LOCK_KEY, work=work):
         logger.info("audio queue job skipped: another replica holds the lock")
         return
+
+
+def run_backup_job_locked() -> None:
+    from app.db.session import engine
+
+    def work() -> None:
+        try:
+            from app.services.backup import run_backup_job
+
+            if run_backup_job():
+                logger.info("scheduled database backup completed")
+        except Exception:
+            logger.exception("scheduled backup job failed")
+
+    if not _run_locked(engine, key=BACKUP_LOCK_KEY, work=work):
+        logger.info("backup job skipped: another replica holds the lock")
+
+
+def run_idempotency_sweep_job() -> None:
+    """Standalone sweeper: purge expired idempotency keys on a fixed interval.
+
+    Runs even when no new inserts occur, so the table cannot grow without
+    bound on deployments with bursty traffic followed by idle periods.
+    """
+    from app.db.session import SessionLocal, engine
+    from app.services.idempotency import purge_expired
+
+    def work() -> None:
+        db = SessionLocal()
+        try:
+            removed = purge_expired(db)
+            if removed:
+                logger.info("idempotency sweep removed %s expired key(s)", removed)
+        except Exception:
+            logger.exception("idempotency sweep job failed")
+        finally:
+            db.close()
+
+    if not _run_locked(engine, key=IDEMPOTENCY_SWEEP_LOCK_KEY, work=work):
+        logger.info("idempotency sweep skipped: another replica holds the lock")
 
 
 def start_scheduler() -> None:
@@ -126,11 +171,34 @@ def start_scheduler() -> None:
         id="audio_queue",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_idempotency_sweep_job,
+        "interval",
+        # Defensive getattr: test stubs may predate this setting.
+        seconds=getattr(settings, "aria_idempotency_sweep_interval_seconds", 600) or 600,
+        id="idempotency_sweep",
+        replace_existing=True,
+    )
+    if settings.aria_backup_enabled:
+        scheduler.add_job(
+            run_backup_job_locked,
+            "interval",
+            hours=settings.aria_backup_interval_hours,
+            id="database_backup",
+            replace_existing=True,
+        )
     scheduler.start()
     logger.info(
-        "Background scheduler started: reminders every %s min, audio queue every %s s",
+        "Background scheduler started: reminders every %s min, audio queue every %s s, "
+        "idempotency sweep every %s s, backups %s",
         settings.aria_reminder_check_interval_minutes,
         settings.aria_audio_queue_interval_seconds,
+        getattr(settings, "aria_idempotency_sweep_interval_seconds", 600),
+        (
+            f"every {settings.aria_backup_interval_hours} h"
+            if settings.aria_backup_enabled
+            else "disabled"
+        ),
     )
 
 

@@ -6,6 +6,7 @@ created. This single baseline is metadata-driven, so it always matches the
 models. No database was ever deployed against the old chain.
 """
 
+import sqlalchemy as sa
 from alembic import op
 
 from app.db.base import Base
@@ -19,6 +20,12 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    # pgvector extension must exist before creating resource_chunks.embedding (VECTOR)
+    if bind.dialect.name == "postgresql":
+        try:
+            bind.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception:
+            pass
     Base.metadata.create_all(bind=bind)
 
 

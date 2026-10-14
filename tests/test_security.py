@@ -1,8 +1,11 @@
 """Phase 12.1 security hardening: cookie sessions, CSRF, secrets, rate limiting."""
 
+import asyncio
+import time
+
 from fastapi.testclient import TestClient
 
-from app.security.rate_limit import allow_request
+from app.security.rate_limit import _hits, allow_request, allow_request_db
 
 
 def _register(client: TestClient, email: str = "sec@example.com") -> dict:
@@ -49,6 +52,25 @@ def test_bearer_authenticated_mutation_bypasses_csrf(client: TestClient) -> None
         headers={"Authorization": f"Bearer {session['access_token']}"},
     )
     assert response.status_code == 200
+
+
+def test_cookie_only_login_omits_bearer_token(client: TestClient) -> None:
+    """?bearer=false is the browser contract: session cookie set, no token body."""
+    _register(client, email="cookieonly@example.com")
+    response = client.post(
+        "/api/v1/auth/login?bearer=false",
+        json={"email": "cookieonly@example.com", "password": "correct-horse"},
+    )
+    assert response.status_code == 200
+    assert response.json()["access_token"] is None
+    assert "aria_session" in response.cookies
+
+    default = client.post(
+        "/api/v1/auth/login",
+        json={"email": "cookieonly@example.com", "password": "correct-horse"},
+    )
+    assert default.status_code == 200
+    assert default.json()["access_token"]
 
 
 def test_signout_clears_auth_cookies(client: TestClient) -> None:
@@ -113,3 +135,114 @@ def test_rate_limit_dependency_inactive_in_development(
             json={"email": "missing@example.com", "password": "correct-horse"},
         )
         assert response.status_code in (401, 422)
+
+
+def test_cors_preflight_allows_api_headers(client: TestClient) -> None:
+    """Every non-simple header the frontend may send must survive preflight.
+
+    Regression guard for the CORS allowlist: if a new custom header is added
+    client-side but not here, cross-origin calls fail before reaching the API.
+    """
+    response = client.options(
+        "/api/v1/orchestration/workflows/study-plan",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": (
+                "Content-Type, X-CSRF-Token, Idempotency-Key, Authorization"
+            ),
+        },
+    )
+    assert response.status_code == 200
+    allowed = response.headers.get("access-control-allow-headers", "").lower()
+    for header in ("content-type", "x-csrf-token", "idempotency-key", "authorization"):
+        assert header in allowed, f"{header} missing from CORS allow-headers: {allowed}"
+
+
+def _csrf_probe(cookie: bytes, csrf_header: bytes) -> tuple[int, bool]:
+    """Drive CSRFMiddleware directly with raw ASGI scope (byte-exact headers)."""
+    from app.security.csrf import CSRFMiddleware
+
+    reached: list[bool] = []
+
+    async def inner(_scope, _receive, send) -> None:
+        reached.append(True)
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"{}"})
+
+    async def run() -> int:
+        statuses: list[int] = []
+
+        async def send(message) -> None:
+            if message["type"] == "http.response.start":
+                statuses.append(message["status"])
+
+        async def receive():
+            return {}
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/study/sessions",
+            "headers": [(b"cookie", cookie), (b"x-csrf-token", csrf_header)],
+        }
+        await CSRFMiddleware(inner)(scope, receive, send)
+        return statuses[0]
+
+    return asyncio.run(run()), bool(reached)
+
+
+def test_csrf_wrong_token_rejected() -> None:
+    status, reached = _csrf_probe(b"aria_session=abc; aria_csrf=tok123", b"nope")
+    assert (status, reached) == (403, False)
+
+
+def test_csrf_non_ascii_token_rejected_without_500() -> None:
+    """Attacker-controlled bytes must yield 403, never a TypeError 500."""
+    status, reached = _csrf_probe(
+        b"aria_session=abc; aria_csrf=tok123", "tökün❌".encode()
+    )
+    assert (status, reached) == (403, False)
+
+
+def test_csrf_valid_token_passes() -> None:
+    status, reached = _csrf_probe(b"aria_session=abc; aria_csrf=tok123", b"tok123")
+    assert (status, reached) == (200, True)
+
+
+def test_memory_limiter_evicts_dead_keys() -> None:
+    now = time.monotonic()
+    added = [f"t:evict-expired-{i}" for i in range(10_200)]
+    try:
+        for key in added:
+            _hits[key].append(now - 3_600)  # long expired for a 60s window
+        assert allow_request("t:evict-probe", limit=5, window_seconds=60) is True
+        assert len(_hits) <= 11_000
+    finally:
+        for key in added + ["t:evict-probe"]:
+            _hits.pop(key, None)
+
+
+def test_memory_limiter_hard_caps_fresh_key_flood() -> None:
+    now = time.monotonic()
+    added = [f"t:evict-fresh-{i}" for i in range(10_900)]
+    try:
+        for key in added:
+            _hits[key].append(now)  # fresh: expired-sweep cannot remove these
+        assert allow_request("t:evict-probe2", limit=5, window_seconds=60) is True
+        assert len(_hits) <= 11_000
+    finally:
+        for key in added + ["t:evict-probe2"]:
+            _hits.pop(key, None)
+
+
+def test_db_limiter_fails_open_on_infra_error() -> None:
+    def broken_factory():
+        raise ConnectionError("db down")
+
+    assert (
+        allow_request_db(
+            "t:broken", limit=1, window_seconds=60, session_factory=broken_factory
+        )
+        is True
+    )

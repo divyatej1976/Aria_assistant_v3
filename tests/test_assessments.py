@@ -6,12 +6,10 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.assessment.mcq import generate_mcqs_deterministic
 from app.assessment.schema import MCQItem, MCQSet
-from app.db.base import Base
-from app.db.models import Resource, ResourceChunk
+from app.db.models import Concept, ConceptChunk, LearningContext, Resource, ResourceChunk
 
 MATERIAL = (
     "Two-phase locking uses a growth phase and a shrink phase. "
@@ -110,15 +108,124 @@ def test_create_assessment_uses_real_material(client: TestClient) -> None:
         assert "correct_option" not in question
 
 
-def test_generator_produces_valid_varied_correct_letters() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+def test_summary_counts_submitted_reviews_and_is_scoped_to_the_learner(client: TestClient) -> None:
+    token = register(client, "first-review@example.com")["access_token"]
+    context_id = create_context(client, token)
+    add_material(client, token, context_id)
+    assessment_id = create_assessment(client, token, context_id).json()["id"]
+    url = f"/api/v1/assessments?context_id={context_id}"
+    assert client.get(url, headers=headers(token)).json()[0]["submitted_attempt_count"] == 0
+    assert client.get(url, headers=headers(token)).json()[0]["completed_scores"] == []
+    attempt = start_attempt(client, token, assessment_id).json()
+    assert client.get(url, headers=headers(token)).json()[0]["submitted_attempt_count"] == 0
+    answers = {question["id"]: question["options"][0] for question in attempt["questions"]}
+    result = submit(client, token, assessment_id, attempt["attempt_id"], "first-review-summary-key", answers)
+    assert result.status_code == 200, result.text
+    assert client.get(url, headers=headers(token)).json()[0]["submitted_attempt_count"] == 1
+    scores = client.get(url, headers=headers(token)).json()[0]["completed_scores"]
+    assert len(scores) == 1
+    assert scores[0]["attempt_id"] == attempt["attempt_id"]
+    assert scores[0]["score"] == result.json()["score"]
+    assert scores[0]["total"] == result.json()["total"]
+    assert scores[0]["completed_at"]
+    submit(client, token, assessment_id, attempt["attempt_id"], "first-review-summary-key", answers)
+    assert client.get(url, headers=headers(token)).json()[0]["submitted_attempt_count"] == 1
+    stranger = register(client, "first-review-stranger@example.com")["access_token"]
+    assert client.get(url, headers=headers(stranger)).status_code == 404
+
+
+@pytest.mark.parametrize("retry_key", ["original-key", "different-key"])
+def test_completed_submission_rejects_changed_answers(client, retry_key):
+    token = register(client, f"changed-{retry_key}@example.com")["access_token"]
+    context = create_context(client, token)
+    add_material(client, token, context)
+    assessment = create_assessment(client, token, context, count=1).json()
+    assessment_id = assessment["id"]
+    question = assessment["questions"][0]
+    attempt_id = start_attempt(client, token, assessment_id).json()["attempt_id"]
+    answers = {question["id"]: question["options"][0]}
+    first = submit(client, token, assessment_id, attempt_id, "original-key", answers)
+    assert first.status_code == 200
+    replay = submit(client, token, assessment_id, attempt_id, retry_key, answers)
+    assert replay.status_code == 200
+    assert replay.json()["evaluation_id"] == first.json()["evaluation_id"]
+    changed = submit(client, token, assessment_id, attempt_id, retry_key,
+                     {question["id"]: question["options"][1]})
+    assert changed.status_code == 422
+    assert "differ" in changed.json()["detail"]
+    invalid = submit(client, token, assessment_id, attempt_id, retry_key, {"not-a-uuid": "A"})
+    assert invalid.status_code == 422
+    final = submit(client, token, assessment_id, attempt_id, "original-key", answers)
+    assert final.json()["evaluation_id"] == first.json()["evaluation_id"]
+
+
+def test_assessment_answer_columns_hold_option_text() -> None:
+    """Regression: answer columns must be unbounded text.
+
+    PostgreSQL enforces VARCHAR(32) and crashed submission with
+    StringDataRightTruncation on real option text ("Loops repeat a block
+    while a condition holds"); SQLite ignores the length, so this schema
+    assertion is what catches the regression on every backend.
+    """
+    from sqlalchemy import Text
+
+    from app.db.models import AssessmentQuestion, AttemptAnswer
+
+    assert isinstance(AssessmentQuestion.__table__.c.correct_option.type, Text)
+    assert isinstance(AttemptAnswer.__table__.c.selected_option.type, Text)
+
+
+def test_submit_option_text_persists_and_scores(client: TestClient) -> None:
+    """End-to-end: the UI submits option TEXT; it must persist (PostgreSQL
+    length enforcement) and score identically to the letter contract."""
+    session = register(client, "assess-text@example.com")
+    token = session["access_token"]
+    context_id = create_context(client, token)
+    add_material(client, token, context_id)
+    assessment = create_assessment(client, token, context_id, count=3).json()
+
+    # Long option text must persist — the exact live production failure.
+    attempt = start_attempt(client, token, assessment["id"]).json()
+    longest = max(
+        attempt["questions"], key=lambda q: max(len(option) for option in q["options"])
     )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    answer_text = max(longest["options"], key=len)
+    assert len(answer_text) > 32
+    first = submit(
+        client, token, assessment["id"], attempt["attempt_id"],
+        key=f"text-long-{uuid4()}", answers={longest["id"]: answer_text},
+    )
+    assert first.status_code == 200
+    detail = next(
+        d for d in first.json()["details"] if d["question_id"] == longest["id"]
+    )
+    assert detail["selected_option"] == answer_text
+
+    # Answering the correct option's TEXT must score correct on a fresh
+    # attempt (raw text == letter comparison scored every UI answer wrong).
+    letters = {d["question_id"]: d["correct_option"] for d in first.json()["details"]}
+    attempt2 = start_attempt(client, token, assessment["id"]).json()
+    answers2 = {
+        question["id"]: question["options"]["ABCD".index(letters[question["id"]])]
+        for question in attempt2["questions"]
+    }
+    second = submit(
+        client, token, assessment["id"], attempt2["attempt_id"],
+        key=f"text-correct-{uuid4()}", answers=answers2,
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["score"] == body["total"]
+    for d in body["details"]:
+        assert d["correct"] is True
+
+
+def test_generator_produces_valid_varied_correct_letters(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Locks"))
+        db.flush()
         resource = Resource(
             id=uuid4(),
             owner_id=owner_id,
@@ -149,7 +256,6 @@ def test_generator_produces_valid_varied_correct_letters() -> None:
         questions = generate_mcqs_deterministic(
             db, owner_id=owner_id, context_id=context_id, count=5, difficulty="medium"
         )
-    engine.dispose()
     assert len(questions) == 5
     letters = set()
     for question in questions:
@@ -158,6 +264,41 @@ def test_generator_produces_valid_varied_correct_letters() -> None:
         assert question.correct_option in "ABCD"
         letters.add(question.correct_option)
     assert len(letters) > 1
+
+
+def test_targeted_generator_credits_requested_concept(session_factory) -> None:
+    with session_factory() as db:
+        owner_id, context_id = uuid4(), uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Practice"))
+        db.flush()
+        resource = Resource(
+            owner_id=owner_id, context_id=context_id, title="Practice",
+            resource_type="TEXT", processing_status="READY",
+        )
+        db.add(resource)
+        db.flush()
+        chunk = ResourceChunk(
+            owner_id=owner_id, resource_id=resource.id, chunk_index=0,
+            content=("Functions accept values. Values can be numbers. "
+                     "Values can be strings. Functions return values. "
+                     "Values can be lists."),
+        )
+        requested = Concept(owner_id=owner_id, context_id=context_id, name="Functions")
+        dominant = Concept(owner_id=owner_id, context_id=context_id, name="Values")
+        db.add_all([chunk, requested, dominant])
+        db.flush()
+        for concept in (requested, dominant):
+            db.add(ConceptChunk(owner_id=owner_id, concept_id=concept.id, chunk_id=chunk.id))
+        db.commit()
+        unscoped = generate_mcqs_deterministic(
+            db, owner_id=owner_id, context_id=context_id, count=2, difficulty="easy",
+        )
+        scoped = generate_mcqs_deterministic(
+            db, owner_id=owner_id, context_id=context_id, count=2, difficulty="easy",
+            concept_ids=[str(requested.id)],
+        )
+        assert all(question.concept_id == dominant.id for question in unscoped)
+        assert all(question.concept_id == requested.id for question in scoped)
 
 
 def test_create_requires_enough_material(client: TestClient) -> None:
@@ -176,7 +317,7 @@ def test_deterministic_score_and_idempotent_submit(client: TestClient) -> None:
         client, session["access_token"], context_id, count=3
     ).json()["id"]
     attempt_id = start_attempt(client, session["access_token"], assessment_id).json()["attempt_id"]
-    answers = {"not-a-real-question": "A"}
+    answers = {}  # A valid unanswered submission keeps this test focused on replay.
     first = submit(
         client, session["access_token"], assessment_id, attempt_id, "key-idempotent-0001", answers
     )
@@ -203,7 +344,7 @@ def test_assessment_submit_accepts_idempotency_key_header(client: TestClient) ->
     add_material(client, token, context_id)
     assessment_id = create_assessment(client, token, context_id, count=3).json()["id"]
     attempt_id = start_attempt(client, token, assessment_id).json()["attempt_id"]
-    answers = {"not-a-real-question": "A"}
+    answers = {}  # A valid unanswered submission keeps this test focused on replay.
 
     first = client.post(
         f"/api/v1/assessments/{assessment_id}/attempts/{attempt_id}/submit",
@@ -387,3 +528,139 @@ def test_structured_schema_validation() -> None:
         ]
     )
     assert valid.questions[0].correct_option == "B"
+
+
+def test_concurrent_duplicate_submit_replays_single_evaluation(tmp_path) -> None:
+    """Two simultaneous submits of one attempt must not 500 or double-evaluate.
+
+    A flush barrier forces both threads past the check-then-insert reads, so
+    the loser deterministically hits the Evaluation unique constraint and must
+    take the IntegrityError replay path.
+    """
+    import threading
+
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import Session as SASession
+
+    from app.db.base import Base
+    from app.db.models import (
+        Assessment,
+        AssessmentAttempt,
+        AssessmentQuestion,
+        Evaluation,
+        Learner,
+        LearningContext,
+    )
+    from app.services.assessment import submit_attempt
+
+    db_file = tmp_path / "race.db"
+    file_engine = create_engine(
+        f"sqlite:///{db_file}", connect_args={"check_same_thread": False, "timeout": 30}
+    )
+    Base.metadata.create_all(file_engine)
+    file_factory = sessionmaker(bind=file_engine, autoflush=False, expire_on_commit=False)
+
+    owner_id = uuid4()
+    context_id = uuid4()
+    assessment_id = uuid4()
+    attempt_id = uuid4()
+    with file_factory() as db:
+        learner_id = uuid4()
+        db.add(Learner(id=learner_id, owner_id=learner_id, email="race@example.com"))
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="DBMS"))
+        db.add(Assessment(id=assessment_id, owner_id=owner_id, context_id=context_id))
+        for index in range(3):
+            db.add(
+                AssessmentQuestion(
+                    owner_id=owner_id,
+                    assessment_id=assessment_id,
+                    concept_id=None,
+                    position=index,
+                    prompt=f"Question {index}?",
+                    options=["A1", "A2", "A3", "A4"],
+                    correct_option="A",
+                )
+            )
+        db.add(
+            AssessmentAttempt(
+                id=attempt_id,
+                owner_id=owner_id,
+                assessment_id=assessment_id,
+                status="IN_PROGRESS",
+                idempotency_key=str(uuid4()),
+            )
+        )
+        db.commit()
+
+    key = f"race-key-{uuid4()}"
+    barrier = threading.Barrier(2)
+    gated = {"count": 0}
+    real_flush = SASession.flush
+
+    def gated_flush(self):
+        # Gate only the evaluation flush of each submit (commit's internal
+        # flushes pass through once both threads are past the barrier).
+        if gated["count"] < 2:
+            gated["count"] += 1
+            barrier.wait(timeout=30)
+        return real_flush(self)
+
+    results: dict[int, object] = {}
+    errors: dict[int, BaseException] = {}
+
+    def run(slot: int) -> None:
+        with file_factory() as db:
+            try:
+                results[slot] = submit_attempt(
+                    db,
+                    owner_id=owner_id,
+                    attempt_id=attempt_id,
+                    idempotency_key=key,
+                    answers={},
+                )
+            except BaseException as exc:  # noqa: BLE001 - collected, asserted below
+                errors[slot] = exc
+
+    SASession.flush = gated_flush  # type: ignore[method-assign]
+    try:
+        threads = [threading.Thread(target=run, args=(slot,)) for slot in (0, 1)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=60)
+            assert not thread.is_alive()
+    finally:
+        SASession.flush = real_flush  # type: ignore[method-assign]
+    file_engine.dispose()
+
+    assert not errors, f"concurrent submit raised: {errors}"
+    assert set(results) == {0, 1}
+    assert results[0][1].id == results[1][1].id
+
+    check_engine = create_engine(f"sqlite:///{db_file}")
+    try:
+        with sessionmaker(bind=check_engine)() as db:
+            count = db.scalar(select(func.count(Evaluation.id)))
+    finally:
+        check_engine.dispose()
+    assert count == 1
+
+
+def test_deterministic_question_targets_one_fact_instead_of_several_true_statements():
+    import re
+
+    from app.assessment.mcq import _quotation_question
+
+    options = [
+        "Binary search halves a sorted list on each comparison",
+        "Linear search checks each item in sequence",
+        "A stack removes the most recently added item",
+        "A queue removes the earliest added item",
+    ]
+    for correct in options:
+        prompt = _quotation_question(correct, options)
+        assert "which of the following statements is correct" not in prompt.lower()
+        quotation = prompt.split("“", 1)[1].rsplit("”", 1)[0]
+        pattern = re.escape(quotation).replace("____", r"[\w-]+")
+        matching = [option for option in options if re.fullmatch(pattern, option)]
+        assert matching == [correct]

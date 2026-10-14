@@ -1,17 +1,14 @@
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
 from app.db.models import (
     Concept,
     ConversationMessage,
     Learner,
     LearnerConceptState,
-    LearnerSession,
+    LearningContext,
+    StudySession,
 )
 from app.services.context_assembly import (
     STUDY_SYSTEM_PROMPT,
@@ -314,18 +311,15 @@ def test_misconception_signal_with_weak_prerequisite(client: TestClient) -> None
     assert "weak prerequisite" in focus["reason"]
 
 
-def test_context_assembly_units() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+def test_context_assembly_units(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         db.add(Learner(id=owner_id, owner_id=owner_id, email="assembly@example.com"))
+        context = LearningContext(owner_id=owner_id, title="Memory")
+        db.add(context)
         db.flush()
         session_id = uuid4()
-        db.add(LearnerSession(id=session_id, owner_id=owner_id))
+        db.add(StudySession(id=session_id, owner_id=owner_id, context_id=context.id))
         db.flush()
         db.add_all(
             [
@@ -352,8 +346,9 @@ def test_context_assembly_units() -> None:
                 ),
             ]
         )
-        concept = Concept(owner_id=owner_id, context_id=uuid4(), name="locking")
-        db.add(concept)
+        concept = Concept(owner_id=owner_id, context_id=context.id, name="locking")
+        untested = Concept(owner_id=owner_id, context_id=context.id, name="untested")
+        db.add_all([concept, untested])
         db.flush()
         db.add(
             LearnerConceptState(
@@ -367,7 +362,7 @@ def test_context_assembly_units() -> None:
         db.add(
             LearnerConceptState(
                 owner_id=owner_id,
-                concept_id=uuid4(),
+                concept_id=untested.id,
                 state="UNTESTED",
                 confidence=0,
                 reason="none",
@@ -398,4 +393,3 @@ def test_context_assembly_units() -> None:
         assert "Learner state: locking (Needs Review)" in user
         assert "Follow-up" in user
         assert "Why does locking matter?" in user
-    engine.dispose()

@@ -1,0 +1,414 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, ViewTransition, type ReactNode, type CSSProperties, type MouseEventHandler } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Icon, type IconName } from "./icons";
+import { PaletteSwitcher } from "./palette-switcher";
+import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
+import { useActiveContext } from "./use-active-context";
+import { useAuth } from "./auth-provider";
+import { AnimatePresence, LayoutGroup, motion, useIsPresent } from "motion/react";
+import { useMotionPreference } from "./motion-system";
+import { useHydrated } from "@/lib/use-hydrated";
+import { Modal } from "./modal";
+import { useDismissed } from "@/lib/use-dismissed";
+
+function ShellPopover({ children, style, onClick }: { children: ReactNode; style?: CSSProperties; onClick?: MouseEventHandler<HTMLDivElement> }) {
+  const present = useIsPresent();
+  const reduced = useMotionPreference();
+  return <motion.div className="popover-card" style={style} onClick={onClick}
+    inert={!present} aria-hidden={!present ? true : undefined}
+    initial={{ opacity: 0, y: reduced ? 0 : -6 }} animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: reduced ? 0 : -4 }}
+    transition={{ duration: reduced ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}>
+    {children}
+  </motion.div>;
+}
+
+type NavGroup = { sec: string; items: { href: string; label: string; icon: IconName }[] };
+
+type AppNotification = {
+  id: string;
+  ntype: string;
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+const NOTIF_ICON: Record<string, IconName> = {
+  deadline: "calendar",
+  digest: "list",
+  assessment_result: "clipboard",
+  reminder: "clock",
+};
+
+function notifIcon(ntype: string): IconName {
+  return NOTIF_ICON[ntype] ?? "bell";
+}
+
+function relTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  const mins = Math.round(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+const NAV: NavGroup[] = [
+  { sec: "Learn", items: [
+    { href: "/app", label: "Dashboard", icon: "home" },
+    { href: "/app/learn", label: "Learn", icon: "message" },
+    { href: "/app/map", label: "Knowledge map", icon: "target" },
+    { href: "/app/roadmaps", label: "Roadmaps", icon: "route" },
+  ]},
+  { sec: "Organize", items: [
+    { href: "/app/planner", label: "Planner", icon: "calendar" },
+    { href: "/app/assess", label: "Assessments", icon: "clipboard" },
+    { href: "/app/materials", label: "Materials", icon: "file" },
+    { href: "/app/audio", label: "Audio", icon: "headphones" },
+  ]},
+  { sec: "Grow", items: [
+    { href: "/app/progress", label: "Progress", icon: "trend" },
+  ]},
+];
+
+const FLAT: NavGroup["items"] = NAV.flatMap((g) => g.items);
+
+// Account lives in the profile menu, not the workspace nav; it still needs a
+// page title in the top bar.
+const PAGE_TITLES: Record<string, string> = {
+  ...Object.fromEntries(FLAT.map((item) => [item.href, item.label])),
+  "/app/account": "Account",
+};
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const hydrated = useHydrated();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { signout, user, loading: authLoading } = useAuth();
+  const { context, contexts, selectContext, loading: contextLoading } = useActiveContext();
+  const isChat = pathname === "/app/learn";
+
+  const [bellOpen, setBellOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifs, setNotifs] = useState<AppNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+  // Dismissal persists per browser so the verify banner doesn't reappear on
+  // every navigation/reload; it clears automatically once the email verifies.
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useDismissed(`aria.verifyBannerDismissed:${user?.id ?? "anonymous"}`);
+  const ref = useRef<HTMLDivElement>(null);
+  const bellTrigger = useRef<HTMLButtonElement>(null);
+  const profileTrigger = useRef<HTMLButtonElement>(null);
+
+  const refreshCount = useCallback(() => {
+    api<{ unread: number }>("/api/v1/notifications/unread-count")
+      .then((c) => setUnread(c.unread))
+      .catch(() => {});
+  }, []);
+
+  const refreshList = useCallback(() => {
+    api<AppNotification[]>("/api/v1/notifications")
+      .then((list) => {
+        setNotifs(list);
+        setUnread(list.filter((n) => n.read_at === null).length);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshCount();
+  }, [refreshCount]);
+
+  const initials = (user?.display_name || user?.email || "AR")
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "AR";
+
+  const openBell = () => {
+    const next = !bellOpen;
+    setBellOpen(next);
+    setProfileOpen(false);
+    if (next) refreshList();
+  };
+
+  const markRead = async (id: string) => {
+    setNotifs((prev) => prev.map((n) => (n.id === id && n.read_at === null ? { ...n, read_at: new Date().toISOString() } : n)));
+    setUnread((u) => Math.max(0, u - 1));
+    try {
+      await api(`/api/v1/notifications/${id}/read`, { method: "POST" });
+    } catch {
+      refreshList();
+    }
+  };
+
+  const markAllRead = async () => {
+    setNotifs((prev) => prev.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
+    setUnread(0);
+    try {
+      await api("/api/v1/notifications/read-all", { method: "POST" });
+      toast("All marked as read");
+    } catch {
+      refreshList();
+    }
+  };
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setBellOpen(false);
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (bellOpen) bellTrigger.current?.focus();
+        if (profileOpen) profileTrigger.current?.focus();
+        setBellOpen(false);
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [bellOpen, profileOpen]);
+
+  useEffect(() => {
+    if (!bellOpen && !profileOpen) return;
+    const frame = requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>(".popover-card:not([inert]) button, .popover-card:not([inert]) a")?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [bellOpen, profileOpen]);
+
+  return (
+    <div className={`shell${isChat ? " shell-rail" : ""}`}>
+      {isChat && <button className="btn btn-secondary mobile-menu-toggle chat-nav-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>}
+      {isChat && (
+        // Phones hide the sidebar entirely; keep a way back from the tutor.
+        <button
+          className="btn btn-secondary chat-back"
+          onClick={() => router.push("/app")}
+          aria-label="Back to dashboard"
+        >
+          <Icon name="back" size={18} />
+        </button>
+      )}
+      <aside className="shell-side">
+        <Link href="/app" className="shell-brand" aria-label="ARIA dashboard">
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 11,
+              background: "var(--accent-grad)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "var(--shadow-2)",
+            }}
+          >
+            A
+          </div>
+          <div className="shell-label">
+            <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-.5px", lineHeight: 1 }}>ARIA</div>
+            <div style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.4, color: "var(--text-3)" }}>AI Learning System</div>
+          </div>
+        </Link>
+
+        <LayoutGroup id="workspace-navigation">
+        <nav aria-label="Workspace">
+        {NAV.map((group) => (
+          <div key={group.sec}>
+            <div className="nav-sec">{group.sec}</div>
+            {group.items.map((item) => {
+              const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
+              return (
+                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`} title={isChat ? item.label : undefined}>
+                  {active && <motion.span layoutId="active-navigation" className="nav-active-surface" aria-hidden="true" />}
+                  <Icon name={item.icon} size={17} />
+                  <span className="shell-label">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+        </nav>
+        </LayoutGroup>
+
+        <div className="shell-label" style={{ marginTop: "auto", fontSize: 11, color: "var(--text-3)", padding: "14px 12px 0", fontWeight: 700 }}>
+          <span style={{ display: "inline-flex", verticalAlign: "-2px", color: "var(--accent)" }}>
+            <Icon name="flame" size={13} />
+          </span>{" "}
+          Tutor Mode: <span style={{ color: "var(--accent-strong)" }}>Adaptive</span>
+        </div>
+      </aside>
+
+      <div className="shell-main">
+        {!isChat && (<>
+        <header className="shell-top">
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <button className="btn btn-secondary mobile-menu-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>
+            <div className="shell-page-title" style={{ fontWeight: 700, color: "var(--text-2)", fontSize: 13, whiteSpace: "nowrap" }}>
+              {PAGE_TITLES[pathname] ?? "ARIA"}
+            </div>
+            {contexts.length > 1 && (
+              <select
+                className="input"
+                aria-label="Active learning context"
+                value={context?.id ?? ""}
+                onChange={(e) => selectContext(e.target.value)}
+                style={{ maxWidth: 220, height: 34, fontSize: 12.5, padding: "4px 10px" }}
+              >
+                {contexts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div ref={ref} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button ref={bellTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="bell-btn" onClick={(e) => { e.stopPropagation(); openBell(); }} aria-label="Notifications" aria-expanded={bellOpen}>
+              <Icon name="bell" size={19} />
+              {unread > 0 && <span className="badge">{unread}</span>}
+            </button>
+            <PaletteSwitcher />
+            <button ref={profileTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="avatar-btn" onClick={(e) => { e.stopPropagation(); setProfileOpen((o) => !o); setBellOpen(false); }} aria-label="Profile" aria-expanded={profileOpen}>
+              {initials}
+              <span className="online" />
+            </button>
+
+            <AnimatePresence>
+            {bellOpen && (
+              <ShellPopover key="notifications" style={{ width: 330, maxHeight: 420, overflowY: "auto" }}>
+                <div className="pop-head" style={{ justifyContent: "space-between" }}>
+                  <b style={{ fontSize: 14 }}>Notifications</b>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ padding: "4px 10px", fontSize: 11, borderRadius: 99 }}
+                    onClick={(e) => { e.stopPropagation(); void markAllRead(); }}
+                  >
+                    Mark all read
+                  </button>
+                </div>
+                {notifs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: 26, color: "var(--text-3)", fontSize: 13 }}>No notifications yet.</div>
+                ) : (
+                  notifs.map((n) => (
+                    <button
+                      type="button"
+                      key={n.id}
+                      className={`notif-item${n.read_at === null ? " unread" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); if (n.read_at === null) void markRead(n.id); }}
+                      disabled={n.read_at !== null}
+                      aria-label={n.read_at === null ? `Mark ${n.title} as read` : n.title}
+                      style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: n.read_at === null ? "pointer" : "default", padding: 12 }}
+                    >
+                      <span style={{ color: "var(--accent)", display: "inline-flex", marginTop: 1 }}>
+                        <Icon name={notifIcon(n.ntype)} size={16} />
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{n.title}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-2)" }}>{n.body}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 3 }}>{relTime(n.created_at)}</div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </ShellPopover>
+            )}
+
+            {profileOpen && (
+              <ShellPopover key="profile" onClick={(e) => { e.stopPropagation(); if ((e.target as HTMLElement).closest("a")) setProfileOpen(false); }}>
+                <div className="pop-head">
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--accent-grad)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>{initials}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>{user?.display_name ?? "Learner"}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email ?? ""}</div>
+                    <span className={`pop-status${user?.verified ? " ok" : ""}`}>{user?.verified ? "Email verified" : "Email not verified"}</span>
+                  </div>
+                </div>
+                <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & settings</Link>
+                <button type="button" className="pop-link signout" onClick={() => { signout().then(() => router.push("/")).catch(() => toast("Sign-out failed. Your session may still be active. Please retry.", "error")); }}><Icon name="logout" size={17} /> Sign Out</button>
+              </ShellPopover>
+            )}
+            </AnimatePresence>
+          </div>
+        </header>
+        {user && !user.verified && !bannerDismissed && (
+          <div className="banner shell-banner" role="status">
+            <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name="alert" size={18} /></span>
+            <div style={{ flex: 1 }}>
+              <b>Please verify your email</b>
+              <p style={{ margin: 0 }}>Check your inbox for the verification link ({user.email}).</p>
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                try {
+                  await api("/api/v1/auth/verify-email/request", { method: "POST" });
+                  toast("If your email is unverified, a new link is on its way.");
+                } catch {
+                  toast("Could not send the verification email.", "error");
+                }
+              }}
+            >
+              Resend link
+            </button>
+            <button className="btn btn-ghost" aria-label="Dismiss verification banner" onClick={dismissBanner}>
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        )}
+        </>)}
+        <main className={`shell-content${isChat ? " shell-content-flush" : ""}`}>
+          {!isChat && (
+            <LayoutGroup id="mobile-workspace-navigation">
+            <nav className="mobile-nav" aria-label="Primary">
+              {FLAT.map((item) => {
+                const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
+                return (
+                  <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : undefined}>
+                    {active && <motion.span layoutId="mobile-active-navigation" className="mobile-active-surface" aria-hidden="true" />}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            </LayoutGroup>
+          )}
+          {/* Route changes are transitions, so the browser cross-fades the
+              outgoing page into the incoming one while the shell stays put. */}
+          <ViewTransition key={pathname} enter="page-enter" exit="page-exit" default="none">
+            <div className="route-view">{children}</div>
+          </ViewTransition>
+        </main>
+      </div>
+      <Modal open={mobileMenuOpen} title="Navigation" onClose={() => setMobileMenuOpen(false)}>
+        <div className="modal mobile-workspace-drawer">
+          <div className="section-head"><h2>Explore ARIA</h2><button className="btn btn-ghost" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)}><Icon name="x" /></button></div>
+          <label className="field-label" htmlFor="mobile-subject">Learning subject</label>
+          <select className="input" id="mobile-subject" value={context?.id ?? ""} onChange={event => selectContext(event.target.value)}>{contexts.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+          <nav aria-label="Mobile workspace">
+            {[...FLAT, { href: "/app/account", label: "Account", icon: "user" as IconName }].map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} onClick={() => setMobileMenuOpen(false)}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
+          </nav>
+        </div>
+      </Modal>
+    </div>
+  );
+}

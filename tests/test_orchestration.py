@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 MATERIAL = (
@@ -263,3 +265,31 @@ def test_orchestration_is_isolated(client: TestClient) -> None:
         headers=headers(second["access_token"]),
     )
     assert forged.status_code == 422
+
+
+def test_workflow_reads_hide_missing_and_foreign_workflows(client: TestClient) -> None:
+    first = register(client, "orch-read-owner@example.com")
+    second = register(client, "orch-read-other@example.com")
+    started = client.post(
+        "/api/v1/orchestration/workflows/data_reset",
+        headers=headers(first["access_token"]),
+        json={"payload": {}},
+    )
+    assert started.status_code == 201
+    workflow_id = started.json()["workflow_id"]
+    for suffix in ("", "/tasks"):
+        own = client.get(
+            f"/api/v1/orchestration/workflows/{workflow_id}{suffix}",
+            headers=headers(first["access_token"]),
+        )
+        assert own.status_code == 200
+        foreign = client.get(
+            f"/api/v1/orchestration/workflows/{workflow_id}{suffix}",
+            headers=headers(second["access_token"]),
+        )
+        missing = client.get(
+            f"/api/v1/orchestration/workflows/{uuid4()}{suffix}",
+            headers=headers(second["access_token"]),
+        )
+        assert foreign.status_code == missing.status_code == 404
+        assert foreign.json() == missing.json()

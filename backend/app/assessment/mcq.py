@@ -1,5 +1,6 @@
 import hashlib
 import random
+import re
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -7,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
-from app.ai.registry import get_llm_provider
+from app.ai.registry import get_llm_provider_for_owner
 from app.assessment.schema import MCQSet
 from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
@@ -28,12 +29,13 @@ def _sentences(content: str) -> list[str]:
 
 
 def _chunk_id_filter(
-    db: Session, *, owner_id: UUID, concept_ids: list[str] | None
+    db: Session, *, owner_id: UUID, concept_ids: list[UUID | str] | None
 ) -> set[UUID] | None:
     if not concept_ids:
         return None
+    uuids = [value if isinstance(value, UUID) else UUID(str(value)) for value in concept_ids]
     return chunk_ids_for_concepts(
-        db, owner_id=owner_id, concept_ids=[UUID(value) for value in concept_ids]
+        db, owner_id=owner_id, concept_ids=uuids
     )
 
 
@@ -113,6 +115,23 @@ def _pick_distractors(
     return chosen
 
 
+def _quotation_question(correct: str, options: list[str]) -> str:
+    """Create a source-recall stem with exactly one matching full statement."""
+    words = sorted(re.finditer(r"\b[\w-]+\b", correct), key=lambda word: len(word.group()), reverse=True)
+    for word in words:
+        before, after = correct[:word.start()], correct[word.end():]
+        pattern = re.compile(re.escape(before) + r"[\w-]+" + re.escape(after))
+        if sum(pattern.fullmatch(option) is not None for option in options) == 1:
+            return (
+                "Complete the exact quotation from your study material. "
+                "Which full statement fills the blank?\n"
+                f"“{before}____{after}”"
+            )
+    # Degenerate material may have variants differing in every single word.
+    # Exact matching is still honest; never ask which of several true facts is true.
+    return f"Which statement matches this source quotation word for word?\n“{correct}”"
+
+
 def generate_mcqs_deterministic(
     db: Session,
     *,
@@ -120,7 +139,7 @@ def generate_mcqs_deterministic(
     context_id: UUID,
     count: int,
     difficulty: str,
-    concept_ids: list[str] | None = None,
+    concept_ids: list[UUID | str] | None = None,
 ) -> list[GeneratedMCQ]:
     chunk_filter = _chunk_id_filter(db, owner_id=owner_id, concept_ids=concept_ids)
     chunk_ids, chunk_sentences = _load_chunk_sentences(
@@ -146,13 +165,12 @@ def generate_mcqs_deterministic(
         )]
         rng.shuffle(options)
         correct_letter = "ABCD"[options.index(correct)]
-        concept_id = concept_id_for_chunk(db, owner_id=owner_id, chunk_id=chunk_id)
+        concept_id = concept_id_for_chunk(
+            db, owner_id=owner_id, chunk_id=chunk_id, concept_ids=concept_ids
+        )
         questions.append(
             GeneratedMCQ(
-                prompt=(
-                    "According to the study material, which of the following statements "
-                    "is correct?"
-                ),
+                prompt=_quotation_question(correct, options),
                 options=options,
                 correct_option=correct_letter,
                 concept_id=concept_id,
@@ -192,7 +210,7 @@ async def generate_mcqs_structured(
     context_id: UUID,
     count: int,
     difficulty: str,
-    concept_ids: list[str] | None = None,
+    concept_ids: list[UUID | str] | None = None,
 ) -> list[GeneratedMCQ]:
     chunk_filter = _chunk_id_filter(db, owner_id=owner_id, concept_ids=concept_ids)
     material = _material_preview(
@@ -202,7 +220,7 @@ async def generate_mcqs_structured(
         raise ValidationError(
             "Add ready study material before creating an assessment"
         )
-    provider = get_llm_provider()
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
     if provider is None:
         raise RuntimeError("LLM provider is not configured")
     prompt_version = get_prompt("mcq_generation")
@@ -221,3 +239,38 @@ async def generate_mcqs_structured(
         )
         for item in parsed.questions[:count]
     ]
+
+
+async def generate_conversation_mcqs(
+    db: Session, *, owner_id: UUID, transcript: str, count: int, difficulty: str
+) -> list[GeneratedMCQ]:
+    """Review the conversation without pretending it is uploaded source material."""
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    if provider is not None:
+        version = get_prompt("mcq_generation")
+        try:
+            parsed = await provider.generate_structured(
+                prompt=version.render(
+                    difficulty=difficulty, count=count,
+                    material="Today's tutoring transcript (unverified conversation):\n" + transcript,
+                ),
+                schema=MCQSet, prompt_version=version.label(),
+            )
+            if parsed.questions:
+                return [GeneratedMCQ(item.prompt, item.options, item.correct_option, None)
+                        for item in parsed.questions[:count]]
+        except Exception:
+            # A provider outage still permits explicitly labelled recall practice.
+            pass
+    sentences = list(dict.fromkeys(_sentences(transcript)))
+    if len(sentences) < 4:
+        raise ValidationError("Not enough learning yet for a daily review. Explore a topic with your tutor first.")
+    rng = random.Random(_stable_seed(sentences))
+    rng.shuffle(sentences)
+    result = []
+    for correct in sentences[:count]:
+        options = [correct, *rng.sample([text for text in sentences if text != correct], 3)]
+        rng.shuffle(options)
+        prompt = _quotation_question(correct, options).replace("study material", "tutoring conversation")
+        result.append(GeneratedMCQ(prompt, options, "ABCD"[options.index(correct)], None))
+    return result

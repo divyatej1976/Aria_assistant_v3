@@ -20,6 +20,17 @@ def get_owned_context(db: Session, *, owner_id: UUID, context_id: UUID) -> Learn
     return context
 
 
+def get_owned_related(db: Session, model, *, owner_id: UUID, context_id: UUID,
+                      related_id: UUID, label: str):
+    """Resolve a subject-scoped reference without revealing other owners' data."""
+    row = db.scalar(select(model).where(
+        model.id == related_id, model.owner_id == owner_id, model.context_id == context_id,
+    ))
+    if row is None:
+        raise ValidationError(f"{label} does not belong to this subject")
+    return row
+
+
 def create_context(
     db: Session,
     *,

@@ -88,3 +88,38 @@ def test_semantic_scoring_available_true_for_cloud_provider() -> None:
         CloudEmbeddingProvider(api_key="k", model="m", base_url=None, dimension=768)
     ) is True
     assert semantic_scoring_available(DeterministicEmbeddingProvider()) is False
+
+
+def test_cloud_embedding_rejects_dimension_mismatch(monkeypatch) -> None:
+    """Embeddings-flag gate: a provider returning the wrong dimension must fail
+    loudly instead of silently corrupting pgvector retrieval."""
+    import pytest
+
+    import app.ai.providers as providers
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"data": [{"index": 0, "embedding": [0.25] * 1536}]}
+
+    class FakeClient:
+        def __init__(self, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            return None
+
+        async def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(providers.httpx, "AsyncClient", FakeClient)
+    provider = CloudEmbeddingProvider(
+        api_key="key", model="text-embedding-3-small", base_url=None, dimension=768
+    )
+    with pytest.raises(ValueError, match="dimension"):
+        asyncio.run(provider.embed(["a"]))

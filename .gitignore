@@ -11,21 +11,41 @@ venv/
 # Node / Next.js
 node_modules/
 .next/
+.next-playwright/
+.next-verification/
+.next-fulltest/
+.next-review-*/
+.next-polish-*/
 out/
 *.tsbuildinfo
 test-results/
 playwright-report/
+test-results-polish*/
+test-results-*/
+frontend-polish*.log
+verification-*.log
+verification-*.json
+review-*.log
+debug.log
 e2e-smoke.db
+e2e-smoke-v2.db
+e2e-*.db
 
 # Environment and secrets
 .env
 .env.*
 !.env.example
+.claude/launch.json
 
 # Local services and tooling
+%SystemDrive%/
 postgres-data/
 backups/
+audiofiles/
 aria*.db
+*.db-shm
+*.db-wal
+fulltest.db
 coverage.xml
 htmlcov/
 .DS_Store
@@ -38,5 +58,3 @@ Thumbs.db
 # Design assets (wireframes kept locally, not tracked)
 design/*
 !design/README.md
-
-e2e-smoke.db
