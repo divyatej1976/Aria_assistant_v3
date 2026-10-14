@@ -5,10 +5,41 @@
 
 /* Celestial studio: shared motion and readable, layered learning surfaces. */
 :root {
+  --on-accent: #fff;
+  --on-danger: #fff;
+  --badge-grad-study: linear-gradient(135deg, var(--accent-2), var(--accent-3));
+  --badge-grad-review: linear-gradient(135deg, var(--accent-3), var(--accent));
+  --badge-grad-milestone: linear-gradient(135deg, var(--accent-gold), var(--streak));
+  --badge-grad-streak: linear-gradient(135deg, var(--streak), var(--danger));
   --motion-fast: 160ms;
   --motion-panel: 280ms;
   --motion-ease: cubic-bezier(.22, 1, .36, 1);
 }
+
+/* Repeated screen layout patterns stay consistent across palettes and pages. */
+.ui-row { display: flex; align-items: center; }
+.ui-row-between { display: flex; justify-content: space-between; align-items: center; }
+.ui-flex { display: flex; }
+.ui-stack { display: flex; flex-direction: column; }
+.ui-wrap { flex-wrap: wrap; }
+.ui-gap-8 { gap: 8px; }
+.ui-gap-10 { gap: 10px; }
+.ui-gap-12 { gap: 12px; }
+.ui-gap-14 { gap: 14px; }
+.ui-gap-18 { gap: 18px; }
+.ui-justify-center { justify-content: center; }
+.ui-mt-16 { margin-top: 16px; }
+.card-header { display: flex; align-items: center; gap: 14px; }
+.card-heading { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+.card.empty-state-card { text-align: center; color: var(--text-3); padding: 60px; }
+.m-head.dialog-heading { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 18px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 18px; }
+.loading-state { text-align: center; padding: 56px 0; color: var(--text-2); font-size: 14px; }
+.loading-state-skeleton { width: 46px; height: 46px; border-radius: 14px; margin: 0 auto 14px; }
+.error-state-message { margin: 10px 0 14px; font-size: 14px; color: var(--text-1); }
+.empty-state.error-state-inline { padding: 16px; text-align: left; }
+html[data-theme="noir"] { --on-accent: #0a0a0a; --on-danger: #0a0a0a; }
+html[data-theme="noir"].noir-gold { --on-accent: #22190d; }
 
 .motion-reveal { animation: studio-arrive 420ms var(--motion-ease) backwards; animation-delay: var(--reveal-delay, 0ms); min-width: 0; }
 .route-arrival { animation: studio-arrive var(--motion-panel) var(--motion-ease); }
@@ -1817,7 +1848,7 @@ body {
   position: relative;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-accent);
   transition: transform 0.3s var(--spring);
 }
 .badge-card.locked .badge-ic { background: var(--bg-2); border: 1px solid var(--border); color: var(--text-3); }

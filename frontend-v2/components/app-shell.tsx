@@ -67,7 +67,7 @@ const NAV: NavGroup[] = [
   { sec: "Learn", items: [
     { href: "/app", label: "Dashboard", icon: "home" },
     { href: "/app/learn", label: "Learn", icon: "message" },
-    { href: "/app/map", label: "Knowledge Map", icon: "target" },
+    { href: "/app/map", label: "Knowledge map", icon: "target" },
     { href: "/app/roadmaps", label: "Roadmaps", icon: "route" },
   ]},
   { sec: "Organize", items: [
@@ -343,7 +343,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <span className={`pop-status${user?.verified ? " ok" : ""}`}>{user?.verified ? "Email verified" : "Email not verified"}</span>
                   </div>
                 </div>
-                <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & Settings</Link>
+                <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & settings</Link>
                 <button type="button" className="pop-link signout" onClick={() => { signout().then(() => router.push("/")).catch(() => toast("Sign-out failed. Your session may still be active. Please retry.", "error")); }}><Icon name="logout" size={17} /> Sign Out</button>
               </ShellPopover>
             )}

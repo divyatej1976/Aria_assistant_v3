@@ -47,7 +47,7 @@ export function DashboardView({ title, pct, nextAction, streak, upcoming, dueNot
           <section className="learning-hero" aria-labelledby="continue-heading">
             <div className="hero-content">
               <p className="eyebrow"><Icon name="sparkles" size={14} /> YOUR NEXT CHAPTER</p>
-              <h2 id="continue-heading">Continue Learning</h2>
+              <h2 id="continue-heading">Continue learning</h2>
               <p className="hero-topic">{title}</p>
               <p className="hero-description">Pick up a thread, connect an idea, and take your understanding a little further.</p>
               <div className="hero-actions"><Link href="/app/learn" className="btn btn-primary">Continue learning <Icon name="arrow" /></Link><Link href="/app/map" className="btn btn-ghost">Explore your map <Icon name="target" size={16} /></Link></div>
@@ -97,12 +97,12 @@ export function DashboardView({ title, pct, nextAction, streak, upcoming, dueNot
           <section className="studio-panel">
             <div className="section-head"><h2>On the horizon</h2><Icon name="calendar" size={19} /></div>
             {upcoming.length === 0 ? <p className="dashboard-empty">A little space to plan your next step. Add a reminder when you’re ready.</p> : <ul className="upcoming-list">{upcoming.map(item => <li key={item.id}><span>{item.title}</span><span className="due-label">{dueLabel(item.due_at)}</span></li>)}</ul>}
-            <Link href="/app/planner" className="text-link">View Planner <Icon name="arrow" size={15} /></Link>
+            <Link href="/app/planner" className="text-link">View planner <Icon name="arrow" size={15} /></Link>
           </section>
         </Reveal>
         <Reveal delay={240}>
           <section className="studio-panel map-invitation">
-            <p className="eyebrow">EVERY IDEA IS CONNECTED</p><h2>Watch your universe grow.</h2><p>Explore your concepts, their prerequisites, and the evidence behind your understanding.</p><Link href="/app/map" className="text-link">Open Knowledge Map <Icon name="arrow" size={15} /></Link>
+            <p className="eyebrow">EVERY IDEA IS CONNECTED</p><h2>Watch your universe grow.</h2><p>Explore your concepts, their prerequisites, and the evidence behind your understanding.</p><Link href="/app/map" className="text-link">Open Knowledge map <Icon name="arrow" size={15} /></Link>
           </section>
         </Reveal>
       </div>

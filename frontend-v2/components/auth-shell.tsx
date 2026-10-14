@@ -18,7 +18,7 @@ export function AuthShell({ children, title, subtitle }: { children: ReactNode; 
               height: 38,
               borderRadius: 12,
               background: "var(--accent-grad)",
-              color: "#fff",
+              color: "var(--on-accent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

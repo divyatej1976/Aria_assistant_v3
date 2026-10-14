@@ -8,9 +8,9 @@ import { Icon } from "./icons";
  */
 export function Loading({ label = "Loading" }: { label?: string }) {
   return (
-    <div style={{ textAlign: "center", padding: "56px 0", color: "var(--text-2)", fontSize: 14 }} role="status">
-      <div className="skeleton" style={{ width: 46, height: 46, borderRadius: 14, margin: "0 auto 14px" }} />
-      {label}…
+    <div className="loading-state" role="status">
+      <div className="skeleton loading-state-skeleton" />
+      {/^(loading)\b/i.test(label) ? label : `Loading ${label}`}…
     </div>
   );
 }
@@ -18,19 +18,28 @@ export function Loading({ label = "Loading" }: { label?: string }) {
 export function ErrorState({
   message,
   onRetry,
+  title,
+  retryLabel = "Try again",
+  retryDisabled = false,
+  inline = false,
 }: {
   message?: string;
   onRetry?: () => void;
+  title?: string;
+  retryLabel?: string;
+  retryDisabled?: boolean;
+  inline?: boolean;
 }) {
   return (
-    <div className="empty-state" role="alert">
-      <Icon name="alert" size={30} />
-      <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
+    <div className={`empty-state${inline ? " inline-error error-state-inline" : ""}`} role="alert">
+      {!inline && <Icon name="alert" size={30} />}
+      {title && <b>{title}</b>}
+      <p className="error-state-message">
         {message ?? "Something went wrong while loading this screen."}
       </p>
       {onRetry && (
-        <button className="btn btn-secondary" onClick={onRetry} style={{ justifyContent: "center" }}>
-          <Icon name="refresh" /> Try again
+        <button type="button" className="btn btn-secondary ui-justify-center" onClick={onRetry} disabled={retryDisabled}>
+          <Icon name="refresh" /> {retryLabel}
         </button>
       )}
     </div>
