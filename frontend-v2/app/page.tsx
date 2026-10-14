@@ -5,6 +5,7 @@ import { Icon } from "@/components/icons";
 import { PaletteSwitcher } from "@/components/palette-switcher";
 import { RotatingCaption } from "@/components/rotating-caption";
 import { LandingRedirect } from "@/components/landing-redirect";
+import { ConstellationWordmark, LearningPreview } from "@/components/landing-experience";
 
 const CAPABILITIES = [
   { icon: "book" as const, title: "Learn", text: "Personalized AI conversations that break down any concept." },
@@ -12,7 +13,7 @@ const CAPABILITIES = [
   { icon: "calendar" as const, title: "Plan", text: "Exams, deadlines, and multi-step tasks in Notion-style trackers." },
   { icon: "headphones" as const, title: "Listen", text: "Turn notes, chats, and syllabi into audio summaries." },
   { icon: "file" as const, title: "Create", text: "Cheat sheets, notes, and question banks on demand." },
-  { icon: "activity" as const, title: "Track", text: "52-week heatmap, streaks, and milestone badges." },
+  { icon: "activity" as const, title: "Track", text: "26-week heatmap, streaks, and milestone badges." },
 ];
 
 const CAPTIONS = [
@@ -61,12 +62,7 @@ export default function LandingPage() {
             <Icon name="sparkles" size={14} /> NEXT-GEN AI COMPANION
           </div>
 
-          <h1 className="wordmark" style={{ fontSize: "clamp(64px,14vw,120px)" }}>
-            <span style={{ animationDelay: "0.15s" }}>A</span>
-            <span style={{ animationDelay: "0.27s" }}>R</span>
-            <span style={{ animationDelay: "0.39s" }}>I</span>
-            <span style={{ animationDelay: "0.51s" }}>A</span>
-          </h1>
+          <ConstellationWordmark />
 
           <p
             style={{
@@ -95,7 +91,8 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))", gap: 20, marginTop: 44 }}>
+        <LearningPreview />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 270px), 1fr))", gap: 20, marginTop: 44 }}>
           {CAPABILITIES.map((c, i) => (
             <div className="card card-pad card-hover" key={c.title} style={{ animationDelay: `${i * 60}ms` }}>
               <div

@@ -8,26 +8,24 @@ import { Icon } from "@/components/icons";
 import { toast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
 import { useAuth, type AuthUser } from "@/components/auth-provider";
-type SessionResponse = { learner_id: string; access_token: string };
+import { useHydrated } from "@/lib/use-hydrated";
+type SessionResponse = { learner_id: string; access_token?: string | null };
 
 export default function SignInPage() {
   const router = useRouter();
   const { setUser } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  // Read the redirect reason once at first render (no effect setState cascade).
-  // SSR-safe: window is unavailable during prerender.
-  const [notice] = useState(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("reason") === "expired") {
-      return "Your session expired. Sign in again to continue.";
-    }
-    return "";
-  });
+  const hydrated = useHydrated();
+  const notice = hydrated && new URLSearchParams(window.location.search).get("reason") === "expired"
+    ? "Your session expired. Sign in again to continue."
+    : "";
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fields = new FormData(e.currentTarget as HTMLFormElement);
+    const email = String(fields.get("email") ?? "").trim();
+    const password = String(fields.get("password") ?? "");
     if (!email || !password) {
       setError("Please enter your email and password.");
       return;
@@ -35,7 +33,9 @@ export default function SignInPage() {
     setBusy(true);
     setError("");
     try {
-      await api<SessionResponse>("/api/v1/auth/login", {
+      // Cookie-only session: the bearer copy is for API clients, and must
+      // never enter browser JS memory where XSS could steal it.
+      await api<SessionResponse>("/api/v1/auth/login?bearer=false", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -44,8 +44,10 @@ export default function SignInPage() {
       setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false });
       toast("Welcome back, " + (me.display_name ?? me.email));
       // route by whether the learner has a context yet
-      const contexts = await api<{ id: string }[]>("/api/v1/contexts").catch(() => []);
-      router.push(contexts.length > 0 ? "/app" : "/onboarding");
+      const contexts = await api<{ id: string }[]>("/api/v1/contexts");
+      const next = new URLSearchParams(window.location.search).get("next");
+      const destination = next && /^\/app(?:\/|$)/.test(next) ? next : "/app";
+      router.push(contexts.length > 0 ? destination : "/onboarding");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Unable to sign in";
       setError(msg === "Invalid credentials" ? "Invalid credentials." : msg);
@@ -59,16 +61,16 @@ export default function SignInPage() {
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <label className="field-label" htmlFor="si-email">Email</label>
-          <input id="si-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+          <input id="si-email" className="input" type="email" name="email" autoComplete="username" placeholder="you@example.com" />
         </div>
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <label className="field-label" htmlFor="si-pass" style={{ marginBottom: 8 }}>Password</label>
-            <Link href="/reset-password" style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", textDecoration: "none" }}>
+            <Link href="/reset-password" style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong, var(--accent))", textDecoration: "none" }}>
               Forgot password?
             </Link>
           </div>
-          <input id="si-pass" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" />
+          <input id="si-pass" className="input" type="password" name="password" autoComplete="current-password" placeholder="Your password" />
         </div>
         {notice && !error && (
           <p style={{ color: "var(--warning, var(--accent-strong))", fontSize: 13, fontWeight: 600 }}>{notice}</p>
@@ -83,7 +85,7 @@ export default function SignInPage() {
       </form>
       <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-2)", marginTop: 18 }}>
         New to ARIA?{" "}
-        <Link href="/signup" style={{ color: "var(--accent)", fontWeight: 700, textDecoration: "none" }}>
+        <Link href="/signup" style={{ color: "var(--accent-strong, var(--accent))", fontWeight: 700, textDecoration: "none" }}>
           Create an account
         </Link>
       </p>

@@ -31,7 +31,7 @@ export default function SignUpPage() {
     setBusy(true);
     setError("");
     try {
-      await api("/api/v1/auth/register", {
+      await api("/api/v1/auth/register?bearer=false", {
         method: "POST",
         body: JSON.stringify({ email, password, display_name: name }),
       });
@@ -70,7 +70,7 @@ export default function SignUpPage() {
       </form>
       <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-2)", marginTop: 16 }}>
         Already have an account?{" "}
-        <Link href="/signin" style={{ color: "var(--accent)", fontWeight: 700, textDecoration: "none" }}>
+        <Link href="/signin" style={{ color: "var(--accent-strong, var(--accent))", fontWeight: 700, textDecoration: "none" }}>
           Sign in
         </Link>
       </p>
