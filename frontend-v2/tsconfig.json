@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,7 +23,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -28,7 +34,25 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    ".next-playwright/types/**/*.ts",
+    ".next-playwright/dev/types/**/*.ts",
+    ".next-verification/types/**/*.ts",
+    ".next-verification/dev/types/**/*.ts",
+    ".next-compose/types/**/*.ts",
+    ".next-compose/dev/types/**/*.ts",
+    ".next-fulltest/types/**/*.ts",
+    ".next-fulltest/dev/types/**/*.ts",
+    ".next-polish-current/types/**/*.ts",
+    ".next-polish-current/dev/types/**/*.ts",
+    ".next-polish-build-host/types/**/*.ts",
+    ".next-polish-build-host/dev/types/**/*.ts",
+    ".next-polish-webpack/types/**/*.ts",
+    ".next-polish-webpack/dev/types/**/*.ts",
+    ".next-review-verification/types/**/*.ts",
+    ".next-review-verification/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

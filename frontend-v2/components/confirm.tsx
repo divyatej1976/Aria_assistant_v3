@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Icon } from "./icons";
 
 export type ConfirmState = {
@@ -18,27 +18,51 @@ export function ConfirmDialog({
   onClose: () => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const descriptionId = useId();
+  const open = state !== null;
 
   useEffect(() => {
-    if (!state) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
+    if (!open) return;
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog?.showModal();
     const focusTarget = boxRef.current?.querySelector<HTMLButtonElement>("[data-autofocus]");
     focusTarget?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-  }, [state, onClose]);
+    return () => {
+      dialog?.close();
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [open]);
 
   if (!state) return null;
   return (
-    <div className="modal-bg show" style={{ display: "flex" }} onClick={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="modal-bg show"
+      role="alertdialog"
+      aria-label={state.title}
+      aria-describedby={descriptionId}
+      aria-modal="true"
+      style={{ display: "flex", width: "100vw", height: "100dvh", maxWidth: "none", maxHeight: "none", margin: 0, border: 0, color: "var(--text-1)" }}
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const buttons = boxRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+        if (!buttons?.length) return;
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first.focus();
+        }
+      }}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
       <div
         ref={boxRef}
         className="modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-label={state.title}
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 420 }}
       >
@@ -50,7 +74,7 @@ export function ConfirmDialog({
             <Icon name="x" size={16} />
           </button>
         </div>
-        <p style={{ fontSize: 14, color: "var(--text-2)", margin: "0 0 6px" }}>{state.body}</p>
+        <p id={descriptionId} style={{ fontSize: 14, color: "var(--text-2)", margin: "0 0 6px" }}>{state.body}</p>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 14 }}>
           <button className="btn btn-ghost" data-autofocus onClick={onClose}>
             Cancel
@@ -67,6 +91,6 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

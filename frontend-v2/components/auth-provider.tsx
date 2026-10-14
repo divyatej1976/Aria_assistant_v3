@@ -1,13 +1,17 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api } from "@/lib/api";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { api, ApiError } from "@/lib/api";
+import { clearLearnerDrafts } from "@/lib/assessment-drafts";
+import { toast } from "@/lib/toast";
 
 export type AuthUser = { id: string; email: string; display_name: string | null; verified: boolean };
 
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
+  error: string | null;
+  signedOut: boolean;
   setUser: (u: AuthUser | null) => void;
   signout: () => Promise<void>;
 };
@@ -17,8 +21,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 type MeResponse = { id: string; email: string; display_name?: string | null; verified?: boolean };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUserState] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
+  const currentLearner = useRef<string | null>(null);
+
+  const setUser = useCallback((next: AuthUser | null) => {
+    const previous = currentLearner.current;
+    if (previous && previous !== next?.id && !clearLearnerDrafts(previous)) {
+      toast("Your account session changed, but saved assessment drafts could not be removed from this device.", "error");
+    }
+    currentLearner.current = next?.id ?? null;
+    if (next) setSignedOut(false);
+    setError(null);
+    setUserState(next);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           verified: me.verified ?? false,
         });
       })
-      .catch(() => {
-        // unauthenticated — leave user null
+      .catch((err: unknown) => {
+        if (!cancelled && !(err instanceof ApiError && err.status === 401)) {
+          setError("Could not check your sign-in status. Please try again.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -41,19 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setUser]);
 
   const signout = useCallback(async () => {
-    try {
-      await api("/api/v1/auth/signout", { method: "POST" });
-    } catch {
-      // ignore — clear locally regardless
-    }
+    await api("/api/v1/auth/signout", { method: "POST" });
+    setSignedOut(true);
     setUser(null);
-  }, []);
+  }, [setUser]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, setUser, signout }}>
+    <AuthContext.Provider value={{ user, loading, error, signedOut, setUser, signout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,33 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useHydrated } from "@/lib/use-hydrated";
 import { usePalette, type Palette } from "./palette-provider";
 import { Icon } from "./icons";
 
 export function PaletteSwitcher() {
+  const hydrated = useHydrated();
   const { palette, gold, setPalette, toggleGold } = usePalette();
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const outside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    rootRef.current?.addEventListener("keydown", escape);
+    const root = rootRef.current;
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      root?.removeEventListener("keydown", escape);
+    };
+  }, [open]);
 
   const pick = (p: Palette) => {
     setPalette(p);
     setOpen(false);
+    triggerRef.current?.focus();
   };
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    }}>
       <button
+        ref={triggerRef}
+        disabled={!hydrated}
         type="button"
         className="btn btn-secondary"
         style={{ width: 40, height: 40, padding: 0, borderRadius: 9999 }}
         onClick={() => setOpen((o) => !o)}
         aria-label="Palette settings"
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
       >
         <Icon name="palette" size={19} />
       </button>
 
       {open && (
         <div
+          ref={panelRef}
+          id={panelId}
+          role="group"
+          aria-label="Color palette"
           className="card card-pad"
           style={{
             position: "absolute",
@@ -42,7 +80,7 @@ export function PaletteSwitcher() {
             type="button"
             className="chip"
             aria-pressed={palette === "aurora"}
-            aria-label="Select Midnight Aurora palette"
+            aria-label="Select Aurora palette"
             style={{
               width: "100%",
               justifyContent: "space-between",
@@ -60,7 +98,7 @@ export function PaletteSwitcher() {
                   background: "linear-gradient(135deg,#2DD4BF,#A78BFA)",
                 }}
               />
-              Midnight Aurora
+              Aurora
             </span>
             {palette === "aurora" && <Icon name="check" size={15} />}
           </button>

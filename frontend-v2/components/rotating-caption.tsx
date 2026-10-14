@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useMotionPreference } from "./motion-system";
 
 export function RotatingCaption({
   phrases,
@@ -12,8 +13,10 @@ export function RotatingCaption({
   // Single state object; effects only schedule timers (no synchronous setState).
   const [{ index, fading }, setPhase] = useState({ index: 0, fading: false });
   const elRef = useRef<HTMLSpanElement>(null);
+  const reduced = useMotionPreference();
 
   useEffect(() => {
+    if (reduced || phrases.length < 2) return;
     const fadeTimer = window.setTimeout(() => {
       setPhase((s) => ({ ...s, fading: true }));
     }, interval);
@@ -24,16 +27,17 @@ export function RotatingCaption({
       window.clearTimeout(fadeTimer);
       window.clearTimeout(rotateTimer);
     };
-  }, [index, phrases.length, interval]);
+  }, [index, phrases.length, interval, reduced]);
 
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
     const spans = el.querySelectorAll<HTMLSpanElement>(".cw");
+    let innerFrame = 0;
     const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => spans.forEach((s) => s.classList.add("in")));
+      innerFrame = requestAnimationFrame(() => spans.forEach((s) => s.classList.add("in")));
     });
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); cancelAnimationFrame(innerFrame); };
   }, [index]);
 
   const words = phrases[index]?.split(" ") ?? [];
@@ -42,12 +46,12 @@ export function RotatingCaption({
     <span
       ref={elRef}
       style={{
-        opacity: fading ? 0 : 1,
+        opacity: !reduced && fading ? 0 : 1,
         transition: "opacity .45s var(--spring)",
       }}
     >
       {words.map((w, i) => (
-        <span key={`${index}-${i}`} className="cw">
+        <span key={`${index}-${i}`} className={`cw${reduced ? " in" : ""}`}>
           {w}
         </span>
       ))}

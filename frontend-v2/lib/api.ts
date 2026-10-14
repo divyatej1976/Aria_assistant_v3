@@ -4,7 +4,10 @@ const CSRF_COOKIE = "aria_csrf";
 
 export function clearToken(): void {
   if (typeof window === "undefined") return;
-  window.document.cookie = `${CSRF_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict; domain=${window.location.hostname}`;
+  // Mirror the attributes the server sets (no Domain=, Path=/,
+  // SameSite=Strict). Adding domain= would create a mismatched cookie and
+  // the delete would silently no-op.
+  window.document.cookie = `${CSRF_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict`;
 }
 
 export function deviceLabel(): string {
@@ -64,7 +67,7 @@ async function handleAuthFailure(status: number): Promise<void> {
   }
 }
 
-const API_TIMEOUT_MS = 12_000;
+const API_TIMEOUT_MS = 120_000;
 
 function timeoutSignal(init?: RequestInit): AbortSignal | undefined {
   const timeout = AbortSignal.timeout(API_TIMEOUT_MS);
@@ -155,4 +158,33 @@ export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blo
     throw new ApiError(response.status, detail);
   }
   return response.blob();
+}
+
+export async function apiUpload<T>(path: string, file: File | Blob, contentType: string): Promise<T> {
+  const method = "POST";
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      signal: timeoutSignal(),
+      credentials: "include",
+      headers: {
+        "Content-Type": contentType,
+        ...csrfHeaders(method),
+      },
+      body: file,
+    });
+  } catch (err) {
+    if (isTimeoutError(err)) {
+      throw new ApiError(0, "Upload timed out — check your connection and retry.");
+    }
+    throw new ApiError(0, "Network error during upload — check your connection and try again.");
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = (payload as { detail?: string }).detail ?? "Upload failed";
+    await handleAuthFailure(response.status);
+    throw new ApiError(response.status, detail);
+  }
+  return payload as T;
 }

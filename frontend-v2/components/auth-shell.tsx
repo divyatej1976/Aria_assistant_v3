@@ -3,8 +3,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PaletteSwitcher } from "./palette-switcher";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export function AuthShell({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
+  const hydrated = useHydrated();
   return (
     <div className="auth-wrap">
       <div style={{ position: "absolute", top: 24, left: 28, display: "flex", alignItems: "center", gap: 12 }}>
@@ -39,7 +41,9 @@ export function AuthShell({ children, title, subtitle }: { children: ReactNode; 
       <div className="auth-card">
         <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px" }}>{title}</h1>
         {subtitle && <p style={{ fontSize: 14, color: "var(--text-2)", margin: "6px 0 22px" }}>{subtitle}</p>}
-        {children}
+        <fieldset disabled={!hydrated} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          {children}
+        </fieldset>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, ViewTransition, type ReactNode, type CSSProperties, type MouseEventHandler } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon, type IconName } from "./icons";
@@ -9,6 +9,23 @@ import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { useActiveContext } from "./use-active-context";
 import { useAuth } from "./auth-provider";
+import { AnimatePresence, LayoutGroup, motion, useIsPresent } from "motion/react";
+import { useMotionPreference } from "./motion-system";
+import { useHydrated } from "@/lib/use-hydrated";
+import { Modal } from "./modal";
+import { useDismissed } from "@/lib/use-dismissed";
+
+function ShellPopover({ children, style, onClick }: { children: ReactNode; style?: CSSProperties; onClick?: MouseEventHandler<HTMLDivElement> }) {
+  const present = useIsPresent();
+  const reduced = useMotionPreference();
+  return <motion.div className="popover-card" style={style} onClick={onClick}
+    inert={!present} aria-hidden={!present ? true : undefined}
+    initial={{ opacity: 0, y: reduced ? 0 : -6 }} animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: reduced ? 0 : -4 }}
+    transition={{ duration: reduced ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}>
+    {children}
+  </motion.div>;
+}
 
 type NavGroup = { sec: string; items: { href: string; label: string; icon: IconName }[] };
 
@@ -61,26 +78,37 @@ const NAV: NavGroup[] = [
   ]},
   { sec: "Grow", items: [
     { href: "/app/progress", label: "Progress", icon: "trend" },
-    { href: "/app/account", label: "Account", icon: "user" },
   ]},
 ];
 
 const FLAT: NavGroup["items"] = NAV.flatMap((g) => g.items);
 
+// Account lives in the profile menu, not the workspace nav; it still needs a
+// page title in the top bar.
+const PAGE_TITLES: Record<string, string> = {
+  ...Object.fromEntries(FLAT.map((item) => [item.href, item.label])),
+  "/app/account": "Account",
+};
+
 export function AppShell({ children }: { children: ReactNode }) {
+  const hydrated = useHydrated();
   const pathname = usePathname();
   const router = useRouter();
-  const { signout, user } = useAuth();
-  const { context, contexts, selectContext } = useActiveContext();
+  const { signout, user, loading: authLoading } = useAuth();
+  const { context, contexts, selectContext, loading: contextLoading } = useActiveContext();
   const isChat = pathname === "/app/learn";
-  const isHome = pathname === "/app";
 
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  // Dismissal persists per browser so the verify banner doesn't reappear on
+  // every navigation/reload; it clears automatically once the email verifies.
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useDismissed(`aria.verifyBannerDismissed:${user?.id ?? "anonymous"}`);
   const ref = useRef<HTMLDivElement>(null);
+  const bellTrigger = useRef<HTMLButtonElement>(null);
+  const profileTrigger = useRef<HTMLButtonElement>(null);
 
   const refreshCount = useCallback(() => {
     api<{ unread: number }>("/api/v1/notifications/unread-count")
@@ -147,27 +175,40 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  if (isChat) {
-    return (
-      <div style={{ position: "relative", zIndex: 1 }}>
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (bellOpen) bellTrigger.current?.focus();
+        if (profileOpen) profileTrigger.current?.focus();
+        setBellOpen(false);
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [bellOpen, profileOpen]);
+
+  useEffect(() => {
+    if (!bellOpen && !profileOpen) return;
+    const frame = requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>(".popover-card:not([inert]) button, .popover-card:not([inert]) a")?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [bellOpen, profileOpen]);
+
+  return (
+    <div className={`shell${isChat ? " shell-rail" : ""}`}>
+      {isChat && <button className="btn btn-secondary mobile-menu-toggle chat-nav-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>}
+      {isChat && (
+        // Phones hide the sidebar entirely; keep a way back from the tutor.
         <button
-          className="btn btn-secondary"
-          style={{ position: "fixed", top: 16, left: 16, zIndex: 90, width: 42, height: 42, padding: 0, borderRadius: 9999 }}
+          className="btn btn-secondary chat-back"
           onClick={() => router.push("/app")}
           aria-label="Back to dashboard"
         >
           <Icon name="back" size={18} />
         </button>
-        {children}
-      </div>
-    );
-  }
-
-  return (
-    <div className="shell">
-      {!isHome && (
+      )}
       <aside className="shell-side">
-        <Link href="/app" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, padding: "6px 12px 16px" }}>
+        <Link href="/app" className="shell-brand" aria-label="ARIA dashboard">
           <div
             style={{
               width: 36,
@@ -185,43 +226,49 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             A
           </div>
-          <div>
+          <div className="shell-label">
             <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-.5px", lineHeight: 1 }}>ARIA</div>
             <div style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.4, color: "var(--text-3)" }}>AI Learning System</div>
           </div>
         </Link>
 
+        <LayoutGroup id="workspace-navigation">
+        <nav aria-label="Workspace">
         {NAV.map((group) => (
           <div key={group.sec}>
             <div className="nav-sec">{group.sec}</div>
             {group.items.map((item) => {
               const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
               return (
-                <Link key={item.href} href={item.href} className={`nav-link${active ? " active" : ""}`}>
+                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`} title={isChat ? item.label : undefined}>
+                  {active && <motion.span layoutId="active-navigation" className="nav-active-surface" aria-hidden="true" />}
                   <Icon name={item.icon} size={17} />
-                  {item.label}
+                  <span className="shell-label">{item.label}</span>
                 </Link>
               );
             })}
           </div>
         ))}
+        </nav>
+        </LayoutGroup>
 
-        <div style={{ marginTop: "auto", fontSize: 11, color: "var(--text-3)", padding: "14px 12px 0", fontWeight: 700 }}>
+        <div className="shell-label" style={{ marginTop: "auto", fontSize: 11, color: "var(--text-3)", padding: "14px 12px 0", fontWeight: 700 }}>
           <span style={{ display: "inline-flex", verticalAlign: "-2px", color: "var(--accent)" }}>
             <Icon name="flame" size={13} />
           </span>{" "}
           Tutor Mode: <span style={{ color: "var(--accent-strong)" }}>Adaptive</span>
         </div>
       </aside>
-      )}
 
-      <div className="shell-main" ref={ref}>
+      <div className="shell-main">
+        {!isChat && (<>
         <header className="shell-top">
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: "var(--text-2)", fontSize: 13, whiteSpace: "nowrap" }}>
-              {pathname === "/app" ? "Dashboard" : FLAT.find((i) => i.href === pathname)?.label ?? "ARIA"}
+            <button className="btn btn-secondary mobile-menu-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>
+            <div className="shell-page-title" style={{ fontWeight: 700, color: "var(--text-2)", fontSize: 13, whiteSpace: "nowrap" }}>
+              {PAGE_TITLES[pathname] ?? "ARIA"}
             </div>
-            {!isChat && contexts.length > 1 && (
+            {contexts.length > 1 && (
               <select
                 className="input"
                 aria-label="Active learning context"
@@ -235,19 +282,20 @@ export function AppShell({ children }: { children: ReactNode }) {
               </select>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button type="button" className="bell-btn" onClick={(e) => { e.stopPropagation(); openBell(); }} aria-label="Notifications" aria-expanded={bellOpen}>
+          <div ref={ref} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button ref={bellTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="bell-btn" onClick={(e) => { e.stopPropagation(); openBell(); }} aria-label="Notifications" aria-expanded={bellOpen}>
               <Icon name="bell" size={19} />
               {unread > 0 && <span className="badge">{unread}</span>}
             </button>
             <PaletteSwitcher />
-            <button type="button" className="avatar-btn" onClick={(e) => { e.stopPropagation(); setProfileOpen((o) => !o); setBellOpen(false); }} aria-label="Profile" aria-expanded={profileOpen}>
+            <button ref={profileTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="avatar-btn" onClick={(e) => { e.stopPropagation(); setProfileOpen((o) => !o); setBellOpen(false); }} aria-label="Profile" aria-expanded={profileOpen}>
               {initials}
               <span className="online" />
             </button>
 
+            <AnimatePresence>
             {bellOpen && (
-              <div className="popover-card" style={{ width: 330, maxHeight: 420, overflowY: "auto" }}>
+              <ShellPopover key="notifications" style={{ width: 330, maxHeight: 420, overflowY: "auto" }}>
                 <div className="pop-head" style={{ justifyContent: "space-between" }}>
                   <b style={{ fontSize: 14 }}>Notifications</b>
                   <button
@@ -282,30 +330,28 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </button>
                   ))
                 )}
-              </div>
+              </ShellPopover>
             )}
 
             {profileOpen && (
-              <div className="popover-card" onClick={(e) => e.stopPropagation()}>
+              <ShellPopover key="profile" onClick={(e) => { e.stopPropagation(); if ((e.target as HTMLElement).closest("a")) setProfileOpen(false); }}>
                 <div className="pop-head">
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--accent-grad)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>{initials}</div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 14 }}>{user?.display_name ?? "Learner"}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)" }}>{user?.email ?? ""}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email ?? ""}</div>
+                    <span className={`pop-status${user?.verified ? " ok" : ""}`}>{user?.verified ? "Email verified" : "Email not verified"}</span>
                   </div>
                 </div>
-                <Link href="/app" className="pop-link"><Icon name="home" size={17} /> Home Dashboard</Link>
-                <Link href="/app/materials" className="pop-link"><Icon name="file" size={17} /> Materials</Link>
-                <Link href="/app/planner" className="pop-link"><Icon name="calendar" size={17} /> Planner</Link>
-                <Link href="/app/progress" className="pop-link"><Icon name="trend" size={17} /> Progress</Link>
                 <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & Settings</Link>
-                <button type="button" className="pop-link signout" style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }} onClick={() => { signout().then(() => router.push("/")); }}><Icon name="logout" size={17} /> Sign Out</button>
-              </div>
+                <button type="button" className="pop-link signout" onClick={() => { signout().then(() => router.push("/")).catch(() => toast("Sign-out failed. Your session may still be active. Please retry.", "error")); }}><Icon name="logout" size={17} /> Sign Out</button>
+              </ShellPopover>
             )}
+            </AnimatePresence>
           </div>
         </header>
         {user && !user.verified && !bannerDismissed && (
-          <div className="banner" role="status" style={{ margin: "14px 18px 0" }}>
+          <div className="banner shell-banner" role="status">
             <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name="alert" size={18} /></span>
             <div style={{ flex: 1 }}>
               <b>Please verify your email</b>
@@ -318,33 +364,51 @@ export function AppShell({ children }: { children: ReactNode }) {
                   await api("/api/v1/auth/verify-email/request", { method: "POST" });
                   toast("If your email is unverified, a new link is on its way.");
                 } catch {
-                  toast("Could not send the verification email.");
+                  toast("Could not send the verification email.", "error");
                 }
               }}
             >
               Resend link
             </button>
-            <button className="btn btn-ghost" aria-label="Dismiss verification banner" onClick={() => setBannerDismissed(true)}>
+            <button className="btn btn-ghost" aria-label="Dismiss verification banner" onClick={dismissBanner}>
               <Icon name="x" size={16} />
             </button>
           </div>
         )}
-        <main className="shell-content">
+        </>)}
+        <main className={`shell-content${isChat ? " shell-content-flush" : ""}`}>
           {!isChat && (
+            <LayoutGroup id="mobile-workspace-navigation">
             <nav className="mobile-nav" aria-label="Primary">
               {FLAT.map((item) => {
                 const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
                 return (
-                  <Link key={item.href} href={item.href} className={active ? "active" : undefined}>
-                    {item.label}
+                  <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : undefined}>
+                    {active && <motion.span layoutId="mobile-active-navigation" className="mobile-active-surface" aria-hidden="true" />}
+                    <span>{item.label}</span>
                   </Link>
                 );
               })}
             </nav>
+            </LayoutGroup>
           )}
-          {children}
+          {/* Route changes are transitions, so the browser cross-fades the
+              outgoing page into the incoming one while the shell stays put. */}
+          <ViewTransition key={pathname} enter="page-enter" exit="page-exit" default="none">
+            <div className="route-view">{children}</div>
+          </ViewTransition>
         </main>
       </div>
+      <Modal open={mobileMenuOpen} title="Navigation" onClose={() => setMobileMenuOpen(false)}>
+        <div className="modal mobile-workspace-drawer">
+          <div className="section-head"><h2>Explore ARIA</h2><button className="btn btn-ghost" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)}><Icon name="x" /></button></div>
+          <label className="field-label" htmlFor="mobile-subject">Learning subject</label>
+          <select className="input" id="mobile-subject" value={context?.id ?? ""} onChange={event => selectContext(event.target.value)}>{contexts.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+          <nav aria-label="Mobile workspace">
+            {[...FLAT, { href: "/app/account", label: "Account", icon: "user" as IconName }].map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} onClick={() => setMobileMenuOpen(false)}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
+          </nav>
+        </div>
+      </Modal>
     </div>
   );
 }

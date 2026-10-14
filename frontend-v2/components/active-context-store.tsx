@@ -37,6 +37,21 @@ const Ctx = createContext<ActiveContextValue | null>(null);
 
 const STORAGE_KEY = "aria_active_context";
 
+function readActiveContext(): string | null {
+  try { return typeof window === "undefined" ? null : window.localStorage.getItem(STORAGE_KEY); }
+  catch { return null; }
+}
+function writeActiveContext(id: string | null): void {
+  try {
+    if (typeof window !== "undefined") {
+      if (id) window.localStorage.setItem(STORAGE_KEY, id);
+      else window.localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+  catch { /* The selected subject remains available in memory. */ }
+}
+
+
 /**
  * Mounted once inside AuthProvider. Owns active-context state for the whole
  * app (header switcher + every screen), refetching whenever authentication
@@ -78,7 +93,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setContexts(list);
         const saved =
-          typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+          readActiveContext();
         const match = saved ? list.find((c) => c.id === saved) : undefined;
         setContext(match ?? list[0] ?? null);
         setError(null);
@@ -107,7 +122,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
       });
       setContexts((prev) => [...prev.filter((c) => c.id !== created.id), created]);
       setContext(created);
-      if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, created.id);
+      writeActiveContext(created.id);
       return created;
     },
     [],
@@ -118,7 +133,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
       const match = prev.find((c) => c.id === id);
       if (match) {
         setContext(match);
-        if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, id);
+        writeActiveContext(id);
       }
       return prev;
     });
@@ -137,10 +152,7 @@ export function ActiveContextProvider({ children }: { children: ReactNode }) {
     if (context?.id === id) {
       const survivor = remaining[0] ?? null;
       setContext(survivor);
-      if (typeof window !== "undefined") {
-        if (survivor) window.localStorage.setItem(STORAGE_KEY, survivor.id);
-        else window.localStorage.removeItem(STORAGE_KEY);
-      }
+      writeActiveContext(survivor?.id ?? null);
     }
   }, [contexts, context?.id]);
 

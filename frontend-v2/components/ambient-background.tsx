@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { createTimeline } from "animejs";
-import { motion, useMotionValue, useSpring, useTransform, useScroll } from "motion/react";
 import { usePalette } from "./palette-provider";
+import { useMotionPreference, usePageVisible } from "./motion-system";
+
+const subscribeMounted = () => () => {};
+const subscribeCompact = (callback: () => void) => {
+  const query = window.matchMedia("(max-width: 768px)");
+  query.addEventListener("change", callback);
+  return () => query.removeEventListener("change", callback);
+};
 
 type RGB = { r: number; g: number; b: number };
 
@@ -29,48 +36,29 @@ type P = { x: number; y: number; vx: number; vy: number; r: number; tw: number; 
 export function AmbientBackground() {
   const pathname = usePathname();
   const { palette } = usePalette();
+  // Defer motion/canvas visuals until after hydration: SSR and the first
+  // client render return the same static placeholder, so motion style
+  // serialization and stored-theme branches can never mismatch.
+  const mounted = useSyncExternalStore(subscribeMounted, () => true, () => false);
+  const compact = useSyncExternalStore(subscribeCompact, () => window.matchMedia("(max-width: 768px)").matches, () => true);
   const calm = pathname !== "/";
   const isAurora = palette === "aurora";
+  const reducedMotion = useMotionPreference();
+  const pageVisible = usePageVisible();
+  const quiet = pathname === "/app/learn" || pathname === "/app/assess";
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const spotRef = useRef<HTMLDivElement>(null);
-
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-  const sx = useSpring(mx, { stiffness: 55, damping: 18 });
-  const sy = useSpring(my, { stiffness: 55, damping: 18 });
-
-  const { scrollYProgress } = useScroll();
-  const parallaxY = useTransform(scrollYProgress, [0, 1], [0, -120]);
-
-  const o1x = useTransform(sx, (v) => v * -36);
-  const o1y = useTransform(sy, (v) => v * -26);
-  const o2x = useTransform(sx, (v) => v * 30);
-  const o2y = useTransform(sy, (v) => v * 20);
-  const o3x = useTransform(sx, (v) => v * -20);
-  const o3y = useTransform(sy, (v) => v * 32);
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const nx = e.clientX / window.innerWidth - 0.5;
-      const ny = e.clientY / window.innerHeight - 0.5;
-      mx.set(nx);
-      my.set(ny);
-      if (spotRef.current) {
-        spotRef.current.style.transform = `translate3d(${e.clientX - 380}px, ${e.clientY - 380}px, 0)`;
-      }
-    };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
-  }, [mx, my]);
 
   // ---------- constellation ----------
   useEffect(() => {
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
+    if (reducedMotion || quiet || !mounted || !pageVisible) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, compact ? 1 : 2);
     let w = window.innerWidth;
     let h = window.innerHeight;
 
@@ -80,6 +68,7 @@ export function AmbientBackground() {
     let raf = 0;
     let running = true;
     let visible = !document.hidden;
+    let timeline: ReturnType<typeof createTimeline> | undefined;
     const mouse = { x: -9999, y: -9999 };
     const flow = { dx: 0.03, dy: -0.02, spread: 1 };
 
@@ -89,6 +78,7 @@ export function AmbientBackground() {
     }
 
     function build() {
+      if (!canvas || !ctx) return;
       readTheme();
       canvas.width = w * dpr;
       canvas.height = h * dpr;
@@ -96,8 +86,8 @@ export function AmbientBackground() {
       canvas.style.height = h + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const target = calm ? 48 : 118;
-      const count = Math.min(target, Math.max(24, Math.floor((w * h) / (calm ? 42000 : 21000))));
+      const target = compact ? (calm ? 10 : 18) : calm ? 18 : 24;
+      const count = Math.min(target, Math.max(compact ? 8 : 12, Math.floor((w * h) / 60000)));
       const streakRate = isAurora ? 0.12 : 0.18;
       parts = Array.from({ length: count }, () => {
         const streak = Math.random() < streakRate;
@@ -115,6 +105,7 @@ export function AmbientBackground() {
     }
 
     function draw(t: number) {
+      if (!ctx) return;
       ctx.clearRect(0, 0, w, h);
       const lineMax = 140;
       const alphaBase = calm ? 0.75 : 1;
@@ -145,8 +136,9 @@ export function AmbientBackground() {
           const b = parts[j];
           const dx = a.x - b.x;
           const dy = a.y - b.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < lineMax) {
+          const distanceSquared = dx * dx + dy * dy;
+          if (distanceSquared < lineMax * lineMax) {
+            const d = Math.sqrt(distanceSquared);
             const alpha = (1 - d / lineMax) * 0.22 * flow.spread * alphaBase;
             ctx.strokeStyle = `rgba(${line.r},${line.g},${line.b},${alpha})`;
             ctx.lineWidth = 1;
@@ -201,8 +193,8 @@ export function AmbientBackground() {
       draw(0);
     } else {
       raf = requestAnimationFrame(loop);
-      const tl = createTimeline({ loop: true, autoplay: true });
-      tl.add(flow, { dx: 0.12, dy: -0.09, spread: 1.5, duration: 5200, ease: "inOutQuad" }, 0)
+      timeline = createTimeline({ loop: true, autoplay: visible });
+      timeline.add(flow, { dx: 0.12, dy: -0.09, spread: 1.5, duration: 5200, ease: "inOutQuad" }, 0)
         .add(flow, { dx: -0.08, dy: 0.06, spread: 0.8, duration: 5200, ease: "inOutQuad" }, 2600)
         .add(flow, { dx: 0.04, dy: -0.03, spread: 1.15, duration: 5200, ease: "inOutQuad" }, 5200);
     }
@@ -217,6 +209,8 @@ export function AmbientBackground() {
     };
     const onVis = () => {
       visible = !document.hidden;
+      if (visible) timeline?.resume();
+      else { timeline?.pause(); cancelAnimationFrame(raf); }
       if (visible && !reduced) {
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(loop);
@@ -234,191 +228,21 @@ export function AmbientBackground() {
     return () => {
       running = false;
       cancelAnimationFrame(raf);
+      timeline?.cancel();
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouse);
       document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("visibilitychange", onVis);
       themeObserver.disconnect();
     };
-  }, [calm, isAurora]);
+  }, [calm, compact, isAurora, mounted, reducedMotion, quiet, pageVisible]);
 
-  const orbDuration = calm ? 34 : 24;
-
+  const staticScene = !mounted || reducedMotion || quiet || !pageVisible;
   return (
-    <div className="ambient" aria-hidden="true" style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
-      {/* parallax layer */}
-      <motion.div style={{ position: "absolute", inset: 0, y: parallaxY }}>
-        {isAurora ? (
-          <>
-            {/* slow energy ring */}
-            <motion.div
-              style={{
-                position: "absolute",
-                width: "130vmax",
-                height: "130vmax",
-                left: "50%",
-                top: "48%",
-                marginLeft: "-65vmax",
-                marginTop: "-65vmax",
-                borderRadius: "50%",
-                background:
-                  "conic-gradient(from 0deg, transparent 0deg, var(--glow-a) 40deg, transparent 90deg, var(--glow-b) 170deg, transparent 230deg, var(--glow-c) 300deg, transparent 360deg)",
-                filter: "blur(70px)",
-                opacity: 0.5,
-              }}
-              animate={{ rotate: 360 }}
-              transition={{ duration: 70, repeat: Infinity, ease: "linear" }}
-            />
-            <motion.div
-              style={{
-                position: "absolute",
-                width: "58vmax",
-                height: "58vmax",
-                left: "-16vmax",
-                top: "-18vmax",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, var(--glow-a), transparent 70%)",
-                filter: "blur(64px)",
-                x: o1x,
-                y: o1y,
-              }}
-              animate={{ scale: [1, 1.22, 1], rotate: [0, 30, 0] }}
-              transition={{ duration: orbDuration, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              style={{
-                position: "absolute",
-                width: "50vmax",
-                height: "50vmax",
-                right: "-14vmax",
-                top: "26vmax",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, var(--glow-b), transparent 70%)",
-                filter: "blur(64px)",
-                x: o2x,
-                y: o2y,
-              }}
-              animate={{ scale: [1.18, 0.9, 1.18], rotate: [0, -36, 0] }}
-              transition={{ duration: orbDuration + 8, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              style={{
-                position: "absolute",
-                width: "36vmax",
-                height: "36vmax",
-                left: "28vmax",
-                bottom: "-14vmax",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, var(--glow-c), transparent 70%)",
-                filter: "blur(60px)",
-                x: o3x,
-                y: o3y,
-              }}
-              animate={{ scale: [1, 1.22, 1] }}
-              transition={{ duration: orbDuration + 14, repeat: Infinity, ease: "easeInOut" }}
-            />
-          </>
-        ) : (
-          <>
-            {/* obsidian sheen */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: "linear-gradient(180deg, rgba(255,255,255,0.085), transparent 46%)",
-              }}
-            />
-            {/* energy ring (silver/gold) */}
-            <motion.div
-              style={{
-                position: "absolute",
-                width: "120vmax",
-                height: "120vmax",
-                left: "50%",
-                top: "46%",
-                marginLeft: "-60vmax",
-                marginTop: "-60vmax",
-                borderRadius: "50%",
-                background:
-                  "conic-gradient(from 0deg, transparent 0deg, var(--glow-a) 60deg, transparent 140deg, var(--glow-c) 230deg, transparent 320deg, transparent 360deg)",
-                filter: "blur(80px)",
-                opacity: 0.6,
-              }}
-              animate={{ rotate: -360 }}
-              transition={{ duration: 90, repeat: Infinity, ease: "linear" }}
-            />
-            {/* top hairline — silver, gold when toggle on */}
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 1,
-                background: "linear-gradient(90deg, transparent, var(--accent-2), transparent)",
-                opacity: 0.8,
-              }}
-            />
-            <motion.div
-              style={{
-                position: "absolute",
-                width: "44vmax",
-                height: "44vmax",
-                right: "-8vmax",
-                top: "-12vmax",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, var(--glow-a), transparent 70%)",
-                filter: "blur(72px)",
-                x: o1x,
-                y: o1y,
-              }}
-              animate={{ scale: [1, 1.18, 1] }}
-              transition={{ duration: orbDuration + 10, repeat: Infinity, ease: "easeInOut" }}
-            />
-          </>
-        )}
-      </motion.div>
-
-      {/* constellation */}
-      <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-
-      {/* cursor spotlight */}
-      <div
-        ref={spotRef}
-        style={{
-          position: "absolute",
-          width: 760,
-          height: 760,
-          borderRadius: "50%",
-          background: isAurora
-            ? "radial-gradient(circle, rgba(255,255,255,0.6), transparent 62%)"
-            : "radial-gradient(circle, var(--accent-glow), transparent 62%)",
-          opacity: isAurora ? 0.6 : 0.2,
-          mixBlendMode: isAurora ? "overlay" : "screen",
-          willChange: "transform",
-        }}
-      />
-
-      {/* grain + vignette */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E\")",
-          opacity: 0.045,
-          mixBlendMode: "overlay",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: isAurora
-            ? "radial-gradient(120% 120% at 50% 40%, transparent 50%, rgba(120,135,160,0.14) 100%)"
-            : "radial-gradient(120% 120% at 50% 40%, transparent 46%, rgba(0,0,0,0.36) 100%)",
-        }}
-      />
+    <div className={`ambient ${staticScene ? "ambient-static" : compact ? "ambient-compact" : "ambient-workspace"}`}
+      aria-hidden="true" style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none",
+        background: "radial-gradient(ellipse at 15% 10%, var(--glow-a), transparent 65%), radial-gradient(ellipse at 90% 75%, var(--glow-b), transparent 65%), radial-gradient(ellipse at 45% 100%, var(--glow-c), transparent 70%)" }}>
+      {!staticScene && <canvas ref={canvasRef} style={{ position: "absolute", inset: 0 }} />}
     </div>
   );
 }

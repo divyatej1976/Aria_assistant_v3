@@ -20,11 +20,16 @@ export type IconName =
   | "folder"
   | "headphones"
   | "home"
+  | "image"
+  | "info"
   | "lightbulb"
   | "list"
   | "lock"
   | "logout"
   | "message"
+  | "menu"
+  | "chevron-up"
+  | "chevron-down"
   | "mic"
   | "palette"
   | "pause"
@@ -45,8 +50,12 @@ export type IconName =
   | "bell";
 
 const PATHS: Record<IconName, JSX.Element> = {
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  "chevron-up": <path d="m6 15 6-6 6 6" />,
+  "chevron-down": <path d="m6 9 6 6 6-6" />,
   activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
   alert: (
     <>
@@ -126,6 +135,13 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <path d="M9 22V12h6v10" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
     </>
   ),
   lightbulb: (

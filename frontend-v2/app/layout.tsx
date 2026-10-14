@@ -5,6 +5,7 @@ import { PaletteProvider } from "@/components/palette-provider";
 import { AmbientBackground } from "@/components/ambient-background";
 import { AuthProvider } from "@/components/auth-provider";
 import { ActiveContextProvider } from "@/components/use-active-context";
+import { MotionProvider } from "@/components/motion-system";
 
 // Self-hosted variable fonts: production builds must not depend on Google's CDN.
 const jakarta = localFont({
@@ -29,13 +30,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-theme="aurora" suppressHydrationWarning>
-      <body className={`${jakarta.variable} ${jetbrains.variable} antialiased`}>
+    <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`} data-theme="aurora" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <body className="antialiased">
         <PaletteProvider>
           <AuthProvider>
           <ActiveContextProvider>
+            <MotionProvider>
             <AmbientBackground />
             {children}
+            </MotionProvider>
           </ActiveContextProvider>
         </AuthProvider>
         </PaletteProvider>
