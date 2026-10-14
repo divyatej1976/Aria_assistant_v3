@@ -7,6 +7,7 @@ from app.db.models import (
     ConceptChunk,
     Evidence,
     LearnerConceptState,
+    LearningContext,
     Resource,
     ResourceChunk,
 )
@@ -327,6 +328,8 @@ def test_weak_chunk_boosts_only_weak_concepts(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Study"))
+        db.flush()
         resource = Resource(
             id=uuid4(),
             owner_id=owner_id,

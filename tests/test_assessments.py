@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.assessment.mcq import generate_mcqs_deterministic
 from app.assessment.schema import MCQItem, MCQSet
-from app.db.models import Concept, ConceptChunk, Resource, ResourceChunk
+from app.db.models import Concept, ConceptChunk, LearningContext, Resource, ResourceChunk
 
 MATERIAL = (
     "Two-phase locking uses a growth phase and a shrink phase. "
@@ -224,6 +224,8 @@ def test_generator_produces_valid_varied_correct_letters(engine, session_factory
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Locks"))
+        db.flush()
         resource = Resource(
             id=uuid4(),
             owner_id=owner_id,
@@ -267,6 +269,8 @@ def test_generator_produces_valid_varied_correct_letters(engine, session_factory
 def test_targeted_generator_credits_requested_concept(session_factory) -> None:
     with session_factory() as db:
         owner_id, context_id = uuid4(), uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Practice"))
+        db.flush()
         resource = Resource(
             owner_id=owner_id, context_id=context_id, title="Practice",
             resource_type="TEXT", processing_status="READY",

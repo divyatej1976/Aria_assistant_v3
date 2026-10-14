@@ -8,6 +8,7 @@ from app.db.models import (
     Learner,
     LearnerConceptState,
     LearnerSession,
+    LearningContext,
 )
 from app.services.context_assembly import (
     STUDY_SYSTEM_PROMPT,
@@ -343,8 +344,12 @@ def test_context_assembly_units(engine, session_factory) -> None:
                 ),
             ]
         )
-        concept = Concept(owner_id=owner_id, context_id=uuid4(), name="locking")
-        db.add(concept)
+        context = LearningContext(owner_id=owner_id, title="Memory")
+        db.add(context)
+        db.flush()
+        concept = Concept(owner_id=owner_id, context_id=context.id, name="locking")
+        untested = Concept(owner_id=owner_id, context_id=context.id, name="untested")
+        db.add_all([concept, untested])
         db.flush()
         db.add(
             LearnerConceptState(
@@ -358,7 +363,7 @@ def test_context_assembly_units(engine, session_factory) -> None:
         db.add(
             LearnerConceptState(
                 owner_id=owner_id,
-                concept_id=uuid4(),
+                concept_id=untested.id,
                 state="UNTESTED",
                 confidence=0,
                 reason="none",

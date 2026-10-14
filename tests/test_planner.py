@@ -320,17 +320,19 @@ class FailingProvider:
 
 
 def test_email_failure_is_reported_and_retried(engine, session_factory) -> None:
-    from app.db.models import Deadline, Learner
+    from app.db.models import Deadline, Learner, LearningContext
     from app.services.notifications import LogEmailProvider, check_reminders
 
     with session_factory() as db:
         owner_id = uuid4()
         db.add(Learner(id=owner_id, owner_id=owner_id, email="learner@example.com"))
+        context = LearningContext(owner_id=owner_id, title="Exam")
+        db.add(context)
         db.flush()
         db.add(
             Deadline(
                 owner_id=owner_id,
-                context_id=uuid4(),
+                context_id=context.id,
                 title="Exam",
                 due_at=now() + timedelta(days=5),
                 reminder_days_before=5,

@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.db.models import Note, RevisionItem
+from app.db.models import LearningContext, Note, RevisionItem
 from app.services.notes import build_note_pdf, due_notes
 
 MATERIAL = (
@@ -160,6 +160,8 @@ def test_due_notes_service(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
+        db.add(LearningContext(id=context_id, owner_id=owner_id, title="Notes"))
+        db.flush()
         overdue = Note(
             id=uuid4(),
             owner_id=owner_id,
