@@ -1,5 +1,7 @@
 # ARIA UI polish release verification — 2026-10-14
 
+The [2026-10-15 consistency follow-up](frontend-consistency-verification-2026-10-15.md) records the subsequent fixes, refreshed screenshots and current CI limitations. The original test counts below refer to the 2026-10-14 run; the linked screenshot files are refreshed by the follow-up verification.
+
 This follow-up closes the six polish phases and the assessment score-history gap. The release branch is `codex/ui-polish`, created from the existing `master` checkout and merged with `origin/main` before the new commits. The PR therefore also includes the previously unmerged master work; its scope is the complete frontend/backend integration, rather than only visual changes.
 
 ## Verification
