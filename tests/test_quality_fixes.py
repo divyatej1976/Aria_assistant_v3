@@ -216,7 +216,7 @@ def test_reservation_blocks_second_inflight_call(monkeypatch) -> None:
     import app.ai.budget as budget
     from app.ai.providers import LiteLLMGroqProvider
 
-    _patch_budget(monkeypatch, per_user=0.0001)
+    _patch_budget(monkeypatch, per_user=0.0015)
     budget.reset_learner_budget()
     owner = uuid.uuid4()
     try:
@@ -225,18 +225,18 @@ def test_reservation_blocks_second_inflight_call(monkeypatch) -> None:
         )
         # First in-flight call reserves upfront.
         provider._reserve_learner(4000)
-        # Second concurrent call must be blocked at its pre-call check.
+        # The remaining balance cannot fund a second whole reservation.
         with pytest.raises(budget.BudgetExceeded):
-            budget.assert_learner_within_budget(owner)
+            provider._reserve_learner(4000)
     finally:
         budget.reset_learner_budget()
 
 
-def test_failed_call_refunds_reservation(monkeypatch) -> None:
+def test_unknown_failed_call_retains_reservation(monkeypatch) -> None:
     import app.ai.budget as budget
     from app.ai.providers import LiteLLMGroqProvider
 
-    _patch_budget(monkeypatch, per_user=0.0001)
+    _patch_budget(monkeypatch, per_user=10.0)
     budget.reset_learner_budget()
     owner = uuid.uuid4()
     try:
@@ -245,8 +245,10 @@ def test_failed_call_refunds_reservation(monkeypatch) -> None:
         )
         reserved = provider._reserve_learner(4000)
         assert reserved is not None
-        provider._settle_learner(reserved, None)  # simulate failure refund
-        assert budget.learner_spend_usd(owner) == pytest.approx(0.0)
+        provisional = budget.learner_spend_usd(owner)
+        provider._settle_learner(reserved, None)  # provider billing unknown
+        assert provisional > 0
+        assert budget.learner_spend_usd(owner) == pytest.approx(provisional)
     finally:
         budget.reset_learner_budget()
 

@@ -131,7 +131,7 @@ def test_cross_context_isolation_same_learner(client: TestClient, monkeypatch) -
     assert all(s["title"] != "Alpha doc" for s in body["sources"])
 
 
-def test_empty_context_returns_insufficient_fallback(client: TestClient) -> None:
+def test_empty_context_reports_missing_provider_configuration(client: TestClient) -> None:
     tag = uuid.uuid4().hex[:8]
     user = _register(client, f"rag-empty-{tag}@example.com")
     ctx = _context(client, user["access_token"], "Empty ctx")
@@ -144,10 +144,11 @@ def test_empty_context_returns_insufficient_fallback(client: TestClient) -> None
     assert answer.status_code == 200
     body = answer.json()
     assert body["fallback_used"] is True
-    assert "could not find enough relevant information" in body["content"]
+    assert "no usable LLM API key" in body["content"]
+    assert "without uploaded notes" in body["content"]
 
 
-def test_embedding_failure_falls_back_safely(client: TestClient, monkeypatch) -> None:
+def test_embedding_failure_keeps_healthy_tutor_and_lexical_sources(client: TestClient, monkeypatch) -> None:
     import app.services.study as study
 
     tag = uuid.uuid4().hex[:8]
@@ -173,8 +174,9 @@ def test_embedding_failure_falls_back_safely(client: TestClient, monkeypatch) ->
     )
     assert answer.status_code == 200
     body = answer.json()
-    assert body["fallback_used"] is True
-    assert "temporarily unavailable" in body["content"]
+    assert body["fallback_used"] is False
+    assert body["content"] == "Answer grounded in supplied material."
+    assert [source["title"] for source in body["sources"]] == ["Doc"]
 
 
 def test_hostile_source_stays_data_only_end_to_end(client: TestClient, monkeypatch) -> None:
@@ -310,3 +312,113 @@ def test_build_prompt_keeps_system_constant_with_state_and_history() -> None:
     system, user = build_prompt("Explain mitosis?", package)
     assert system == STUDY_SYSTEM_PROMPT
     assert "Mitosis" in user
+
+
+def test_citations_match_only_excerpts_sent_to_the_tutor(client: TestClient, monkeypatch):
+    import app.services.study as study
+    from app.ai.providers import RetrievedChunk
+
+    user = _register(client, "citations-packed@example.com")
+    context = _context(client, user["access_token"])
+    session = _session(client, user["access_token"], context)
+    candidates = [
+        RetrievedChunk(chunk_id="zero", resource_id="r", source_title="Zero", content="Zero text", score=0),
+        *[RetrievedChunk(chunk_id=letter, resource_id="r", source_title=letter,
+                         content=letter * 1500, score=1) for letter in "ABCDE"],
+    ]
+    async def retrieve(*args, **kwargs):
+        return candidates
+    captured = {}
+    class CaptureProvider:
+        async def generate_text(self, *, system, user, **kwargs):
+            captured["prompt"] = user
+            return "Grounded answer."
+    monkeypatch.setattr(study, "retrieve_chunks", retrieve)
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda *args, **kwargs: CaptureProvider())
+    response = client.post(
+        f"/api/v1/study/sessions/{session}/messages",
+        headers=_headers(user["access_token"]), json={"content": "Explain the material."},
+    )
+    assert response.status_code == 200
+    references = response.json()["sources"]
+    assert [item["title"] for item in references] == list("ABCD")
+    assert "[Zero]" not in captured["prompt"]
+    assert "[E]" not in captured["prompt"]
+    history = client.get(
+        f"/api/v1/study/sessions/{session}/messages", headers=_headers(user["access_token"])
+    ).json()
+    assert history[-1]["sources"] == references
+
+
+def test_packed_context_budget_counts_separators_and_no_header_only_citations():
+    from app.ai.providers import RetrievedChunk
+    from app.services.context_assembly import pack_study_context
+
+    chunks = [RetrievedChunk(chunk_id=str(i), resource_id="r", source_title=str(i),
+                             content=chr(65 + i) * 7, score=1) for i in range(3)]
+    text, included = pack_study_context(chunks, max_chars=24)
+    assert len(text) <= 24
+    assert [item.chunk_id for item in included] == ["0", "1"]
+    assert pack_study_context(chunks, max_chars=4) == ("", [])
+
+
+def test_history_preserves_response_fallback_provenance(client: TestClient):
+    user = _register(client, "history-fallback@example.com")
+    context = _context(client, user["access_token"])
+    session = _session(client, user["access_token"], context)
+    response = client.post(
+        f"/api/v1/study/sessions/{session}/messages",
+        headers=_headers(user["access_token"]), json={"content": "Explain binary search."},
+    )
+    assert response.json()["fallback_used"] is True
+    history = client.get(
+        f"/api/v1/study/sessions/{session}/messages", headers=_headers(user["access_token"])
+    ).json()
+    assert history[-1]["fallback_used"] is True
+    assert history[0]["fallback_used"] is None
+
+
+def test_chat_history_returns_latest_page_and_can_page_older(client: TestClient, session_factory):
+    from app.db.models import ConversationMessage, StudySession
+
+    user = _register(client, "history-latest@example.com")
+    context = _context(client, user["access_token"])
+    session_id = _session(client, user["access_token"], context)
+    with session_factory() as db:
+        session = db.get(StudySession, uuid.UUID(session_id))
+        db.add_all([
+            ConversationMessage(owner_id=session.owner_id, study_session_id=session.id,
+                                role="user", content=f"Message {index}", position=index)
+            for index in range(1, 206)
+        ])
+        db.commit()
+    path = f"/api/v1/study/sessions/{session_id}/messages"
+    newest = client.get(path, headers=_headers(user["access_token"])).json()
+    assert len(newest) == 200
+    assert newest[0]["position"] == 6
+    assert newest[-1]["position"] == 205
+    older = client.get(path + "?before_position=6", headers=_headers(user["access_token"])).json()
+    assert [row["position"] for row in older] == [1, 2, 3, 4, 5]
+
+
+def test_session_listing_returns_newest_sessions_and_supports_paging(client: TestClient, session_factory):
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models import StudySession
+
+    user = _register(client, "sessions-latest@example.com")
+    context = _context(client, user["access_token"])
+    owner = uuid.UUID(user["learner_id"])
+    with session_factory() as db:
+        db.add_all([
+            StudySession(owner_id=owner, context_id=uuid.UUID(context), mode="BASELINE",
+                         created_at=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=index))
+            for index in range(105)
+        ])
+        db.commit()
+    path = f"/api/v1/study/sessions?context_id={context}"
+    newest = client.get(path, headers=_headers(user["access_token"])).json()
+    older = client.get(path + "&offset=100", headers=_headers(user["access_token"])).json()
+    assert len(newest) == 100 and len(older) == 5
+    assert newest[0]["created_at"] > newest[-1]["created_at"] > older[0]["created_at"]
+    assert not {row["id"] for row in newest}.intersection(row["id"] for row in older)

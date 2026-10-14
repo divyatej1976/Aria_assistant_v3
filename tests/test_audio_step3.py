@@ -44,8 +44,16 @@ def _context(client: TestClient, token: str) -> str:
     return res.json()["id"]
 
 
-def test_resource_to_audio_generate_and_play(client: TestClient, monkeypatch) -> None:
+def test_resource_to_audio_generate_and_play(
+    client: TestClient, monkeypatch, tmp_path
+) -> None:
     monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: FakeTTS())
+    from app.services.audio_storage import LocalAudioStorage
+
+    monkeypatch.setattr(
+        "app.services.audio.get_audio_storage",
+        lambda: LocalAudioStorage(tmp_path / "audiofiles"),
+    )
     tag = uuid.uuid4().hex[:8]
     user = _register(client, f"step3-res-{tag}@example.com")
     ctx = _context(client, user["access_token"])
@@ -101,13 +109,17 @@ def test_failed_audio_play_returns_409(client: TestClient, monkeypatch) -> None:
     assert play.status_code == 409
 
 
-def test_step3_uses_raw_text_no_llm(client: TestClient, monkeypatch) -> None:
+def test_step3_uses_raw_text_no_llm(client: TestClient, monkeypatch, tmp_path) -> None:
     """Step 3 must not invoke the LLM; TTS receives raw source text verbatim."""
     import app.services.audio as audio
     import app.services.study as study
+    from app.services.audio_storage import LocalAudioStorage
 
     fake = FakeTTS()
     monkeypatch.setattr(audio, "get_tts_provider", lambda: fake)
+    monkeypatch.setattr(
+        audio, "get_audio_storage", lambda: LocalAudioStorage(tmp_path / "audiofiles")
+    )
 
     def _boom():
         raise AssertionError("Step 3 must not call the LLM provider")
@@ -131,8 +143,16 @@ def test_step3_uses_raw_text_no_llm(client: TestClient, monkeypatch) -> None:
     assert fake.last_text == body_text
 
 
-def test_resource_delete_cascades_audio(client: TestClient, monkeypatch) -> None:
+def test_resource_delete_cascades_audio(
+    client: TestClient, monkeypatch, tmp_path
+) -> None:
     monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: FakeTTS())
+    from app.services.audio_storage import LocalAudioStorage
+
+    root = tmp_path / "audiofiles"
+    monkeypatch.setattr(
+        "app.services.audio.get_audio_storage", lambda: LocalAudioStorage(root)
+    )
     tag = uuid.uuid4().hex[:8]
     user = _register(client, f"step3-cascade-{tag}@example.com")
     ctx = _context(client, user["access_token"])
@@ -153,6 +173,8 @@ def test_resource_delete_cascades_audio(client: TestClient, monkeypatch) -> None
         f"/api/v1/audio/{artifact['id']}", headers=_headers(user["access_token"])
     )
     assert gone.status_code == 404
+    # Cascade also removed the stored bytes, not just the row.
+    assert list(root.rglob("*.mp3")) == []
 
 
 def test_tts_provider_selection(monkeypatch) -> None:

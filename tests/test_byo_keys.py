@@ -67,6 +67,66 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_capabilities_are_authenticated_and_personal_key_does_not_enable_audio(client, monkeypatch):
+    _patch_settings(monkeypatch)
+    assert client.get("/api/v1/settings/capabilities").status_code == 401
+    user = _register(client, "capabilities@example.com")
+    auth = _headers(user["access_token"])
+    initial = client.get("/api/v1/settings/capabilities", headers=auth).json()
+    assert initial["credential_source"] == "none"
+    assert initial["tutor_configured"] is False
+    assert initial["allowed_models"] == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+    client.post("/api/v1/settings/llm-key", headers=auth, json={"key": VALID_KEY})
+    response = client.get("/api/v1/settings/capabilities", headers=auth)
+    personal = response.json()
+    assert personal["credential_source"] == "learner"
+    assert personal["tutor_configured"] is True
+    assert personal["provider_verified"] is False
+    assert personal["speech_to_text_configured"] is False
+    assert personal["cloud_speech_configured"] is False
+    assert personal["audio_credential_scope"] == "deployment"
+    assert VALID_KEY not in response.text
+    _patch_settings(monkeypatch, aria_llm_keys_encryption_key=ROTATED, groq_api_key=VALID_KEY_2)
+    fallback = client.get("/api/v1/settings/capabilities", headers=auth).json()
+    assert fallback["credential_source"] == "global"
+    assert fallback["personal_key"]["usable"] is False
+    assert fallback["speech_to_text_configured"] is True
+
+
+def test_status_distinguishes_saved_key_from_unreadable_credential(client, monkeypatch):
+    _patch_settings(monkeypatch)
+    user = _register(client, "unreadable-status@example.com")
+    auth = _headers(user["access_token"])
+    response = client.post("/api/v1/settings/llm-key", headers=auth, json={"key": VALID_KEY})
+    assert response.json()["usable"] is True
+    _patch_settings(monkeypatch, aria_llm_keys_encryption_key=ROTATED)
+    response = client.get("/api/v1/settings/llm-key", headers=auth)
+    assert response.status_code == 200
+    assert response.json()["configured"] is True
+    assert response.json()["usable"] is False
+    assert response.json()["issue"] == "credential_unreadable"
+    assert VALID_KEY not in response.text
+    _patch_settings(monkeypatch, aria_llm_keys_encryption_key=ROTATED,
+                    aria_llm_keys_encryption_key_old=PRIMARY)
+    assert client.get("/api/v1/settings/llm-key", headers=auth).json()["usable"] is True
+
+
+def test_old_key_only_allows_reading_but_not_new_encryption(client, monkeypatch):
+    _patch_settings(monkeypatch)
+    user = _register(client, "old-only@example.com")
+    auth = _headers(user["access_token"])
+    assert client.post("/api/v1/settings/llm-key", headers=auth, json={"key": VALID_KEY}).status_code == 201
+    _patch_settings(monkeypatch, aria_llm_keys_encryption_key=None,
+                    aria_llm_keys_encryption_key_old=PRIMARY)
+    capabilities = client.get("/api/v1/settings/capabilities", headers=auth).json()
+    assert capabilities["personal_keys_enabled"] is False
+    assert capabilities["personal_key"]["usable"] is True
+    assert capabilities["credential_source"] == "learner"
+    rejected = client.post("/api/v1/settings/llm-key", headers=auth, json={"key": VALID_KEY_2})
+    assert rejected.status_code == 422
+    assert client.get("/api/v1/settings/llm-key", headers=auth).json()["hint"] == "..." + VALID_KEY[-4:]
+
+
 def test_set_get_delete_roundtrip_hides_plaintext(client: TestClient, monkeypatch) -> None:
     _patch_settings(monkeypatch)
     tag = uuid.uuid4().hex[:8]

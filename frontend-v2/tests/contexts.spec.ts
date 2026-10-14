@@ -14,9 +14,9 @@ test("onboarding creates a real learning context and the home shows it", async (
   await page.waitForURL(/onboarding/, { timeout: 20_000 });
 
   const topic = "Database Management Systems";
-  await page.getByLabel("Primary Learning Vector").fill(topic);
-  await page.getByLabel("Goal Objective").fill("Understanding DB normalization");
-  await page.getByRole("button", { name: /enter aria/i }).click();
+  await page.getByLabel("What would you like to learn?").fill(topic);
+  await page.getByLabel("What’s your goal?").fill("Understanding DB normalization");
+  await page.getByRole("button", { name: /start learning/i }).click();
 
   await page.waitForURL("**/app", { timeout: 20_000 });
   await waitForHome(page);
@@ -33,8 +33,8 @@ test("re-signing in after a context exists goes straight to the app (not onboard
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForURL(/onboarding/, { timeout: 20_000 });
-  await page.getByLabel("Primary Learning Vector").fill("DSA");
-  await page.getByRole("button", { name: /enter aria/i }).click();
+  await page.getByLabel("What would you like to learn?").fill("DSA");
+  await page.getByRole("button", { name: /start learning/i }).click();
   await page.waitForURL("**/app", { timeout: 20_000 });
   await waitForHome(page);
 
@@ -78,9 +78,9 @@ test("switching context in the header updates mounted screens immediately (no re
   await switcher.selectOption(secondId);
   await expect(switcher).toHaveValue(secondId, { timeout: 10_000 });
 
-  // dashboard greeting reflects the new context WITHOUT any reload
+  // The Continue Learning card reflects the new context WITHOUT any reload.
   await expect(
-    page.getByText(/Good (morning|afternoon|evening).*?Second Goal/).first(),
-  ).toBeVisible({ timeout: 15_000 });
+    page.locator(".learning-hero .hero-topic"),
+  ).toHaveText("Second Goal", { timeout: 15_000 });
   void firstContextId;
 });

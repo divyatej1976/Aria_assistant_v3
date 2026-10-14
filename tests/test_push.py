@@ -16,7 +16,7 @@ MATERIAL = (
 )
 
 SUB = {
-    "endpoint": "https://push.example.com/send/abc",
+    "endpoint": "https://fcm.googleapis.com/fcm/send/test",
     "p256dh": "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkRxZ8sE2bW0vNxXkG",
     "auth": "pTkY0qR6PJk0f0Cg",
 }
@@ -197,3 +197,58 @@ def test_assessment_submit_creates_notification(client: TestClient) -> None:
 
     notifications = client.get("/api/v1/notifications", headers=headers(token)).json()
     assert any(item["ntype"] == "assessment_result" for item in notifications)
+
+
+def test_push_rejects_arbitrary_destinations(client: TestClient) -> None:
+    session = register(client, "push-invalid@example.com")
+    for endpoint in (
+        "http://fcm.googleapis.com/send/test",
+        "https://127.0.0.1/admin", "https://[::1]/admin",
+        "https://169.254.169.254/latest/meta-data",
+        "https://localhost/admin", "https://example.com/send",
+        "https://fcm.googleapis.com.evil.example/send",
+        "https://evil.example@fcm.googleapis.com/send",
+        "https://fcm.googleapis.com:8443/send",
+        "https://fcm.googleapis.com/send#fragment",
+    ):
+        response = client.post(
+            "/api/v1/push/subscribe", headers=headers(session["access_token"]),
+            json={**SUB, "endpoint": endpoint},
+        )
+        assert response.status_code == 422, endpoint
+    assert client.get(
+        "/api/v1/push/subscriptions", headers=headers(session["access_token"])
+    ).json() == []
+
+
+def test_push_stored_invalid_endpoint_is_not_delivered(monkeypatch) -> None:
+    import pywebpush
+
+    from app.db.models import PushSubscription
+    from app.services.push import WebPushProvider
+
+    def unexpected_call(**kwargs):
+        raise AssertionError("Invalid destination must never reach webpush")
+
+    monkeypatch.setattr(pywebpush, "webpush", unexpected_call)
+    subscription = PushSubscription(endpoint="https://127.0.0.1/admin", p256dh="test", auth="test")
+    provider = WebPushProvider(public_key="test", private_key="test", subject="mailto:test@example.com")
+    assert provider.send(subscription=subscription, title="Test", body="Test") == "failed"
+
+
+def test_push_transport_disables_redirects(monkeypatch) -> None:
+    from requests import Response
+    from requests import Session as RequestSession
+
+    from app.services.push import PushRequestSession
+
+    seen = {}
+    def capture(self, method, url, **kwargs):
+        seen.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr(RequestSession, "request", capture)
+    with PushRequestSession() as session:
+        session.post(SUB["endpoint"], allow_redirects=True, timeout=15)
+    assert seen["allow_redirects"] is False
+    assert seen["timeout"] == 15

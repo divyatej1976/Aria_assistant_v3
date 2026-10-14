@@ -497,7 +497,7 @@ const MATERIAL_TEXT_SMOKE =
   "A function is a reusable block of code. def defines a function. Arguments are passed when calling.";
 
 test("push: subscribe, list, unsubscribe round-trip (endpoint-only body like the UI)", async () => {
-  const sub = { endpoint: "https://push.example/smoke-1", p256dh: "k1", auth: "a1" };
+  const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/smoke-1", p256dh: "k1", auth: "a1" };
   const on = await family.ctx.post("/api/v1/push/subscribe", { headers: authed(family), data: sub });
   expect(on.status()).toBe(201);
 

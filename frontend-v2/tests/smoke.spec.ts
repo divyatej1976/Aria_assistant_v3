@@ -22,10 +22,10 @@ async function noSeriousAxe(page: Page, name: string) {
   expect(serious, `serious on ${name}: ${serious.map((v) => v.id).join(", ")}`).toEqual([]);
 }
 
-test("landing route renders and is accessible", async ({ page }) => {
+test("landing route renders and is accessible", async ({ page, baseURL }) => {
   await page.goto("/");
   await expect(page.getByText("NEXT-GEN AI COMPANION", { exact: false }).first()).toBeVisible();
-  await expect(page).toHaveURL("http://localhost:3100/");
+  await expect(page).toHaveURL(new URL("/", baseURL).href);
   await page.waitForLoadState("networkidle");
   await noSeriousAxe(page, "landing");
 });

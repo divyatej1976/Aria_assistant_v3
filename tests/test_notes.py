@@ -2,11 +2,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
 from app.db.models import Note, RevisionItem
 from app.services.notes import build_note_pdf, due_notes
 
@@ -160,12 +156,7 @@ def test_due_queue(client: TestClient) -> None:
     assert [item["id"] for item in due_again.json()] == []
 
 
-def test_due_notes_service() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+def test_due_notes_service(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         context_id = uuid4()
@@ -206,7 +197,6 @@ def test_due_notes_service() -> None:
         )
         db.commit()
         result = due_notes(db, owner_id=owner_id, context_id=context_id)
-    engine.dispose()
     assert [note.title for note in result] == ["Overdue"]
 
 

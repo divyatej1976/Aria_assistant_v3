@@ -58,16 +58,17 @@ test("full journey: signup to account across every feature", async ({ page }) =>
     if (!(await radio.isChecked())) await radio.check();
   }
   await page.getByRole("button", { name: /Submit Answers/i }).click();
-  await page.getByText("Assessment Complete!").waitFor({ state: "visible", timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Answer Review", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/You answered \d+ of \d+ questions correctly\./)).toBeVisible();
 
   // ---- materials: generate a note from the chat session + download PDF ----
   await page.goto("/app/materials");
   await page.getByRole("heading", { name: /Materials Library/i }).waitFor({ state: "visible", timeout: 20_000 });
-  await page.getByRole("button", { name: /Add Material/i }).first().click();
+  await page.getByRole("button", { name: /Generate Notes/i }).first().click();
   const sessionValue = await page.locator("#note-source option").nth(1).getAttribute("value");
   expect(sessionValue).toBeTruthy();
   await page.getByLabel("Source").selectOption(sessionValue!);
-  await page.getByRole("button", { name: /Create Material/i }).last().click();
+  await page.getByRole("button", { name: /Generate Notes/i }).last().click();
   const noteTitle = "Database Management Systems — Study notes";
   await expect(page.getByText(noteTitle).first()).toBeVisible({ timeout: 30_000 });
   const [download] = await Promise.all([
@@ -83,8 +84,10 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   expect(noteValue).toContain("note:");
   await page.getByLabel("Source").selectOption(noteValue!);
   await page.getByRole("button", { name: /Create Audio/i }).last().click();
-  await expect(page.locator(".audio-card").first()).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: /Play NOTE audio/i }).click();
+  const recording = page.locator(".audio-card").filter({ hasText: noteTitle });
+  await expect(recording).toBeVisible({ timeout: 30_000 });
+  await expect(recording.getByText(/^READY(?:\s|$)/)).toBeVisible({ timeout: 30_000 });
+  await recording.getByRole("button", { name: /Play NOTE audio/i }).click();
   await expect(page.locator("audio").first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: /Pause/i }).click();
   await expect(page.locator("audio")).toHaveCount(0);
@@ -97,7 +100,7 @@ test("full journey: signup to account across every feature", async ({ page }) =>
 
   await page.goto("/app/map");
   await page.getByRole("heading", { name: "Knowledge Map" }).waitFor({ state: "visible", timeout: 20_000 });
-  await expect(page.locator("svg line").first()).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator(".concept-node").first()).toBeVisible({ timeout: 20_000 });
 
   // ---- notifications: assessment result landed in the bell ----
   await page.goto("/app/account"); // leave map so badge refetches on next load

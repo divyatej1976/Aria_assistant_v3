@@ -52,9 +52,9 @@ test("knowledge map renders real concepts and evidence after learning", async ({
   await page.goto("/app/map");
   await page.getByRole("heading", { name: "Knowledge Map" }).waitFor({ state: "visible", timeout: 20_000 });
 
-  // concept nodes render (connector lines exist only when n > 0)
+  // Real concepts render even when no prerequisite links have been recorded.
   await expect(page.getByText("No concepts tracked yet").first()).toBeHidden({ timeout: 30_000 });
-  await expect(page.locator("svg line").first()).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator(".concept-node").first()).toBeVisible({ timeout: 20_000 });
 
   // search + state filter UI present once data has rendered
   await expect(page.getByLabel("Search concepts")).toBeVisible({ timeout: 20_000 });
@@ -64,7 +64,7 @@ test("knowledge map renders real concepts and evidence after learning", async ({
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "All", exact: true }).click();
 
-  // the hub shows the real context title from onboarding
+  // The map identifies the real active subject from onboarding.
   await expect(page.getByText("Database Management Systems").first()).toBeVisible({ timeout: 20_000 });
 });
 

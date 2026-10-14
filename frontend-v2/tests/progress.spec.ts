@@ -58,8 +58,11 @@ test("progress reflects real learning activity and awards badges", async ({ page
 
   // a qualifying assessment activity was recorded today
   await expect(page.getByText("Assessment", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-  // the first-assessment badge is now unlocked
-  await expect(page.locator(".badge-card").filter({ hasText: "First assessment" }).getByText("Unlocked", { exact: true })).toBeVisible({ timeout: 20_000 });
+  // the first-assessment badge is now unlocked (earned cards carry the .earned
+  // class and a check mark; locked ones show "Locked")
+  const firstAssessmentBadge = page.locator(".badge-card.earned").filter({ hasText: "First assessment" });
+  await expect(firstAssessmentBadge).toBeVisible({ timeout: 20_000 });
+  await expect(firstAssessmentBadge.locator(".badge-check")).toBeVisible();
 });
 
 test("progress page is accessible", async ({ page }) => {

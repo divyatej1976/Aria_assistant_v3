@@ -29,8 +29,14 @@ class _FakeTTS:
 
 # --- Durable audio listing ---
 
-def test_audio_list_endpoint_durable_and_scoped(client: TestClient, monkeypatch) -> None:
+def test_audio_list_endpoint_durable_and_scoped(client: TestClient, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: _FakeTTS())
+    from app.services.audio_storage import LocalAudioStorage
+
+    monkeypatch.setattr(
+        "app.services.audio.get_audio_storage",
+        lambda: LocalAudioStorage(tmp_path / "audiofiles"),
+    )
     tag = uuid.uuid4().hex[:8]
     user = _register(client, f"list-{tag}@example.com")
     auth = _headers(user["access_token"])
@@ -74,8 +80,14 @@ def test_audio_list_endpoint_durable_and_scoped(client: TestClient, monkeypatch)
     assert after == []
 
 
-def test_audio_list_progress_roundtrip(client: TestClient, monkeypatch) -> None:
+def test_audio_list_progress_roundtrip(client: TestClient, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: _FakeTTS())
+    from app.services.audio_storage import LocalAudioStorage
+
+    monkeypatch.setattr(
+        "app.services.audio.get_audio_storage",
+        lambda: LocalAudioStorage(tmp_path / "audiofiles"),
+    )
     tag = uuid.uuid4().hex[:8]
     user = _register(client, f"list-prog-{tag}@example.com")
     auth = _headers(user["access_token"])
@@ -95,25 +107,10 @@ def test_audio_list_progress_roundtrip(client: TestClient, monkeypatch) -> None:
 
 # --- Shared (DB-backed) rate limiting ---
 
-def _sqlite_session_factory():
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
-
-    from app.db.base import Base
-    from app.db.models import RateLimitBucket  # noqa: F401 - ensure table registered
-
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-
-
-def test_db_rate_limiter_shared_and_enforced() -> None:
+def test_db_rate_limiter_shared_and_enforced(session_factory) -> None:
     from app.security.rate_limit import allow_request_db
 
-    factory = _sqlite_session_factory()
+    factory = session_factory
     key = f"test:{uuid.uuid4()}"
     assert allow_request_db(key, limit=2, window_seconds=60, session_factory=factory)
     assert allow_request_db(key, limit=2, window_seconds=60, session_factory=factory)
@@ -124,14 +121,14 @@ def test_db_rate_limiter_shared_and_enforced() -> None:
                             session_factory=factory)
 
 
-def test_db_rate_limiter_window_resets() -> None:
+def test_db_rate_limiter_window_resets(session_factory) -> None:
 
     from sqlalchemy import select
 
     from app.db.models import RateLimitBucket
     from app.security.rate_limit import allow_request_db
 
-    factory = _sqlite_session_factory()
+    factory = session_factory
     key = f"test-reset:{uuid.uuid4()}"
     assert allow_request_db(key, limit=1, window_seconds=60, session_factory=factory)
     assert not allow_request_db(key, limit=1, window_seconds=60, session_factory=factory)
@@ -274,6 +271,7 @@ def test_backup_job_disabled_and_sqlite_guard(monkeypatch) -> None:
         aria_backup_enabled = False
         aria_backup_dir = "backups"
         aria_backup_keep = 14
+        aria_backup_encryption_key = None
         database_url = "sqlite://"
 
     monkeypatch.setattr(backup_mod, "get_settings", lambda: _S(), raising=False)
@@ -295,18 +293,14 @@ def test_backup_job_disabled_and_sqlite_guard(monkeypatch) -> None:
 
 
 def test_migration_chain_has_rate_limit_buckets() -> None:
-    import subprocess
-    import sys
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
 
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", "heads"],
-        capture_output=True,
-        text=True,
-        env={"PYTHONPATH": "backend", "PATH": __import__("os").environ["PATH"],
-             "SYSTEMROOT": __import__("os").environ.get("SYSTEMROOT", "")},
-        cwd=str(Path(__file__).resolve().parents[1]),
-    )
-    assert "0018_assessment_answer_text (head)" in result.stdout
+    root = Path(__file__).resolve().parents[1]
+    script = ScriptDirectory.from_config(Config(str(root / "alembic.ini")))
+    assert len(script.get_heads()) == 1
+    revisions = {revision.revision for revision in script.walk_revisions()}
+    assert {"0016_rate_limit_buckets", "0019_roadmaps", "0020_chat_fallback"} <= revisions
 
 
 def test_prod_compose_valid_and_routes_through_proxy() -> None:

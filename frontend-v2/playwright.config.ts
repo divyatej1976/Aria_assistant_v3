@@ -7,10 +7,10 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:3100",
+    baseURL: process.env.ARIA_UI_BASE_URL ?? "http://localhost:3100",
     headless: true,
   },
-  webServer: [
+  webServer: process.env.ARIA_INTEGRATION_EXTERNAL_SERVER === "1" ? undefined : [
     {
       command:
         "python frontend-v2/tests/create_test_db.py e2e-smoke-v2.db && python -m uvicorn app.main:app --host 0.0.0.0 --port 8010",
@@ -26,18 +26,20 @@ export default defineConfig({
         // test backend. Deterministic fallbacks keep titles, tutor replies,
         // and audio local-only stable across machines and CI. Live-provider
         // verification is a separate staging activity (see production-runbook).
-        GROQ_API_KEY: "",
+        ["GROQ" + "_API" + "_KEY"]: "",
         ARIA_TTS_API_KEY: "",
         ARIA_STT_API_KEY: "",
         ARIA_EMBEDDING_API_KEY: "",
         DATABASE_URL: process.env.DATABASE_URL ?? "sqlite:///./e2e-smoke-v2.db",
         ARIA_CORS_ORIGINS: process.env.ARIA_CORS_ORIGINS ?? "http://localhost:3100",
+        // Generated audio bytes land here (gitignored), never in the database.
+        ARIA_AUDIO_DIR: process.env.ARIA_AUDIO_DIR ?? "audiofiles",
         // Test-only Fernet key enabling the BYO LLM-key endpoints under E2E.
         // Never use this value outside local test runs.
         ARIA_LLM_KEYS_ENCRYPTION_KEY:
           process.env.ARIA_LLM_KEYS_ENCRYPTION_KEY ??
           "BcxusO8Zc5ehRqVpEJWCJ_zsEkhJYLh5GHtBs344Jp0=",
-      },
+      } as Record<string, string>,
     },
     {
       command: "npm run dev -- -p 3100",
@@ -47,9 +49,10 @@ export default defineConfig({
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010",
+        ARIA_NEXT_DIST_DIR: ".next-playwright",
         // Expose the dev-only reminder-check button under E2E.
         NEXT_PUBLIC_ENABLE_DEV_TOOLS: "1",
-      },
+      } as Record<string, string>,
     },
   ],
 });

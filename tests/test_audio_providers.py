@@ -101,6 +101,27 @@ def test_chain_raises_when_every_provider_fails() -> None:
         chain.generate(text="hi")
 
 
+@pytest.mark.parametrize("fallback_succeeds", [True, False])
+def test_chain_does_not_expose_provider_exception_body(caplog, fallback_succeeds):
+    class PrivateFailure:
+        def generate(self, *, text):
+            raise RuntimeError(f"private learner prompt={text} token=private-provider-secret")
+
+    providers = [PrivateFailure()]
+    if fallback_succeeds:
+        providers.append(_FakeProvider())
+    chain = ChainedTTSProvider(providers)
+    if fallback_succeeds:
+        assert chain.generate(text="confidential study text") == (b"A", "audio/wav", 1)
+    else:
+        with pytest.raises(RuntimeError) as error:
+            chain.generate(text="confidential study text")
+        assert str(error.value) == "all TTS providers failed"
+    assert "confidential study text" not in caplog.text
+    assert "private-provider-secret" not in caplog.text
+    assert "provider=PrivateFailure error_type=RuntimeError" in caplog.text
+
+
 def test_stt_prefers_groq_then_openai_key(monkeypatch) -> None:
     from app.services import audio as audio_mod
 
@@ -119,7 +140,8 @@ def test_stt_unconfigured_raises_validation_error(monkeypatch) -> None:
         audio_mod.get_stt_provider()
 
 
-def test_local_tts_prefers_espeak_ng_subprocess(monkeypatch) -> None:
+@pytest.mark.parametrize("text", ["hello world", "- Learner: Explain caf\u00e9 notes", "--help"])
+def test_local_tts_prefers_espeak_ng_subprocess(monkeypatch, text) -> None:
     """Container path: espeak-ng writes WAV headless, no pyttsx3 needed."""
     import shutil
     import subprocess
@@ -129,19 +151,29 @@ def test_local_tts_prefers_espeak_ng_subprocess(monkeypatch) -> None:
     class _Completed:
         returncode = 0
 
-    def _fake_run(cmd, *, capture_output=False, timeout=None):
+    def _fake_run(cmd, *, input=None, capture_output=False, timeout=None):
         assert cmd[0] == "/usr/bin/espeak-ng"
-        assert cmd[1] == "-w"
-        with open(cmd[2], "wb") as handle:
-            handle.write(b"RIFF....WAVEfake")
+        assert cmd[-1] == "--stdin"
+        assert input == text.encode("utf-8")
+        assert text not in cmd
+        with open(cmd[cmd.index("-w") + 1], "wb") as handle:
+            import io
+            import wave
+
+            buffer = io.BytesIO()
+            with wave.open(buffer, "wb") as writer:
+                writer.setnchannels(1)
+                writer.setsampwidth(2)
+                writer.setframerate(8000)
+                writer.writeframes(b"\x00\x00" * 16000)
+            handle.write(buffer.getvalue())
         return _Completed()
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
-    text = "hello world, this is a container TTS probe"
     data, content_type, duration = LocalTTSProvider().generate(text=text)
-    assert data == b"RIFF....WAVEfake"
+    assert data.startswith(b"RIFF")
     assert content_type == "audio/wav"
-    assert duration == max(1, len(text) // 15)
+    assert duration == 2
 
 
 def test_local_tts_without_binary_falls_back_with_clear_error(monkeypatch) -> None:
@@ -166,7 +198,7 @@ def test_local_tts_espeak_failure_falls_through(monkeypatch) -> None:
     class _Failed:
         returncode = 1
 
-    def _fake_run(cmd, *, capture_output=False, timeout=None):
+    def _fake_run(cmd, *, input=None, capture_output=False, timeout=None):
         return _Failed()
 
     monkeypatch.setattr(subprocess, "run", _fake_run)

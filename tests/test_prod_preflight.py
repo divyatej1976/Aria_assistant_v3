@@ -77,10 +77,28 @@ def _strict_env(**extra: str) -> dict[str, str]:
             "SMTP_HOST": "smtp.example.net",
             "SMTP_PORT": "587",
             "SMTP_FROM": "ARIA <noreply@ariaexample.org>",
+            # Format-valid dummy Fernet key (synthetic, never a real secret).
+            "ARIA_BACKUP_ENCRYPTION_KEY": "OwZNo730HlYsnI8d2ZbUSOfw_n6fSiKLKeIN3bwLPfs=",
         }
     )
     env.update(extra)
     return env
+
+
+def test_strict_backup_requires_encryption_key() -> None:
+    env = _strict_env()
+    del env["ARIA_BACKUP_ENCRYPTION_KEY"]
+    assert main(["--strict", "--audio", "--allow-local-tts"], env=env) == 1
+
+
+def test_strict_backup_passes_with_valid_key() -> None:
+    assert main(["--strict", "--audio", "--allow-local-tts"], env=_strict_env()) == 0
+
+
+def test_strict_backup_disabled_skips_key_requirement() -> None:
+    env = _strict_env(ARIA_BACKUP_ENABLED="false")
+    del env["ARIA_BACKUP_ENCRYPTION_KEY"]
+    assert main(["--strict", "--audio", "--allow-local-tts"], env=env) == 0
 
 
 def test_strict_audio_requires_cloud_tts(capsys) -> None:

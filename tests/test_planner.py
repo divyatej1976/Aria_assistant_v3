@@ -319,20 +319,10 @@ class FailingProvider:
         raise RuntimeError("smtp down")
 
 
-def test_email_failure_is_reported_and_retried() -> None:
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
-
-    from app.db.base import Base
+def test_email_failure_is_reported_and_retried(engine, session_factory) -> None:
     from app.db.models import Deadline, Learner
     from app.services.notifications import LogEmailProvider, check_reminders
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     with session_factory() as db:
         owner_id = uuid4()
         db.add(Learner(id=owner_id, owner_id=owner_id, email="learner@example.com"))
@@ -358,7 +348,6 @@ def test_email_failure_is_reported_and_retried() -> None:
         assert second["notifications_created"] == 0
         assert second["emails_logged"] == 1
         assert second["emails_failed"] == 0
-    engine.dispose()
 
 
 def test_notification_isolation(client: TestClient) -> None:

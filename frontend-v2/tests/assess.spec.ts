@@ -87,9 +87,9 @@ test("create an assessment from real material, answer it, and see the real score
   await page.getByRole("button", { name: /Submit Answers/i }).click();
 
   // real result review — numbers must be consistent with the answered count
-  await page.getByText("Assessment Complete!").waitFor({ state: "visible", timeout: 30_000 });
-  const correctVal = parseInt((await page.locator(".stat-col .n").nth(0).innerText()).trim(), 10);
-  const incorrectVal = parseInt((await page.locator(".stat-col .n").nth(1).innerText()).trim(), 10);
+  await page.locator(".score-hero").waitFor({ state: "visible", timeout: 30_000 });
+  const correctVal = parseInt((await page.locator(".score-stat.ok").innerText()).trim(), 10);
+  const incorrectVal = parseInt((await page.locator(".score-stat.bad").innerText()).trim(), 10);
   expect(Number.isNaN(correctVal)).toBe(false);
   expect(Number.isNaN(incorrectVal)).toBe(false);
   // MCQ renders 4 option radios per question; catches dropped-answers regressions

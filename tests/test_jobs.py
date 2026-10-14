@@ -78,8 +78,14 @@ def test_check_reminders_for_all_aggregates_across_learners(
 
 
 def test_process_audio_queue_generates_pending_artifacts(
-    client: TestClient, engine
+    client: TestClient, engine, monkeypatch, tmp_path
 ) -> None:
+    from app.services.audio_storage import LocalAudioStorage
+
+    monkeypatch.setattr(
+        "app.services.audio.get_audio_storage",
+        lambda: LocalAudioStorage(tmp_path / "audiofiles"),
+    )
     session_data = register(client, "job-audio@example.com")
     token = session_data["access_token"]
     context = client.post(
@@ -111,7 +117,8 @@ def test_process_audio_queue_generates_pending_artifacts(
 
         artifact = session.query(AudioArtifact).first()
         assert artifact.status == "READY"
-        assert artifact.audio_bytes == b"audio-bytes"
+        assert artifact.storage_key
+        assert artifact.audio_bytes is None
     finally:
         session.close()
 

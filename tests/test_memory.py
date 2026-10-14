@@ -1,11 +1,7 @@
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
 from app.db.models import (
     Concept,
     ConversationMessage,
@@ -314,12 +310,7 @@ def test_misconception_signal_with_weak_prerequisite(client: TestClient) -> None
     assert "weak prerequisite" in focus["reason"]
 
 
-def test_context_assembly_units() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+def test_context_assembly_units(engine, session_factory) -> None:
     with session_factory() as db:
         owner_id = uuid4()
         db.add(Learner(id=owner_id, owner_id=owner_id, email="assembly@example.com"))
@@ -398,4 +389,3 @@ def test_context_assembly_units() -> None:
         assert "Learner state: locking (Needs Review)" in user
         assert "Follow-up" in user
         assert "Why does locking matter?" in user
-    engine.dispose()

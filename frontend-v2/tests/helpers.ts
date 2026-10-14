@@ -137,9 +137,9 @@ export async function signInAndOnboard(page: Page, user: TestUser): Promise<void
   await page.getByRole("button", { name: /sign in/i }).click();
   // fresh user has no context -> onboarding
   await page.waitForURL(/onboarding/, { timeout: 20_000 });
-  await page.getByLabel("Primary Learning Vector").fill("Database Management Systems");
-  await page.getByLabel("Goal Objective").fill("Understand database normalization");
-  await page.getByRole("button", { name: /enter aria/i }).click();
+  await page.getByLabel("What would you like to learn?").fill("Database Management Systems");
+  await page.getByLabel("What’s your goal?").fill("Understand database normalization");
+  await page.getByRole("button", { name: /start learning/i }).click();
   await page.waitForURL("**/app", { timeout: 20_000 });
   await waitForHome(page);
 }

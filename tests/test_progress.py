@@ -2,11 +2,7 @@ from datetime import date, timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db.base import Base
 from app.services.progress import consistency, record_activity
 
 MATERIAL = (
@@ -105,17 +101,12 @@ def test_activity_recorded_and_deduped(client: TestClient) -> None:
     assert "study" in types
 
 
-def test_consistency_streaks(client: TestClient) -> None:
+def test_consistency_streaks(client: TestClient, engine, session_factory) -> None:
     session = register(client, "streak@example.com")
     token = session["access_token"]
     create_context(client, token)
     today = date(2026, 8, 13)
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     owner_id = uuid4()
     with session_factory() as db:
         for offset in (0, 1, 2, 5, 6, 7):
@@ -127,7 +118,6 @@ def test_consistency_streaks(client: TestClient) -> None:
                 occurred_on=today - timedelta(days=offset),
             )
         result = consistency(db, owner_id=owner_id, today=today)
-    engine.dispose()
 
     assert result["current_streak"] == 3
     assert result["longest_streak"] == 3

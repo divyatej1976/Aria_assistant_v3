@@ -151,6 +151,35 @@ def test_greeting_with_failing_provider_still_greets_safely(
     assert "gsk-super-secret" not in body["content"]
 
 
+def test_question_with_no_material_answers_conversationally_with_provider(
+    client: TestClient, monkeypatch
+) -> None:
+    import app.services.study as study
+
+    data = _register(client, f"step1-nomat-{uuid.uuid4().hex[:8]}@example.com")
+    ctx = client.post(
+        "/api/v1/contexts",
+        headers=_headers(data["access_token"]),
+        json={"title": "Empty", "description": "No material"},
+    )
+    assert ctx.status_code == 201
+    session = client.post(
+        "/api/v1/study/sessions",
+        headers=_headers(data["access_token"]),
+        json={"context_id": ctx.json()["id"]},
+    )
+    assert session.status_code == 201
+    # When provider is present, ARIA answers the learner's question like ChatGPT/Gemini:
+    spy = _SpyProvider()
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: spy)
+    body = _ask_content(
+        client, data["access_token"], session.json()["id"], "Explain photosynthesis."
+    )
+    assert body["fallback_used"] is False
+    assert spy.calls == 1
+    assert body["content"]
+
+
 def test_valid_provider_returns_grounded_answer(client: TestClient, monkeypatch) -> None:
     import app.services.study as study
 
