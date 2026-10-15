@@ -68,6 +68,10 @@ def _fallback_roadmap_tree(goal: str, level: str) -> GeneratedRoadmapTree:
             ),
             key_skills=skills,
             prerequisites=[previous] if previous else [],
+            outcome=f"You can {title[0].lower() + title[1:]}.",
+            effort_hours=3,
+            activity="Study it with ARIA in Learn, asking for examples as you go.",
+            check="Take a Quick check quiz from the chat when you feel ready.",
         ))
         previous = named_title
     return GeneratedRoadmapTree(
@@ -257,16 +261,10 @@ async def create_roadmap(
     goal, level, target_date = validated.goal, validated.level, validated.target_date
     if context_id is not None:
         get_owned_context(db, owner_id=owner_id, context_id=context_id)
-    # The timeframe line tells the generator how much the plan has to fit.
-    pace = f"{target_date or 'Self-paced'}"
-    if validated.hours_per_week:
-        pace += f" (about {validated.hours_per_week} hours of study per week)"
-    if validated.focus and validated.focus != "mixed":
-        pace += f"; emphasise {validated.focus}"
     tree = await generate_roadmap_tree(
         goal=goal,
         level=level,
-        target_date=pace,
+        target_date=_pace(target_date, validated.hours_per_week, validated.focus),
         db=db,
         owner_id=owner_id,
     )
@@ -278,37 +276,77 @@ async def create_roadmap(
         level=level,
         target_date=target_date,
         hours_per_week=validated.hours_per_week,
+        focus=validated.focus,
         status="ACTIVE",
         generation_mode=tree._generation_mode,
         fallback_reason=tree._fallback_reason,
     )
     db.add(roadmap)
     db.flush()
+    _save_milestones(db, owner_id=owner_id, roadmap=roadmap, tree=tree)
+    db.commit()
+    db.refresh(roadmap)
+    sync_roadmap_ticks(db, owner_id=owner_id, roadmap=roadmap)
+    return roadmap
 
-    order = 0
+
+def _pace(target_date: str | None, hours_per_week: int | None, focus: str | None, request: str | None = None) -> str:
+    """The timeframe line tells the generator how much the plan has to fit and what to stress."""
+    pace = f"{target_date or 'Self-paced'}"
+    if hours_per_week:
+        pace += f" (about {hours_per_week} hours of study per week)"
+    if focus and focus != "mixed":
+        pace += f"; emphasise {focus}"
+    if request:
+        pace += f"; the learner asked to change the plan: {request}"
+    return pace
+
+
+def _save_milestones(db: Session, *, owner_id: UUID, roadmap: Roadmap, tree: GeneratedRoadmapTree) -> None:
     phase_order_map = {name: idx for idx, name in enumerate(TIER_NAMES)}
-
+    order = 0
     for phase in tree.phases:
-        phase_idx = phase_order_map.get(phase.phase_name, 0)
         for milestone in phase.milestones:
-            db.add(
-                RoadmapMilestone(
-                    owner_id=owner_id,
-                    roadmap_id=roadmap.id,
-                    phase_name=phase.phase_name,
-                    phase_order=phase_idx,
-                    title=milestone.title,
-                    description=milestone.description,
-                    key_skills=milestone.key_skills,
-                    prerequisites=milestone.prerequisites,
-                    state="NOT_STARTED",
-                    confidence=0,
-                    reason="Not started yet.",
-                    order_index=order,
-                )
-            )
+            db.add(RoadmapMilestone(
+                owner_id=owner_id,
+                roadmap_id=roadmap.id,
+                phase_name=phase.phase_name,
+                phase_order=phase_order_map.get(phase.phase_name, 0),
+                title=milestone.title,
+                description=milestone.description,
+                key_skills=milestone.key_skills,
+                prerequisites=milestone.prerequisites,
+                details={key: value for key, value in {
+                    "outcome": milestone.outcome, "effort_hours": milestone.effort_hours,
+                    "activity": milestone.activity, "check": milestone.check,
+                }.items() if value is not None},
+                state="NOT_STARTED",
+                confidence=0,
+                reason="Not started yet.",
+                order_index=order,
+            ))
             order += 1
 
+
+async def refine_roadmap(db: Session, *, owner_id: UUID, roadmap_id: UUID, instruction: str) -> Roadmap:
+    """Rebuild the milestones from the original answers plus the learner's request.
+
+    Progress is not lost: ticks come from quiz evidence and are re-synced afterwards.
+    """
+    roadmap = db.scalar(select(Roadmap).where(Roadmap.id == roadmap_id, Roadmap.owner_id == owner_id))
+    if roadmap is None:
+        raise ValidationError("Roadmap not found")
+    tree = await generate_roadmap_tree(
+        goal=roadmap.goal, level=roadmap.level,
+        target_date=_pace(roadmap.target_date, roadmap.hours_per_week, roadmap.focus, instruction.strip()[:300]),
+        db=db, owner_id=owner_id,
+    )
+    db.execute(delete(RoadmapMilestone).where(
+        RoadmapMilestone.roadmap_id == roadmap.id, RoadmapMilestone.owner_id == owner_id,
+    ))
+    _save_milestones(db, owner_id=owner_id, roadmap=roadmap, tree=tree)
+    roadmap.generation_mode = tree._generation_mode
+    roadmap.fallback_reason = tree._fallback_reason
     db.commit()
     db.refresh(roadmap)
     sync_roadmap_ticks(db, owner_id=owner_id, roadmap=roadmap)
@@ -423,6 +461,7 @@ def get_roadmap(db: Session, *, owner_id: UUID, roadmap_id: UUID) -> RoadmapResp
             reason=m.reason,
             ticked=is_ticked,
             order_index=m.order_index,
+            **(m.details or {}),
         )
         if m.phase_name in tier_map:
             tier_map[m.phase_name].append(item)

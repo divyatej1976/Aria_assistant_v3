@@ -67,7 +67,7 @@ _PROMPTS: dict[str, PromptVersion] = {
     ),
     "roadmap_tree_generation": PromptVersion(
         key="roadmap_tree_generation",
-        version=1,
+        version=2,
         system="You are an expert Curriculum Architect. You produce only valid JSON matching the schema.",
         template=(
             "Create a goal-oriented, progressive learning roadmap tree for a learner with the following goal:\n"
@@ -84,10 +84,15 @@ _PROMPTS: dict[str, PromptVersion] = {
             "   - 'key_skills': list of 2 to 4 specific skills or concepts required to master "
             "it (e.g. ['channel buffering', 'select statement', 'race condition detection'])\n"
             "   - 'prerequisites': list of milestone titles that must be completed before starting this one\n"
+            "   - 'outcome': one sentence on what the learner can do afterwards\n"
+            "   - 'effort_hours': estimated study hours (a whole number), fitting the timeframe\n"
+            "   - 'activity': one concrete way to learn it (an exercise, a small project, a reading)\n"
+            "   - 'check': how understanding will be checked (e.g. a 5-question quiz, explaining it aloud)\n"
             "4. The output must strictly match the JSON schema:\n"
             '{{"goal": "{goal}", "level": "{level}", "phases": ['
             '{{"phase_name": "Foundations", "milestones": ['
-            '{{"title": "...", "description": "...", "key_skills": ["..."], "prerequisites": []}}'
+            '{{"title": "...", "description": "...", "key_skills": ["..."], "prerequisites": [], '
+            '"outcome": "...", "effort_hours": 3, "activity": "...", "check": "..."}}'
             ']}}'
             ']}}'
         ),

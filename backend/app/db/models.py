@@ -532,6 +532,8 @@ class Roadmap(OwnedModel, Base):
     target_date: Mapped[str | None] = mapped_column(String(64))
     # Study time the learner can give each week; paces "This week" and the plan.
     hours_per_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # concepts | projects | exams | interviews | mixed; reused when the plan is refined.
+    focus: Mapped[str | None] = mapped_column(String(16), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
     generation_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     fallback_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -553,3 +555,5 @@ class RoadmapMilestone(OwnedModel, Base):
     confidence: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     reason: Mapped[str | None] = mapped_column(String(255))
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # outcome, effort_hours, activity, check: how the learner works through it.
+    details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)

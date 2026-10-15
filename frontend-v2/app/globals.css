@@ -2549,3 +2549,9 @@ body:has(.chat-sidebar-layout) #toasts { bottom:calc(100px + env(safe-area-inset
 .quiz-review-group span { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (max-width: 640px) { .quiz-presets { grid-template-columns: 1fr; } }
 a.reply-action { text-decoration: none; }
+
+/* ---------- Milestone details ---------- */
+.milestone-facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 4px 0 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-1); font-size: 14px; }
+.milestone-facts dt { color: var(--text-2); font-weight: 700; font-size: 12.5px; }
+.milestone-facts dd { margin: 0; }
+@media (max-width: 640px) { .milestone-facts { grid-template-columns: 1fr; gap: 2px; } .milestone-facts dd { margin-bottom: 8px; } }

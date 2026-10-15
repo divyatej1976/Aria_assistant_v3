@@ -21,7 +21,7 @@ before unrestricted production use.
 3. docker compose -f docker-compose.prod.yml config --quiet
 4. docker compose -f docker-compose.prod.yml up -d --build
     (the `migrate` service applies alembic upgrade head before backend start;
-    verify single head: 0031_roadmap_hours)
+    verify single head: 0032_milestone_details)
 5. curl https://<ARIA_DOMAIN>/ready        # DB-backed readiness via Caddy (sole public probe)
    # /health is backend-internal liveness (NOT routed by Caddy by design):
    # query it backend-direct, e.g. docker compose exec backend curl localhost:8000/health

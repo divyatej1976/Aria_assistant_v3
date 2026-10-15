@@ -9,6 +9,7 @@ from app.core.errors import ValidationError
 from app.db.dependencies import get_db
 from app.schemas.roadmap import (
     RoadmapCreateRequest,
+    RoadmapRefineRequest,
     RoadmapResponse,
     RoadmapSummaryResponse,
 )
@@ -19,6 +20,7 @@ from app.services.roadmap import (
     delete_roadmap,
     get_roadmap,
     list_roadmaps,
+    refine_roadmap,
 )
 
 router = APIRouter(prefix="/api/v1/roadmaps", tags=["roadmaps"])
@@ -67,6 +69,18 @@ def get_roadmap_endpoint(
         return get_roadmap(db, owner_id=learner.id, roadmap_id=roadmap_id)
     except ValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{roadmap_id}/refine", response_model=RoadmapResponse, dependencies=[Depends(_ai_rate_limit())])
+async def refine_roadmap_endpoint(
+    roadmap_id: UUID, request: RoadmapRefineRequest, learner: CurrentLearner, db: Db
+) -> RoadmapResponse:
+    """Rebuild the plan's milestones from its original answers plus the learner's request."""
+    try:
+        roadmap = await refine_roadmap(db, owner_id=learner.id, roadmap_id=roadmap_id, instruction=request.instruction)
+    except ValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return get_roadmap(db, owner_id=learner.id, roadmap_id=roadmap.id)
 
 
 @router.delete("/{roadmap_id}")

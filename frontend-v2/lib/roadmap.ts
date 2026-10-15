@@ -26,6 +26,10 @@ export type RoadmapTopic = {
   confidence: number;
   reason: string;
   prereqNames: string[];
+  outcome?: string | null;
+  effortHours?: number | null;
+  activity?: string | null;
+  check?: string | null;
 };
 
 export type RoadmapTier = {

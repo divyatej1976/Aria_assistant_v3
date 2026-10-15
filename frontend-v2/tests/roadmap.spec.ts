@@ -133,8 +133,25 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
   await expect(week).toHaveCount(2);
   await expect(week.first().getByRole("link", { name: /Quiz me/ })).toHaveAttribute("href", /\/app\/assess\?quiz_topic=/);
 
-  // subtopic page shows the reasoning behind the tick state
-  await page.locator(".roadmap-topic-details").first().click();
+  // Refining rebuilds the milestones and keeps the plan.
+  await page.getByRole("button", { name: /Refine this plan/ }).click();
+  const refine = page.getByRole("dialog", { name: "Refine this plan" });
+  await refine.getByRole("button", { name: "Less theory" }).click();
+  await refine.getByRole("button", { name: /Update plan/ }).click();
+  await expect(refine).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator(".roadmap-topic-card").first()).toBeVisible();
+
+  // Each milestone explains what you'll be able to do and how it's checked.
+  const firstPhase = page.locator(".roadmap-tier-head").first();
+  await expect(async () => {
+    if ((await firstPhase.getAttribute("aria-expanded")) !== "true") await firstPhase.click();
+    await expect(page.locator(".roadmap-topic-details:visible").first()).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.locator(".roadmap-topic-details:visible").first().click();
+  await expect(page.locator(".milestone-facts")).toContainText("How it's checked");
+  await expect(page.locator(".milestone-facts")).toContainText("Effort");
+
+  // the same detail view shows the reasoning behind the tick state
   await expect(page.getByText("Why this tick state?").first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: /All topics/i }).click();
 

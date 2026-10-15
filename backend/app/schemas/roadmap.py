@@ -21,6 +21,10 @@ class GeneratedMilestone(BaseModel):
         default_factory=list, max_length=20,
         description="Titles of earlier milestones that must be completed first",
     )
+    outcome: str | None = Field(default=None, max_length=300, description="What the learner can do afterwards")
+    effort_hours: int | None = Field(default=None, ge=1, le=40, description="Estimated study hours")
+    activity: str | None = Field(default=None, max_length=300, description="A suggested way to learn it")
+    check: str | None = Field(default=None, max_length=300, description="How understanding will be checked")
 
 
 class GeneratedPhase(BaseModel):
@@ -106,6 +110,10 @@ class RoadmapMilestoneResponse(BaseModel):
     reason: str | None = None
     ticked: bool
     order_index: int
+    outcome: str | None = None
+    effort_hours: int | None = None
+    activity: str | None = None
+    check: str | None = None
 
 
 class RoadmapTierResponse(BaseModel):
@@ -126,6 +134,10 @@ class RoadmapResponse(BaseModel):
     tiers: list[RoadmapTierResponse]
     total: int
     done: int
+
+
+class RoadmapRefineRequest(BaseModel):
+    instruction: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=300)]
 
 
 class RoadmapSummaryResponse(BaseModel):

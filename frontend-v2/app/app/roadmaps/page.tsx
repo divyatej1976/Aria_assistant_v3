@@ -61,6 +61,10 @@ type ServerRoadmapResponse = {
       reason?: string;
       ticked: boolean;
       order_index: number;
+      outcome?: string | null;
+      effort_hours?: number | null;
+      activity?: string | null;
+      check?: string | null;
     }[];
   }[];
   total: number;
@@ -86,6 +90,9 @@ function RoadmapsPageWorkspace() {
   const [hoursPerWeek, setHoursPerWeek] = useState<number | null>(null);
   const [step, setStep] = useState(0);
   const [focus, setFocus] = useState("mixed");
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [refineText, setRefineText] = useState("");
+  const [refining, setRefining] = useState(false);
   const [busy, setBusy] = useState(false);
   const [openTiers, setOpenTiers] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<RoadmapTopic | null>(null);
@@ -125,6 +132,10 @@ function RoadmapsPageWorkspace() {
             confidence: tp.confidence,
             reason: tp.reason || "",
             prereqNames: tp.prerequisites,
+            outcome: tp.outcome,
+            effortHours: tp.effort_hours,
+            activity: tp.activity,
+            check: tp.check,
           })),
         })),
         total: data.total,
@@ -252,6 +263,21 @@ function RoadmapsPageWorkspace() {
     }
   };
 
+  const refine = async () => {
+    if (!roadmap?.id || !context || !refineText.trim()) return;
+    setRefining(true);
+    try {
+      await api(`/api/v1/roadmaps/${roadmap.id}/refine`, { method: "POST", body: JSON.stringify({ instruction: refineText.trim() }) });
+      setRefineOpen(false);
+      toast("Your plan was updated. Progress from your quizzes is kept.", "success");
+      await load(context.id, roadmap.id);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Could not update the plan. Please try again.", "error");
+    } finally {
+      setRefining(false);
+    }
+  };
+
   const removeCurrentRoadmap = async () => {
     if (!activeRoadmapId || !context) return;
     if (!confirm("Are you sure you want to delete this roadmap?")) return;
@@ -363,6 +389,15 @@ function RoadmapsPageWorkspace() {
             </div>
           )}
 
+          {(selected.outcome || selected.activity || selected.check || selected.effortHours) && (
+            <dl className="milestone-facts">
+              {selected.outcome && <><dt>You&apos;ll be able to</dt><dd>{selected.outcome.replace(/^You can /, "")}</dd></>}
+              {selected.effortHours && <><dt>Effort</dt><dd>About {selected.effortHours} hour{selected.effortHours === 1 ? "" : "s"}</dd></>}
+              {selected.activity && <><dt>How to learn it</dt><dd>{selected.activity}</dd></>}
+              {selected.check && <><dt>How it&apos;s checked</dt><dd>{selected.check}</dd></>}
+            </dl>
+          )}
+
           <div className="banner" style={{ margin: "16px 0" }}>
             <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name="sparkles" size={20} /></span>
             <div>
@@ -421,6 +456,9 @@ function RoadmapsPageWorkspace() {
               {roadmap.level} {roadmap.targetDate ? `· Target: ${roadmap.targetDate}` : ""} · {roadmap.done} / {roadmap.total} completed
             </div>
             <span className="tag-chip roadmap-source">{generationLabel}</span>
+            <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => { setRefineText(""); setRefineOpen(true); }}>
+              <Icon name="edit" size={14} /> Refine this plan
+            </button>
             <button
               onClick={removeCurrentRoadmap}
               className="btn btn-ghost"
@@ -508,6 +546,29 @@ function RoadmapsPageWorkspace() {
           </p>
         </>
       )}
+
+      <Modal open={refineOpen} title="Refine this plan" onClose={() => setRefineOpen(false)}>
+        <div className="modal">
+          <div className="m-head dialog-heading">
+            <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="edit" size={20} /> Refine this plan</h3>
+            <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setRefineOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
+          </div>
+          <label className="plan-q" htmlFor="refine-text">What should change?</label>
+          <input id="refine-text" className="input" maxLength={300} value={refineText} disabled={refining}
+            placeholder="e.g. less theory, more practice" onChange={(e) => setRefineText(e.target.value)} />
+          <div className="quiz-choice-row">
+            {["Less theory", "Add projects", "More practice", "Give me more time", "Make it faster"].map((idea) => (
+              <button key={idea} type="button" className="tag-chip" disabled={refining} onClick={() => setRefineText(idea)}>{idea}</button>
+            ))}
+          </div>
+          <p className="field-help">Your milestones are rebuilt with the same goal, level and weekly time. Progress from your quizzes is kept.</p>
+          {refining && <RequestStatus label="Updating your plan…" />}
+          <div className="dialog-actions ui-mt-16">
+            <button className="btn btn-ghost" onClick={() => setRefineOpen(false)} disabled={refining}>Cancel</button>
+            <button className="btn btn-primary" onClick={refine} disabled={refining || !refineText.trim()}>Update plan <Icon name="arrow" /></button>
+          </div>
+        </div>
+      </Modal>
 
       {/* create modal */}
       <Modal open={open} title="Create roadmap" onClose={() => setOpen(false)}>
