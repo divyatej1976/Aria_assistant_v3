@@ -96,7 +96,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (isTimeoutError(err)) {
       throw new ApiError(0, "Request timed out — check your connection and retry.");
     }
-    throw new ApiError(0, "Network error — check your connection and try again.");
+    throw new ApiError(0, "Couldn’t reach ARIA’s server. Check your connection, then retry.");
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -124,7 +124,7 @@ export async function apiFormData<T>(path: string, formData: FormData, init: Req
     if (isTimeoutError(err)) {
       throw new ApiError(0, "Request timed out — check your connection and retry.");
     }
-    throw new ApiError(0, "Network error — check your connection and try again.");
+    throw new ApiError(0, "Couldn’t reach ARIA’s server. Check your connection, then retry.");
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -149,7 +149,7 @@ export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blo
     if (isTimeoutError(err)) {
       throw new ApiError(0, "Request timed out — check your connection and retry.");
     }
-    throw new ApiError(0, "Network error — check your connection and try again.");
+    throw new ApiError(0, "Couldn’t reach ARIA’s server. Check your connection, then retry.");
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -178,7 +178,7 @@ export async function apiUpload<T>(path: string, file: File | Blob, contentType:
     if (isTimeoutError(err)) {
       throw new ApiError(0, "Upload timed out — check your connection and retry.");
     }
-    throw new ApiError(0, "Network error during upload — check your connection and try again.");
+    throw new ApiError(0, "Couldn’t reach ARIA’s server, so the file was not uploaded. Check your connection, then retry.");
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

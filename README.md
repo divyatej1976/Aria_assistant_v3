@@ -59,6 +59,19 @@ Phases 0–12 of the adaptive-learning operating system and post-Phase-12 securi
 
 For a full interactive walkthrough and test guide, refer to **[DEMO.md](DEMO.md)**.
 
+### Quick start (one command)
+
+After the one-time setup below (`setup_local.ps1` and `npm install` in `frontend-v2`):
+
+```powershell
+python scripts/dev.py                              # API :8000, app :3000, SQLite aria-dev.db
+python scripts/dev.py --api-port 8030 --web-port 3030
+```
+
+It checks that both ports are free, applies migrations, starts the backend and
+frontend, and confirms the app can reach the backend. If a step fails it prints
+the problem and the fix. Set `DATABASE_URL` to use PostgreSQL instead of SQLite.
+
 ### Backend Setup
 
 ```powershell
@@ -82,7 +95,7 @@ uvicorn app.main:app --reload --app-dir backend
 ### Frontend Setup
 
 ```powershell
-cd frontend
+cd frontend-v2
 npm install
 npm run dev
 ```
