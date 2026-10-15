@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.ai.prompts import get_prompt
@@ -34,6 +34,7 @@ from app.services.context_assembly import (
 )
 from app.services.contexts import get_owned_context
 from app.services.learner_state import STATE_DEVELOPING, STATE_NEEDS_REVIEW
+from app.services.response_style import ResponseStyle
 from app.services.text import bm25_scores, content_terms
 
 logger = logging.getLogger(__name__)
@@ -193,6 +194,14 @@ def delete_session(db: Session, *, owner_id: UUID, session_id: UUID) -> bool:
     session = get_owned_session(db, owner_id=owner_id, session_id=session_id)
     if session is None:
         return False
+    from app.services.brain.actions import delete_session_actions
+    from app.services.resource_ingestion import delete_resource
+
+    delete_session_actions(db, owner_id=owner_id, session_id=session.id)
+    for resource in db.scalars(select(Resource).where(
+        Resource.owner_id == owner_id, Resource.study_session_id == session.id,
+    )).all():
+        delete_resource(db, resource=resource)
     db.query(ConversationMessage).filter(
         ConversationMessage.study_session_id == session.id,
         ConversationMessage.owner_id == owner_id,
@@ -237,6 +246,9 @@ def persist_conversation_turn(
     assistant_refs: list[dict],
     fallback_used: bool | None = None,
     user_message_id: UUID | None = None,
+    assistant_message_id: UUID | None = None,
+    action: dict | None = None,
+    response_depth: str | None = None,
     before_commit: Callable[[], None] | None = None,
 ) -> None:
     from sqlalchemy.exc import IntegrityError
@@ -255,12 +267,15 @@ def persist_conversation_turn(
         )
         db.add(
             ConversationMessage(
+                **({"id": assistant_message_id} if assistant_message_id is not None else {}),
                 owner_id=owner_id,
                 study_session_id=session.id,
                 role="assistant",
+                action=action,
                 content=assistant_content,
                 source_refs=assistant_refs,
                 fallback_used=fallback_used,
+                response_depth=response_depth,
                 position=user_position + 1,
             )
         )
@@ -340,8 +355,15 @@ def _dedupe_chunks(scored: list[RetrievedChunk]) -> list[RetrievedChunk]:
     return kept
 
 
+def visible_to_chat(session_id: UUID | None):
+    """Library files are shared by every chat; a chat's own attachments are not."""
+    library = Resource.study_session_id.is_(None)
+    return library if session_id is None else or_(library, Resource.study_session_id == session_id)
+
+
 async def retrieve_chunks(
-    db: Session, *, owner_id: UUID, context_id: UUID, query: str
+    db: Session, *, owner_id: UUID, context_id: UUID, query: str,
+    session_id: UUID | None = None,
 ) -> list[RetrievedChunk]:
     from app.core.config import get_settings
 
@@ -354,6 +376,7 @@ async def retrieve_chunks(
             Resource.owner_id == owner_id,
             Resource.context_id == context_id,
             Resource.processing_status == "READY",
+            visible_to_chat(session_id),
         )
         .limit(1)
     )
@@ -386,6 +409,7 @@ async def retrieve_chunks(
         Resource.owner_id == owner_id,
         Resource.context_id == context_id,
         Resource.processing_status == "READY",
+        visible_to_chat(session_id),
     ]
 
     rows: list = []
@@ -497,9 +521,12 @@ async def answer_question(
     context_id: UUID,
     question: str,
     session_id: UUID | None = None,
+    style: ResponseStyle | None = None,
 ) -> StudyResult:
     try:
-        sources = await retrieve_chunks(db, owner_id=owner_id, context_id=context_id, query=question)
+        sources = await retrieve_chunks(
+            db, owner_id=owner_id, context_id=context_id, query=question, session_id=session_id
+        )
     except Exception:
         # Retrieval (e.g., embedding endpoint) failed: safe fallback, no leakage.
         logger.exception("study retrieval failed; serving fallback")
@@ -557,7 +584,7 @@ async def answer_question(
             session_id=session_id,
             sources=sources,
         )
-        system, user = build_prompt(question, package)
+        system, user = build_prompt(question, package, style=style)
         try:
             answer = await provider.generate_text(
                 system=system,

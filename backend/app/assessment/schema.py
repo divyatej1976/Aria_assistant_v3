@@ -5,6 +5,7 @@ class MCQItem(BaseModel):
     prompt: str = Field(min_length=10, max_length=2000)
     options: list[str] = Field(min_length=4, max_length=4)
     correct_option: str = Field(min_length=1, max_length=1)
+    explanation: str | None = Field(default=None, max_length=400)
 
     @field_validator("correct_option")
     @classmethod
@@ -26,7 +27,7 @@ class MCQItem(BaseModel):
 
 
 class MCQSet(BaseModel):
-    questions: list[MCQItem] = Field(min_length=1, max_length=20)
+    questions: list[MCQItem] = Field(min_length=1, max_length=50)
 
 
 class ConceptSet(BaseModel):

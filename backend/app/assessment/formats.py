@@ -42,3 +42,15 @@ format_registry.register(
         evaluation_strategy="deterministic_option_match",
     )
 )
+format_registry.register(FormatDefinition(
+    name="true_false", label="True or false",
+    generation_strategy="mcq_reshaped", evaluation_strategy="deterministic_option_match",
+))
+format_registry.register(FormatDefinition(
+    name="short_answer", label="Short answer",
+    generation_strategy="mcq_reshaped", evaluation_strategy="key_word_match",
+))
+format_registry.register(FormatDefinition(
+    name="mixed", label="Mixed",
+    generation_strategy="mcq_reshaped", evaluation_strategy="per_question",
+))

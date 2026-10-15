@@ -354,6 +354,11 @@ class Resource(OwnedModel, Base):
     storage_key: Mapped[str | None] = mapped_column(String(500))
     source_text: Mapped[str | None] = mapped_column(Text)
     raw_bytes: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # Set when the file was attached inside one chat: only that chat may use it.
+    # NULL means it is in the subject's library and every chat can use it.
+    study_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("study_sessions.id"), index=True, nullable=True
+    )
 
 
 class ResourceChunk(OwnedModel, Base):
@@ -400,6 +405,26 @@ class ConversationMessage(OwnedModel, Base):
     # NULL means legacy response provenance is unknown, not generated.
     fallback_used: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    action: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Reply length the tutor used (quick/balanced/deep); NULL for older replies.
+    response_depth: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+
+class BrainAction(OwnedModel, Base):
+    """Durable action identity; LangGraph owns the new flow's execution."""
+    __tablename__ = "brain_actions"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    context_id: Mapped[UUID] = mapped_column(ForeignKey("learning_contexts.id"), index=True)
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("study_sessions.id"), index=True)
+    capability: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="proposed", nullable=False)
+    artifact_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claim_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    through_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 class Assessment(OwnedModel, Base):
@@ -428,6 +453,10 @@ class AssessmentQuestion(OwnedModel, Base):
     # and routinely exceed 32 chars; PostgreSQL enforces varchar limits that
     # SQLite ignores (StringDataRightTruncation in the production drill).
     correct_option: Mapped[str] = mapped_column(Text, nullable=False)
+    # mcq | true_false | short_answer. Short answers store the expected text in
+    # correct_option and have no options.
+    kind: Mapped[str] = mapped_column(String(16), default="mcq", server_default="mcq", nullable=False)
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class AssessmentAttempt(OwnedModel, Base):
@@ -501,6 +530,8 @@ class Roadmap(OwnedModel, Base):
     goal: Mapped[str] = mapped_column(String(255), nullable=False)
     level: Mapped[str] = mapped_column(String(64), default="Beginner", nullable=False)
     target_date: Mapped[str | None] = mapped_column(String(64))
+    # Study time the learner can give each week; paces "This week" and the plan.
+    hours_per_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
     generation_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     fallback_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -25,23 +25,11 @@ class PromptVersion:
 _PROMPTS: dict[str, PromptVersion] = {
     "study_answer": PromptVersion(
         key="study_answer",
-        version=4,
-        system=(
-            "You are ARIA, an intelligent and supportive AI tutor.\n"
-            "When study materials are supplied, you MUST follow this exact structure in this order:\n"
-            "1. '### 📄 Information from Document: [Source Title]'\n"
-            "   Direct facts from the uploaded document, organized cleanly into bullet points or tables. "
-            "Note: '*This information is directly from your uploaded document.*'\n"
-            "2. '### 💡 Extra Info (ARIA Enhancement)'\n"
-            "   Supplementary information OUT of the document to know more (practical examples, "
-            "context, or analogies). "
-            "Note: '*(Out of document — extra information provided by ARIA)*'\n"
-            "3. At the very end: '**Source Document:** [Source Title]'\n\n"
-            "Keep both sections focused and concise.\n"
-            "When no materials are present, provide a thorough, structured explanation "
-            "concluding with: '**Source:** ARIA Knowledge Base (No document attached)'.\n"
-            "Continuously adapt to the learner's interaction patterns from the conversation history."
-        ),
+        # v5: short labelled blocks, per-message depth and tone ("Response style:"),
+        # no sources footer. The live text is STUDY_SYSTEM_PROMPT in
+        # app/services/context_assembly.py; this entry versions it for logs.
+        version=5,
+        system="See app.services.context_assembly.STUDY_SYSTEM_PROMPT.",
         template="Context:\n{context}\n\nQuestion: {question}",
     ),
     "concept_extraction": PromptVersion(
@@ -66,14 +54,14 @@ _PROMPTS: dict[str, PromptVersion] = {
     ),
     "mcq_generation": PromptVersion(
         key="mcq_generation",
-        version=1,
+        version=2,
         system="You produce only valid JSON matching the schema.",
         template=(
             "Generate multiple-choice questions grounded only in the supplied study material. "
             "Each question must have exactly four distinct options and a correct_option letter "
             "of A, B, C, or D matching the correct option. Return JSON matching the schema:\n"
             '{{"questions": [{{"prompt": "...", "options": ["...", "...", "...", "..."], '
-            '"correct_option": "A"}}]}}\n\n'
+            '"correct_option": "A", "explanation": "One sentence on why the answer is right."}}]}}\n\n'
             "Difficulty: {difficulty}. Produce {count} questions.\n\nStudy material:\n{material}"
         ),
     ),

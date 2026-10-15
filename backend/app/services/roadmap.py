@@ -245,19 +245,25 @@ async def create_roadmap(
     level: str = "Beginner",
     target_date: str | None = None,
     context_id: UUID | None = None,
+    hours_per_week: int | None = None,
 ) -> Roadmap:
     """Generate and persist a new goal-isolated roadmap."""
     try:
-        validated = RoadmapCreateRequest(goal=goal, level=level, target_date=target_date, context_id=context_id)
+        validated = RoadmapCreateRequest(goal=goal, level=level, target_date=target_date,
+                                         hours_per_week=hours_per_week, context_id=context_id)
     except SchemaValidationError as exc:
         raise ValidationError("Invalid roadmap goal, level, or target date") from exc
     goal, level, target_date = validated.goal, validated.level, validated.target_date
     if context_id is not None:
         get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    # The timeframe line tells the generator how much the plan has to fit.
+    pace = f"{target_date or 'Self-paced'}"
+    if validated.hours_per_week:
+        pace += f" (about {validated.hours_per_week} hours of study per week)"
     tree = await generate_roadmap_tree(
         goal=goal,
         level=level,
-        target_date=target_date,
+        target_date=pace,
         db=db,
         owner_id=owner_id,
     )
@@ -268,6 +274,7 @@ async def create_roadmap(
         goal=goal.strip(),
         level=level,
         target_date=target_date,
+        hours_per_week=validated.hours_per_week,
         status="ACTIVE",
         generation_mode=tree._generation_mode,
         fallback_reason=tree._fallback_reason,
@@ -355,6 +362,7 @@ def list_roadmaps(
                 goal=r.goal,
                 level=r.level,
                 target_date=r.target_date,
+                hours_per_week=r.hours_per_week,
                 status=r.status,
                 generation_mode=r.generation_mode,
                 fallback_reason=r.fallback_reason,
@@ -435,6 +443,7 @@ def get_roadmap(db: Session, *, owner_id: UUID, roadmap_id: UUID) -> RoadmapResp
         goal=roadmap.goal,
         level=roadmap.level,
         target_date=roadmap.target_date,
+        hours_per_week=roadmap.hours_per_week,
         status=roadmap.status,
         generation_mode=roadmap.generation_mode,
         fallback_reason=roadmap.fallback_reason,

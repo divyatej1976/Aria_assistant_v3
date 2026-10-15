@@ -17,6 +17,8 @@ from app.db.models import (
     LearningContext,
 )
 from app.schemas.assessment import (
+    AnswerCheckRequest,
+    AnswerCheckResponse,
     AnswerSaveRequest,
     AssessmentCreateRequest,
     AssessmentQuestionResponse,
@@ -27,11 +29,13 @@ from app.schemas.assessment import (
     AttemptStartResponse,
     AttemptSubmitRequest,
     QuestionEvaluation,
+    QuizSettings,
 )
 from app.security.dependencies import CurrentLearner
 from app.security.rate_limit import rate_limited
 from app.services.adaptation import run_learner_loop
 from app.services.assessment import (
+    check_answer,
     create_assessment,
     get_owned_assessment,
     get_owned_attempt,
@@ -75,6 +79,18 @@ def question_response(question: AssessmentQuestion) -> AssessmentQuestionRespons
         prompt=question.prompt,
         options=question.options,
         concept_id=str(question.concept_id) if question.concept_id else None,
+        kind=question.kind,
+    )
+
+
+def quiz_settings(assessment: Assessment) -> QuizSettings:
+    config = assessment.configuration or {}
+    return QuizSettings(
+        timing=config.get("timing") or "none",
+        time_limit_seconds=config.get("time_limit_seconds"),
+        # Quizzes made before reveal modes existed showed answers only at the end.
+        reveal=config.get("reveal") or "exam",
+        source=config.get("source") or "library",
     )
 
 
@@ -86,6 +102,7 @@ def assessment_response(db: Session, assessment: Assessment) -> AssessmentRespon
         mode=assessment.mode,
         status=assessment.status,
         questions=[question_response(item) for item in questions],
+        settings=quiz_settings(assessment),
     )
 
 
@@ -106,6 +123,7 @@ def summary_response(
         submitted_attempt_count=submitted_attempt_count,
         completed_scores=completed_scores or [],
         created_at=assessment.created_at,
+        settings=quiz_settings(assessment),
     )
 
 
@@ -226,6 +244,10 @@ async def create(request: AssessmentCreateRequest, learner: CurrentLearner, db: 
             difficulty=request.difficulty,
             mode=request.mode,
             concept_ids=request.concept_ids,
+            source=request.source,
+            session_ids=request.session_ids,
+            topic=request.topic,
+            settings=request.settings(),
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -241,7 +263,28 @@ def start(assessment_id: UUID, learner: CurrentLearner, db: Db) -> AttemptStartR
         attempt_id=str(attempt.id),
         assessment_id=str(assessment.id),
         questions=[question_response(item) for item in questions],
+        settings=quiz_settings(assessment),
     )
+
+
+@router.post("/{assessment_id}/attempts/{attempt_id}/check", response_model=AnswerCheckResponse)
+def check_answer_route(
+    assessment_id: UUID, attempt_id: UUID, request: AnswerCheckRequest, learner: CurrentLearner, db: Db,
+) -> AnswerCheckResponse:
+    """Practice mode: save one answer and reveal whether it was right."""
+    assessment = get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
+    if quiz_settings(assessment).reveal != "practice":
+        raise HTTPException(status_code=409, detail="Answers are revealed at the end of this quiz")
+    owned_attempt = get_owned_attempt(db, owner_id=learner.id, attempt_id=attempt_id)
+    if owned_attempt is None or owned_attempt.assessment_id != assessment.id:
+        raise HTTPException(status_code=404, detail="Attempt does not belong to assessment")
+    try:
+        correct, answer, explanation = check_answer(
+            db, owner_id=learner.id, attempt_id=attempt_id, question_id=request.question_id, answer=request.answer,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return AnswerCheckResponse(correct=correct, correct_answer=answer, explanation=explanation)
 
 
 @router.put("/{assessment_id}/attempts/{attempt_id}/answers")

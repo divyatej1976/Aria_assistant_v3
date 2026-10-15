@@ -1,7 +1,10 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from app.schemas.brain import ActionResponse
 
 
 class StudySessionCreate(BaseModel):
@@ -24,6 +27,9 @@ class StudySessionResponse(BaseModel):
 class StudyMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=10_000)
     request_id: UUID | None = None
+    # "auto" reads the question's tone; the screen size keeps phone replies short.
+    depth: Literal["auto", "quick", "balanced", "deep"] = "auto"
+    screen: Literal["compact", "regular", "wide"] = "regular"
 
 
 class SourceReference(BaseModel):
@@ -34,10 +40,13 @@ class SourceReference(BaseModel):
 
 
 class StudyMessageResponse(BaseModel):
+    id: str | None = None
     session_id: str
     content: str
     sources: list[SourceReference]
     fallback_used: bool
+    action: ActionResponse | None = None
+    depth: str | None = None
 
 
 class StudyMessage(BaseModel):
@@ -47,3 +56,5 @@ class StudyMessage(BaseModel):
     sources: list[SourceReference]
     position: int
     fallback_used: bool | None = None
+    action: ActionResponse | None = None
+    depth: str | None = None

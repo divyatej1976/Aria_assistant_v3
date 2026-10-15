@@ -107,6 +107,9 @@ def memory_summary(db: Session, *, owner_id: UUID) -> dict[str, object]:
 def delete_message(
     db: Session, *, owner_id: UUID, session_id: UUID, message_id: UUID
 ) -> bool:
+    from app.db.models import BrainAction
+    db.execute(delete(BrainAction).where(BrainAction.id == message_id,
+        BrainAction.owner_id == owner_id, BrainAction.session_id == session_id))
     result = db.execute(
         delete(ConversationMessage).where(
             ConversationMessage.id == message_id,

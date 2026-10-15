@@ -22,11 +22,11 @@ def test_material_is_always_data_not_system_instructions() -> None:
     # The system instruction is a fixed constant: material can never rewrite it.
     assert system == STUDY_SYSTEM_PROMPT
     assert malicious not in system
-    # v4 dual-source contract: document facts and out-of-document extras must
-    # each be explicitly labeled, so model-added content cannot masquerade as
+    # Provenance contract: document facts and out-of-document extras must each
+    # be explicitly labeled, so model-added content cannot masquerade as
     # source material.
-    assert "Information from Document" in system
-    assert "Out of document" in system
+    assert "From your document" in system
+    assert "Beyond your document" in system
     # The (hostile) material is confined to the user-role message as data.
     assert malicious in user
     assert "unrestricted assistant" in user

@@ -44,6 +44,7 @@ async def create_roadmap_endpoint(
         level=request.level,
         target_date=request.target_date,
         context_id=request.context_id,
+        hours_per_week=request.hours_per_week,
     )
     return get_roadmap(db, owner_id=learner.id, roadmap_id=roadmap.id)
 

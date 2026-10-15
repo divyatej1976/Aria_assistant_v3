@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
-from app.db.models import LearningContext, Resource, ResourceChunk
+from app.db.models import LearningContext, Resource, ResourceChunk, StudySession
 from app.schemas.resources import (
     ChunkResponse,
     ResourceResponse,
@@ -59,6 +59,19 @@ def ensure_context(db: Session, *, context_id: UUID, owner_id: UUID) -> Learning
     return context
 
 
+def ensure_chat(db: Session, *, session_id: UUID | None, context_id: UUID, owner_id: UUID) -> UUID | None:
+    """A chat attachment must belong to one of the learner's chats in this subject."""
+    if session_id is None:
+        return None
+    chat = db.scalar(select(StudySession).where(
+        StudySession.id == session_id, StudySession.owner_id == owner_id,
+        StudySession.context_id == context_id,
+    ))
+    if chat is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
+    return chat.id
+
+
 def get_resource(db: Session, *, resource_id: UUID, owner_id: UUID) -> Resource:
     resource = get_owned_resource(db, owner_id=owner_id, resource_id=resource_id)
     if resource is None:
@@ -76,6 +89,7 @@ def resource_response(resource: Resource, *, chunk_count: int = 0) -> ResourceRe
         error_detail=resource.error_detail,
         chunk_count=chunk_count,
         created_at=resource.created_at,
+        session_id=str(resource.study_session_id) if resource.study_session_id else None,
     )
 
 
@@ -106,8 +120,10 @@ async def add_pdf_resource(
     request: Request,
     context_id: UUID,
     title: str = "Uploaded PDF",
+    session_id: UUID | None = None,
 ) -> ResourceResponse:
     ensure_context(db, context_id=context_id, owner_id=learner.id)
+    chat_id = ensure_chat(db, session_id=session_id, context_id=context_id, owner_id=learner.id)
     content = await read_upload_body(request)
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty PDF upload")
@@ -117,6 +133,7 @@ async def add_pdf_resource(
         context_id=context_id,
         title=title,
         content=content,
+        study_session_id=chat_id,
     )
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
@@ -128,8 +145,10 @@ async def add_image_resource(
     request: Request,
     context_id: UUID,
     title: str = "Uploaded Image",
+    session_id: UUID | None = None,
 ) -> ResourceResponse:
     ensure_context(db, context_id=context_id, owner_id=learner.id)
+    chat_id = ensure_chat(db, session_id=session_id, context_id=context_id, owner_id=learner.id)
     content = await read_upload_body(request)
     if not content:
         raise HTTPException(
@@ -144,16 +163,23 @@ async def add_image_resource(
         title=title,
         content=content,
         mime_type=content_type,
+        study_session_id=chat_id,
     )
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
 @router.get("", response_model=list[ResourceResponse])
-def list_resources(learner: CurrentLearner, db: Db, context_id: UUID) -> list[ResourceResponse]:
+def list_resources(
+    learner: CurrentLearner, db: Db, context_id: UUID, session_id: UUID | None = None,
+) -> list[ResourceResponse]:
+    """The subject's shared library, or with session_id the files attached in that chat."""
     ensure_context(db, context_id=context_id, owner_id=learner.id)
     resources = db.scalars(
         select(Resource)
-        .where(Resource.owner_id == learner.id, Resource.context_id == context_id)
+        .where(
+            Resource.owner_id == learner.id, Resource.context_id == context_id,
+            Resource.study_session_id == session_id if session_id else Resource.study_session_id.is_(None),
+        )
         .order_by(Resource.created_at)
         .limit(100)
     ).all()
@@ -169,6 +195,17 @@ def list_resources(learner: CurrentLearner, db: Db, context_id: UUID) -> list[Re
         resource_response(resource, chunk_count=counts.get(resource.id, 0))
         for resource in resources
     ]
+
+
+@router.post("/{resource_id}/library", response_model=ResourceResponse)
+def add_to_library(resource_id: UUID, learner: CurrentLearner, db: Db) -> ResourceResponse:
+    """Share a file attached in one chat with every chat in the subject."""
+    resource = get_resource(db, resource_id=resource_id, owner_id=learner.id)
+    if resource.study_session_id is not None:
+        resource.study_session_id = None
+        db.commit()
+        db.refresh(resource)
+    return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
 @router.get("/{resource_id}", response_model=ResourceResponse)

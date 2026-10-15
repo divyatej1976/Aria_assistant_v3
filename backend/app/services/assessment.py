@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
@@ -13,6 +14,7 @@ from app.assessment.mcq import (
     generate_mcqs_deterministic,
     generate_mcqs_structured,
 )
+from app.assessment.shapes import correct_text, shape_questions, short_answer_matches
 from app.core.errors import ValidationError
 from app.db.models import (
     Assessment,
@@ -20,7 +22,10 @@ from app.db.models import (
     AssessmentQuestion,
     AttemptAnswer,
     Concept,
+    ConversationMessage,
     Evaluation,
+    LearnerConceptState,
+    StudySession,
 )
 from app.services.concepts import list_concepts, sync_concepts
 from app.services.contexts import get_owned_context
@@ -50,6 +55,39 @@ def get_owned_attempt(
     )
 
 
+SOURCES = ("library", "chats", "topic", "weak")
+
+
+def chats_transcript(db: Session, *, owner_id: UUID, context_id: UUID, session_ids: list[UUID]) -> str:
+    """The learner's chosen chats in this subject, as one transcript to quiz on."""
+    if not session_ids:
+        raise ValidationError("Choose at least one chat to quiz on")
+    owned = set(db.scalars(select(StudySession.id).where(
+        StudySession.id.in_(session_ids), StudySession.owner_id == owner_id,
+        StudySession.context_id == context_id,
+    )))
+    if owned != set(session_ids):
+        raise ValidationError("Selected chats do not belong to this subject")
+    messages = db.scalars(select(ConversationMessage).where(
+        ConversationMessage.study_session_id.in_(owned), ConversationMessage.owner_id == owner_id,
+        ConversationMessage.role.in_(("user", "assistant")),
+    ).order_by(ConversationMessage.study_session_id, ConversationMessage.position)).all()
+    if not any(message.role == "assistant" for message in messages):
+        raise ValidationError("These chats have no tutor answers yet. Chat with ARIA first, then make a quiz.")
+    return "\n\n".join(message.content.strip() for message in messages if message.content.strip())[-20_000:]
+
+
+def weak_concept_ids(db: Session, *, owner_id: UUID, context_id: UUID) -> list[UUID]:
+    rows = db.scalars(select(LearnerConceptState.concept_id).join(
+        Concept, Concept.id == LearnerConceptState.concept_id,
+    ).where(
+        LearnerConceptState.owner_id == owner_id, Concept.owner_id == owner_id,
+        Concept.context_id == context_id,
+        LearnerConceptState.state.in_(("NEEDS_REVIEW", "DEVELOPING")),
+    ))
+    return list(dict.fromkeys(rows))
+
+
 async def create_assessment(
     db: Session,
     *,
@@ -62,8 +100,27 @@ async def create_assessment(
     concept_ids: list[UUID | str],
     study_transcript: str | None = None,
     daily_review_date: str | None = None,
+    source: str = "library",
+    session_ids: list[UUID] | None = None,
+    topic: str | None = None,
+    settings: dict | None = None,
 ) -> Assessment:
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    if source not in SOURCES:
+        raise ValidationError(f"Unsupported quiz source: {source}")
+    if study_transcript is None and source == "chats":
+        study_transcript = chats_transcript(db, owner_id=owner_id, context_id=context_id,
+                                            session_ids=list(session_ids or []))
+    elif study_transcript is None and source == "topic":
+        if not (topic or "").strip():
+            raise ValidationError("Type a topic to quiz on")
+        if get_llm_provider_for_owner(db, owner_id=owner_id) is None:
+            raise ValidationError("Topic quizzes need the AI tutor. Choose your chats or library instead.")
+        study_transcript = f"Topic chosen by the learner: {topic.strip()[:300]}"
+    elif source == "weak":
+        concept_ids = weak_concept_ids(db, owner_id=owner_id, context_id=context_id)
+        if not concept_ids:
+            raise ValidationError("No weak spots yet. Take a quiz first so ARIA can see what to review.")
     try:
         selected_ids = {UUID(str(value)) for value in (concept_ids or [])}
     except (ValueError, TypeError, AttributeError) as exc:
@@ -75,8 +132,6 @@ async def create_assessment(
         if valid_ids != selected_ids:
             raise ValidationError("Selected concepts do not belong to this subject")
     definition = format_registry.get(format_name)
-    if definition.name != "mcq":
-        raise ValidationError(f"Format registry entry has no R0 generator: {definition.name}")
     if study_transcript is None:
         await sync_concepts(db, owner_id=owner_id, context_id=context_id)
     if study_transcript is not None:
@@ -114,6 +169,7 @@ async def create_assessment(
         )
     if not questions:
         raise ValidationError("Add ready study material before creating an assessment")
+    questions = shape_questions(questions, definition.name, seed=str(uuid4()))
     questions = _assign_question_concepts(
         db, owner_id=owner_id, context_id=context_id, questions=questions,
         allowed_ids=selected_ids if study_transcript is not None else None,
@@ -128,8 +184,12 @@ async def create_assessment(
             "question_count": question_count,
             "difficulty": difficulty,
             "concept_ids": [str(c) for c in (concept_ids or [])],
+            "source": source,
+            "session_ids": [str(value) for value in (session_ids or [])],
+            "topic": topic,
+            **(settings or {}),
             **({"source": "tutoring_conversation", "mastery_evidence": bool(selected_ids)}
-               if study_transcript is not None else {}),
+               if study_transcript is not None and source == "library" else {}),
         },
     )
     db.add(assessment)
@@ -171,8 +231,8 @@ def _assign_question_concepts(
             raise ValidationError("Generated question references a concept outside this subject")
         if concept_id is None:
             option_terms = set()
-            options = question.options
-            if allowed_ids is not None:
+            options = question.options or [question.correct_option]
+            if allowed_ids is not None and question.options:
                 correct = question.correct_option
                 if correct in "ABCD" and len(correct) == 1:
                     options = [question.options["ABCD".index(correct)]]
@@ -188,14 +248,7 @@ def _assign_question_concepts(
                 ),
                 None,
             )
-        assigned.append(
-            GeneratedMCQ(
-                prompt=question.prompt,
-                options=question.options,
-                correct_option=question.correct_option,
-                concept_id=concept_id,
-            )
-        )
+        assigned.append(replace(question, concept_id=concept_id))
     return assigned
 
 
@@ -212,6 +265,8 @@ def _persist_questions(
                 prompt=question.prompt,
                 options=question.options,
                 correct_option=question.correct_option,
+                kind=question.kind,
+                explanation=question.explanation,
             )
         )
 
@@ -267,6 +322,38 @@ def save_answers(
     return attempt
 
 
+def answer_text(question: AssessmentQuestion) -> str:
+    return question.correct_option if question.kind == "short_answer" else correct_text(question)
+
+
+def check_answer(
+    db: Session, *, owner_id: UUID, attempt_id: UUID, question_id: UUID, answer: str,
+) -> tuple[bool, str, str | None]:
+    """Save one answer and say whether it is right (practice mode only)."""
+    attempt = get_owned_attempt(db, owner_id=owner_id, attempt_id=attempt_id)
+    if attempt is None:
+        raise ValidationError("Attempt not found or not owned by learner")
+    if attempt.status == "SUBMITTED":
+        raise ValidationError("Attempt already submitted")
+    question = db.scalar(select(AssessmentQuestion).where(
+        AssessmentQuestion.id == question_id, AssessmentQuestion.owner_id == owner_id,
+        AssessmentQuestion.assessment_id == attempt.assessment_id,
+    ))
+    if question is None:
+        raise ValidationError("Question does not belong to this assessment")
+    saved = db.scalar(select(AttemptAnswer).where(
+        AttemptAnswer.attempt_id == attempt.id, AttemptAnswer.owner_id == owner_id,
+        AttemptAnswer.question_id == question.id,
+    ))
+    if saved is None:
+        db.add(AttemptAnswer(owner_id=owner_id, attempt_id=attempt.id, question_id=question.id,
+                             selected_option=answer))
+    else:
+        saved.selected_option = answer
+    db.commit()
+    return _answer_is_correct(question, answer), answer_text(question), question.explanation
+
+
 def _question_ids(db: Session, *, owner_id: UUID, assessment_id: UUID) -> set[UUID]:
     rows = db.execute(
         select(AssessmentQuestion.id).where(
@@ -287,6 +374,8 @@ def _answer_is_correct(question: AssessmentQuestion, selected: str | None) -> bo
     """
     if selected is None:
         return False
+    if question.kind == "short_answer":
+        return short_answer_matches(question.correct_option, selected)
     if selected == question.correct_option:
         return True
     try:
@@ -402,6 +491,8 @@ def submit_attempt(
                 "selected_option": selected,
                 "correct": correct,
                 "correct_option": question.correct_option,
+                "correct_answer": answer_text(question),
+                "explanation": question.explanation,
                 "concept_id": str(question.concept_id) if question.concept_id else None,
             }
         )

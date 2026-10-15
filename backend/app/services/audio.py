@@ -82,8 +82,8 @@ async def generate_text_audio(db: Session, *, owner_id: UUID, context_id: UUID,
                                   source_type=RESOURCE, source_id=resource.id)
 
 
-async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUID,
-                                 through_position: int | None = None) -> AudioArtifact:
+def session_audio_source(db: Session, *, owner_id: UUID, session_id: UUID,
+                         through_position: int | None = None) -> tuple[UUID, str, str, int]:
     session = db.scalar(select(StudySession).where(
         StudySession.id == session_id, StudySession.owner_id == owner_id,
     ))
@@ -100,8 +100,8 @@ async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUI
         if through_position < 0 or latest is None or through_position > latest:
             raise ValidationError("Conversation cutoff must refer to existing messages")
         query = query.where(ConversationMessage.position <= through_position)
-    messages = db.scalars(query.order_by(ConversationMessage.position,
-        ConversationMessage.created_at, ConversationMessage.id)).all()
+    messages = [m for m in db.scalars(query.order_by(ConversationMessage.position,
+        ConversationMessage.created_at, ConversationMessage.id)).all() if not m.action]
     if not any(m.role in ("assistant", "aria") and m.content.strip() for m in messages):
         raise ValidationError("Get a tutor response before creating audio from this conversation")
     text = "\n\n".join(
@@ -109,8 +109,14 @@ async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUI
         for m in messages if m.role in ("user", "assistant", "aria") and m.content.strip()
     )
     first_question = next((m.content for m in messages if m.role == "user"), "Tutor conversation")
-    return await generate_text_audio(db, owner_id=owner_id, context_id=session.context_id,
-                                     title=f"Chat: {first_question}"[:200], text=text)
+    return session.context_id, f"Chat: {first_question}"[:200], text, max(m.position for m in messages)
+
+
+async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUID,
+                                 through_position: int | None = None) -> AudioArtifact:
+    context_id, title, text, _ = session_audio_source(db, owner_id=owner_id,
+        session_id=session_id, through_position=through_position)
+    return await generate_text_audio(db, owner_id=owner_id, context_id=context_id, title=title, text=text)
 
 
 def get_tts_provider():
@@ -320,7 +326,7 @@ def _renew_audio_lease(db: Session, artifact_id: UUID, token: UUID):
 
 def generate_audio(
     db: Session, *, owner_id: UUID, source_type: str, source_id: UUID,
-    provider=None, recovery: bool = False,
+    provider=None, recovery: bool = False, reuse_ready: bool = False,
 ) -> AudioArtifact:
     """Claim one source atomically, synthesize outside its transaction, then fence publication."""
     source_model = Note if source_type == NOTE else Resource if source_type == RESOURCE else None
@@ -344,6 +350,11 @@ def generate_audio(
         AudioArtifact.source_type == source_type,
         AudioArtifact.source_id == source_id,
     ).order_by(AudioArtifact.created_at, AudioArtifact.id).execution_options(populate_existing=True))
+    if reuse_ready and artifact is not None and artifact.status == "READY":
+        # Check after taking the source-row lock, closing the race between
+        # an early READY lookup and another worker publishing the same source.
+        db.commit()
+        return artifact
     if artifact is None:
         artifact = AudioArtifact(owner_id=owner_id, source_type=source_type,
                                  source_id=source_id, text=text, status="PENDING")

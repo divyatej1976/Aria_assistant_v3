@@ -66,6 +66,7 @@ class RoadmapCreateRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=255)
     level: Literal["Beginner", "Intermediate", "Advanced"] = "Beginner"
     target_date: str | None = Field(default=None, max_length=10)
+    hours_per_week: int | None = Field(default=None, ge=1, le=60)
     context_id: UUID | None = None
 
     @field_validator("goal")
@@ -116,6 +117,7 @@ class RoadmapResponse(BaseModel):
     goal: str
     level: str
     target_date: str | None = None
+    hours_per_week: int | None = None
     status: str
     generation_mode: Literal["ai", "starter"] | None = None
     fallback_reason: Literal["provider_unavailable", "provider_failed", "invalid_output"] | None = None
@@ -129,6 +131,7 @@ class RoadmapSummaryResponse(BaseModel):
     goal: str
     level: str
     target_date: str | None = None
+    hours_per_week: int | None = None
     status: str
     generation_mode: Literal["ai", "starter"] | None = None
     fallback_reason: Literal["provider_unavailable", "provider_failed", "invalid_output"] | None = None

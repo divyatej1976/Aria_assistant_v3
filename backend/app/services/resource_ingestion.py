@@ -159,18 +159,27 @@ async def _process_resource(
 
 
 async def create_text_resource(
-    db: Session, *, owner_id: UUID, context_id: UUID, title: str, text: str
+    db: Session, *, owner_id: UUID, context_id: UUID, title: str, text: str,
+    resource_id: UUID | None = None, study_session_id: UUID | None = None,
 ) -> Resource:
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    if resource_id is not None:
+        existing = db.get(Resource, resource_id)
+        if existing is not None:
+            if existing.owner_id != owner_id or existing.context_id != context_id:
+                raise ValidationError("Resource not found")
+            return existing
     if not text.strip():
         raise ValidationError("Resource text cannot be empty")
     resource = Resource(
+        **({"id": resource_id} if resource_id is not None else {}),
         owner_id=owner_id,
         context_id=context_id,
         title=title,
         resource_type="TEXT",
         processing_status="PROCESSING",
         source_text=text,
+        study_session_id=study_session_id,
     )
     db.add(resource)
     # Keep the original source durable before processing, as for PDF/image
@@ -181,7 +190,8 @@ async def create_text_resource(
 
 
 async def create_pdf_resource(
-    db: Session, *, owner_id: UUID, context_id: UUID, title: str, content: bytes
+    db: Session, *, owner_id: UUID, context_id: UUID, title: str, content: bytes,
+    study_session_id: UUID | None = None,
 ) -> Resource:
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
     try:
@@ -197,6 +207,7 @@ async def create_pdf_resource(
         resource_type="PDF",
         processing_status="PROCESSING",
         raw_bytes=content,
+        study_session_id=study_session_id,
     )
     db.add(resource)
     db.flush()
@@ -228,6 +239,7 @@ async def create_image_resource(
     title: str,
     content: bytes,
     mime_type: str | None = None,
+    study_session_id: UUID | None = None,
 ) -> Resource:
     """Ingest an image study resource using OCR text extraction."""
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
@@ -242,6 +254,7 @@ async def create_image_resource(
             processing_status="UNSUPPORTED",
             error_detail=_extraction_error(exc),
             raw_bytes=content,
+            study_session_id=study_session_id,
         )
         db.add(resource)
         db.commit()
@@ -255,6 +268,7 @@ async def create_image_resource(
         resource_type="IMAGE",
         processing_status="PROCESSING",
         raw_bytes=content,
+        study_session_id=study_session_id,
     )
     db.add(resource)
     db.flush()

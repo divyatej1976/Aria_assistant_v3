@@ -44,7 +44,7 @@ async def finish_day(db: Session, *, owner_id: UUID, context_id: UUID) -> Assess
                 any(character.isalnum() for character in text)
                 and SMALL_TALK_RE.fullmatch(text) is None
             )
-        elif message.role == "assistant" and learning_turn.get(message.study_session_id, False):
+        elif message.role == "assistant" and not message.action and learning_turn.get(message.study_session_id, False):
             answers.append(message)
     if not answers:
         raise ValidationError("Explore a topic with your tutor today before finishing your day.")

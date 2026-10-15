@@ -21,6 +21,8 @@ class GeneratedMCQ:
     options: list[str]
     correct_option: str
     concept_id: UUID | None
+    kind: str = "mcq"
+    explanation: str | None = None
 
 
 def _sentences(content: str) -> list[str]:
@@ -59,6 +61,10 @@ def _load_chunk_sentences(
     )
     if chunk_ids is not None:
         query = query.where(ResourceChunk.id.in_(chunk_ids))
+    else:
+        # Without explicit chunks, draw only on the shared library, never on
+        # files attached privately inside one chat.
+        query = query.where(Resource.study_session_id.is_(None))
     rows = db.execute(query).all()
     chunk_ids_out = [chunk.id for chunk, _resource in rows]
     sentences = [_sentences(chunk.content) for chunk, _resource in rows]
@@ -199,6 +205,8 @@ def _material_preview(
     )
     if chunk_ids is not None:
         query = query.where(ResourceChunk.id.in_(chunk_ids))
+    else:
+        query = query.where(Resource.study_session_id.is_(None))
     rows = db.execute(query).scalars().all()
     return "\n\n".join(f"[{index + 1}] {chunk.content[:400]}" for index, chunk in enumerate(rows))
 
@@ -236,6 +244,7 @@ async def generate_mcqs_structured(
             options=item.options,
             correct_option=item.correct_option,
             concept_id=None,
+            explanation=item.explanation,
         )
         for item in parsed.questions[:count]
     ]
@@ -257,7 +266,8 @@ async def generate_conversation_mcqs(
                 schema=MCQSet, prompt_version=version.label(),
             )
             if parsed.questions:
-                return [GeneratedMCQ(item.prompt, item.options, item.correct_option, None)
+                return [GeneratedMCQ(item.prompt, item.options, item.correct_option, None,
+                                     explanation=item.explanation)
                         for item in parsed.questions[:count]]
         except Exception:
             # A provider outage still permits explicitly labelled recall practice.

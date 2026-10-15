@@ -24,6 +24,8 @@ class ResourceResponse(BaseModel):
     error_detail: str | None = None
     chunk_count: int
     created_at: datetime
+    # The chat this file belongs to; None when it is in the shared library.
+    session_id: str | None = None
 
 
 class ChunkResponse(BaseModel):

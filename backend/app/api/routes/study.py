@@ -21,6 +21,7 @@ from app.services.daily_review import finish_day
 from app.services.idempotency import ClaimLost
 from app.services.memory import delete_message as delete_message_service
 from app.services.progress import record_activity
+from app.services.response_style import resolve_style
 from app.services.study import (
     SessionSummary,
     answer_question,
@@ -103,10 +104,19 @@ def messages(
             content=message.content,
             position=message.position,
             fallback_used=message.fallback_used,
+            depth=message.response_depth,
+            action=_message_action(db, learner.id, message),
             sources=[SourceReference(**ref) for ref in message.source_refs],
         )
         for message in items
     ]
+
+
+def _message_action(db, owner_id, message):
+    if not message.action:
+        return None
+    from app.services.brain.actions import get_status
+    return get_status(db, owner_id=owner_id, action_id=message.id)
 
 
 @router.delete("/sessions/{session_id}/messages/{message_id}")
@@ -156,22 +166,24 @@ async def send_message(
         session = get_owned_session(db, owner_id=learner.id, session_id=session_id)
     except ValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if request.request_id is not None:
+    if request.request_id is not None or get_settings().aria_brain_routing:
         try:
             response = await answer_and_save(
                 db, owner_id=learner.id, session=session, content=request.content,
-                request_id=request.request_id,
+                request_id=request.request_id, depth=request.depth, screen=request.screen,
             )
         except (ReplyPending, ClaimLost) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         record_activity(db, owner_id=learner.id, activity_type="study", source_id=session.id)
         return response
+    style = resolve_style(request.content, request.depth, request.screen)
     result = await answer_question(
         db,
         owner_id=learner.id,
         context_id=session.context_id,
         question=request.content,
         session_id=session.id,
+        style=style,
     )
     refs = [
         {
@@ -190,6 +202,7 @@ async def send_message(
         assistant_content=result.content,
         assistant_refs=refs,
         fallback_used=result.fallback_used,
+        response_depth=style.depth,
     )
     record_activity(db, owner_id=learner.id, activity_type="study", source_id=session.id)
     return StudyMessageResponse(
@@ -205,4 +218,5 @@ async def send_message(
             for source in result.sources
         ],
         fallback_used=result.fallback_used,
+        depth=style.depth,
     )
