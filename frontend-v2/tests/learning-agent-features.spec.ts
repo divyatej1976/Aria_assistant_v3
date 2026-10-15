@@ -43,7 +43,7 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await chip.click();
 
     // Wait for the AI Tutor reply
-    await expect(page.getByText("ARIA Tutor").first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 60_000 });
     await expect(page.locator(".msg-aria").first()).toBeVisible({ timeout: 60_000 });
 
     // Give time for layout and markdown to finish rendering
@@ -85,8 +85,8 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await page.getByRole("button", { name: "Send" }).click();
 
     // Wait for ARIA response with source citations
-    await expect(page.getByText("ARIA Tutor").first()).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Grounded in your material/i).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".msg-aria .source-chip").first()).toBeVisible({ timeout: 60_000 });
 
     await page.waitForTimeout(2000);
 

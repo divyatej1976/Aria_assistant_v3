@@ -111,18 +111,19 @@ test("failed audio conversion reports failure and a retry restores playback", as
   await page.goto("/app/audio");
   const convert = async () => {
     await page.getByRole("button", { name: "Convert to audio", exact: true }).first().click();
+    await page.getByLabel("Create from", { exact: true }).selectOption("saved");
     await page.getByLabel("Source", { exact: true }).selectOption("note:review-note");
     await page.getByRole("button", { name: "Create audio", exact: false }).click();
   };
   await convert();
-  await expect(page.getByRole("alert").filter({ hasText: "Use Convert to audio to retry" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Your source is saved so you can retry" })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "Please retry or check audio setup" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Play NOTE audio", exact: true })).toBeDisabled();
   await expect(page.getByText("Audio ready.", { exact: true })).not.toBeVisible();
   await convert();
   await expect(page.getByRole("button", { name: "Play NOTE audio", exact: true })).toBeEnabled();
   await expect(page.getByText("Audio ready.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("alert").filter({ hasText: "Use Convert to audio to retry" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: "Your source is saved so you can retry" })).toHaveCount(0);
   expect(attempts).toBe(2);
 });
 
@@ -365,11 +366,11 @@ test("assessment keeps answers and warns when draft storage fails", async ({ pag
   await fixture(page, { assessment: true });
   await page.goto("/app/assess");
   await page.getByText("Take test", { exact: true }).click();
-  await page.getByLabel("First option", { exact: true }).check();
-  await expect(page.getByLabel("First option", { exact: true })).toBeChecked();
+  await page.getByRole("radio", { name: "First option", exact: true }).check();
+  await expect(page.getByRole("radio", { name: "First option", exact: true })).toBeChecked();
   await expect(page.getByRole("alert").filter({ hasText: "Your draft could not be saved" })).toBeVisible();
-  await page.getByLabel("Second option", { exact: true }).check();
-  await expect(page.getByLabel("Second option", { exact: true })).toBeChecked();
+  await page.getByRole("radio", { name: "Second option", exact: true }).check();
+  await expect(page.getByRole("radio", { name: "Second option", exact: true })).toBeChecked();
 });
 
 
@@ -380,7 +381,7 @@ test("audio conversion dialog contains focus and restores its trigger", async ({
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Convert to audio" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByLabel("Source", { exact: true })).toBeFocused();
+  await expect(dialog.getByLabel("Create from", { exact: true })).toBeFocused();
   for (let step = 0; step < 8; step++) {
     await page.keyboard.press("Tab");
     expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
@@ -399,7 +400,7 @@ for (const [path, title] of [["/app/assess", "Create assessment"], ["/app/roadma
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: title });
     await expect(dialog).toBeVisible();
-    if (title === "Create roadmap") await expect(dialog.getByLabel("Learning goal", { exact: true })).toBeFocused();
+    if (title === "Create roadmap") await expect(dialog.getByLabel("What do you want to be able to do?", { exact: true })).toBeFocused();
     for (const key of ["Tab", "Shift+Tab"]) {
       for (let step = 0; step < 14; step++) {
         await page.keyboard.press(key);
@@ -509,6 +510,7 @@ test("regenerating audio revokes old playback and downloads a fresh URL", async 
   await expect(page.locator("audio")).toHaveCount(1);
   const previous = await page.locator("audio").getAttribute("src");
   await page.getByRole("button", { name: "Convert to audio", exact: true }).click();
+  await page.getByLabel("Create from", { exact: true }).selectOption("saved");
   await page.getByLabel("Source", { exact: true }).selectOption("note:review-note");
   await page.getByRole("button", { name: "Create audio", exact: false }).click();
   await expect(page.getByText("Audio ready.", { exact: true })).toBeVisible();
@@ -585,6 +587,7 @@ test("regenerating during a held playback download rejects the stale response", 
   await page.getByRole("button", { name: "Play NOTE audio", exact: true }).click();
   await pending;
   await page.getByRole("button", { name: "Convert to audio", exact: true }).click();
+  await page.getByLabel("Create from", { exact: true }).selectOption("saved");
   await page.getByLabel("Source", { exact: true }).selectOption("note:review-note");
   await page.getByRole("button", { name: "Create audio", exact: false }).click();
   await expect(page.getByText("Audio ready.", { exact: true })).toBeVisible();

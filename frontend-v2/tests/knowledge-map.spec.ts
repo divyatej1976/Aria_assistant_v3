@@ -33,7 +33,7 @@ test("knowledge map shows the empty state for a fresh learner", async ({ page })
   await signInAndOnboard(page, user);
 
   await page.goto("/app/map");
-  await page.getByRole("heading", { name: "Knowledge map" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Topic map" }).waitFor({ state: "visible", timeout: 20_000 });
 
   await expect(page.getByText("No concepts tracked yet").first()).toBeVisible({ timeout: 20_000 });
 });
@@ -50,7 +50,7 @@ test("knowledge map renders real concepts and evidence after learning", async ({
   await api.dispose();
 
   await page.goto("/app/map");
-  await page.getByRole("heading", { name: "Knowledge map" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Topic map" }).waitFor({ state: "visible", timeout: 20_000 });
 
   // Real concepts render even when no prerequisite links have been recorded.
   await expect(page.getByText("No concepts tracked yet").first()).toBeHidden({ timeout: 30_000 });
@@ -81,7 +81,7 @@ test("knowledge map invalidates evidence and refreshes state", async ({ page }) 
   await api.dispose();
 
   await page.goto("/app/map");
-  await page.getByRole("heading", { name: "Knowledge map" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Topic map" }).waitFor({ state: "visible", timeout: 20_000 });
 
   // If we have valid evidence, exercising the invalidate button must not break the page.
   const hasValid = Array.isArray(evidence) && evidence.some((e) => (e as { valid: boolean }).valid);
@@ -113,7 +113,7 @@ test("knowledge map shows retry UI when API fails and recovers on retry", async 
   // Allow the retry to hit the real backend.
   await page.unroute("**/api/v1/contexts/*/adaptation");
   await retry.click();
-  await expect(page.getByRole("heading", { name: "Knowledge map" }).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Topic map" }).first()).toBeVisible({ timeout: 20_000 });
   // Either the empty state (fresh learner) or the map renders — both prove recovery.
   await expect(page.getByText(/No concepts tracked yet|Evidence/).first()).toBeVisible({ timeout: 20_000 });
   await noSeriousAxe(page, "knowledge-map-retry");

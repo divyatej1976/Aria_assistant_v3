@@ -44,10 +44,10 @@ test("materials page shows empty states for a fresh learner", async ({ page }) =
   await signInAndOnboard(page, user);
 
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Library", exact: true }).waitFor({ state: "visible", timeout: 20_000 });
 
   await expect(page.getByText("No saved notes yet").first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText("No resources yet").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("No shared files yet").first()).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState("networkidle");
   await noSeriousAxe(page, "materials");
 });
@@ -58,7 +58,7 @@ test("add a text resource and delete it", async ({ page }) => {
   await signInAndOnboard(page, user);
 
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Library", exact: true }).waitFor({ state: "visible", timeout: 20_000 });
 
   await page.getByRole("button", { name: /Add resource/i }).click();
   await page.getByRole("button", { name: "Paste text", exact: true }).click();
@@ -91,7 +91,7 @@ test("generate a note from a chat session and download the PDF", async ({ page }
   await api.dispose();
 
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Library", exact: true }).waitFor({ state: "visible", timeout: 20_000 });
 
   // generate from the real chat session
   await page.getByRole("button", { name: /Generate notes/i }).first().click();

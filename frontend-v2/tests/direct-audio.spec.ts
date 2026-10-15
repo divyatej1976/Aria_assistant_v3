@@ -40,19 +40,23 @@ test("upload an image directly in Audio studio", async ({ page }) => {
   await expect(page.getByRole("dialog", {name: "Saved audio source"})).toContainText(/CAP|Consistency/i);
 });
 
-test("chat converts directly to a durable audio episode", async ({ page }) => {
+test("a chat picked in Audio studio becomes a durable episode", async ({ page }) => {
   const user = randomUser();
   await createUser(user);
   await signInAndOnboard(page, user);
   await page.goto("/app/learn");
-  await expect(page.getByRole("button", { name: "Create audio", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Create audio/ })).toHaveCount(0);
   await page.getByPlaceholder("Ask ARIA anything…").fill("Explain stacks briefly.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  const create = page.getByRole("button", { name: "Create audio", exact: true });
-  await expect(create).toBeEnabled({ timeout: 60000 });
-  await create.click();
-  await expect(page.getByRole("link", { name: "Open Audio studio" })).toBeVisible({ timeout: 120000 });
-  await page.getByRole("link", { name: "Open Audio studio" }).click();
+  await expect(page.locator("article.msg-aria").first()).toBeVisible({ timeout: 60000 });
+  await page.goto("/app/audio");
+  await page.getByRole("button", { name: "Convert to audio" }).first().click();
+  await page.getByLabel("Create from", { exact: true }).selectOption("chat");
+  const chat = page.getByLabel("Chat", { exact: true });
+  await expect(chat.locator("option")).toHaveCount(2);
+  await chat.selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Create audio", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 120000 });
   await expect(page.locator(".audio-card").filter({ hasText: "Chat: Explain stacks briefly." })).toBeVisible();
   const api = await authedApi(user);
   const cid = await activeContextId(page);

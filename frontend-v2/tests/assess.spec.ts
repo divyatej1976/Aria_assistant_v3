@@ -8,6 +8,7 @@ import {
   seedResource,
   signInAndOnboard,
   type TestUser,
+  answerQuiz,
 } from "./helpers";
 
 async function noSeriousAxe(page: Page, name: string) {
@@ -33,7 +34,7 @@ test("assessments page shows the empty state for a fresh learner", async ({ page
   await signInAndOnboard(page, user);
 
   await page.goto("/app/assess");
-  await page.getByText("Assessments").first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByText("Practice").first().waitFor({ state: "visible", timeout: 20_000 });
   await expect(page.getByRole("button", { name: /Create assessment/i }).first()).toBeVisible({ timeout: 20_000 });
 });
 
@@ -52,39 +53,32 @@ test("create an assessment from real material, answer it, and see the real score
   await page.goto("/app/assess");
   await page.getByRole("button", { name: /Create assessment/i }).first().click();
 
-  // choose difficulty and create
-  await page.getByRole("button", { name: "Hard" }).click();
-  await page.getByRole("button", { name: /Create assessment/i }).last().click();
+  // choose the quiz: hard, 5 multiple-choice questions, answers at the end
+  const setup = page.getByRole("dialog", { name: "Create assessment" });
+  await setup.getByRole("radio", { name: "Hard" }).click();
+  await setup.getByRole("button", { name: "5", exact: true }).click();
+  await setup.getByRole("radio", { name: "At the end" }).click();
+  await setup.getByRole("button", { name: "Start quiz" }).click();
 
-  // lands on the take screen with questions
-  await page.getByRole("heading", { name: "Assessment", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+  // one question at a time
+  const player = page.getByRole("region", { name: "Quiz" });
+  await expect(player.getByText("Question 1 of 5")).toBeVisible({ timeout: 30_000 });
+  await expect(player.locator(".quiz-prompt")).toHaveCount(1);
 
-  // draft persistence: answer the first question, reload, resume keeps it checked
-  const firstRadio = page.locator('input[type="radio"]').first();
-  await firstRadio.waitFor({ state: "visible", timeout: 20_000 });
-  await firstRadio.check();
+  // draft persistence: answer the first question, reload, resume keeps it
+  await player.locator('input[type="radio"]').first().check();
   await page.reload();
   const cardWithResume = page.locator(".card", { hasText: /Resume test/i }).first();
   await expect(cardWithResume).toBeVisible({ timeout: 20_000 });
   await cardWithResume.click();
-  await page.getByRole("heading", { name: "Assessment", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
-  await expect(page.locator('input[type="radio"]').first()).toBeChecked({ timeout: 20_000 });
+  await expect(player.getByText("Question 2 of 5")).toBeVisible({ timeout: 30_000 });
+  await player.getByRole("button", { name: /Back/ }).click();
+  await expect(player.locator('input[type="radio"]').first()).toBeChecked({ timeout: 20_000 });
 
-  // timer + mark-for-review controls exist
-  await expect(page.getByRole("button", { name: "Mark for review" }).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/answered/).first()).toBeVisible();
-
-  // answer every question
-  const radios = page.locator('input[type="radio"]');
-  await radios.first().waitFor({ state: "visible", timeout: 20_000 });
-  const count = await radios.count();
-  expect(count).toBeGreaterThan(0);
-  for (let i = 0; i < count; i++) {
-    const radio = radios.nth(i);
-    if (!(await radio.isChecked())) await radio.check();
-  }
-
-  await page.getByRole("button", { name: /Submit answers/i }).click();
+  // exam mode: a flag control exists and nothing is revealed before the end
+  await expect(player.getByRole("button", { name: /Flag to review/ })).toBeVisible();
+  const count = await answerQuiz(page);
+  expect(count).toBe(5);
 
   // real result review — numbers must be consistent with the answered count
   await page.locator(".score-hero").waitFor({ state: "visible", timeout: 30_000 });
@@ -92,11 +86,9 @@ test("create an assessment from real material, answer it, and see the real score
   const incorrectVal = parseInt((await page.locator(".score-stat.bad").innerText()).trim(), 10);
   expect(Number.isNaN(correctVal)).toBe(false);
   expect(Number.isNaN(incorrectVal)).toBe(false);
-  // MCQ renders 4 option radios per question; catches dropped-answers regressions
-  const questions = count / 4;
-  expect(Number.isInteger(questions)).toBe(true);
-  expect(correctVal + incorrectVal, "correct + incorrect must equal question count").toBe(questions);
-  // one answer-review row per question
-  await expect(page.locator(".kv")).toHaveCount(questions);
+  expect(correctVal + incorrectVal, "correct + incorrect must equal question count").toBe(5);
+  // one answer-review row per question, each showing its question
+  await expect(page.locator(".quiz-review li")).toHaveCount(5);
+  await expect(page.locator(".quiz-review-q").first()).not.toBeEmpty();
   await noSeriousAxe(page, "assess-review");
 });

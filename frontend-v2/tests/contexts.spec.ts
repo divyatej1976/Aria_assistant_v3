@@ -14,8 +14,7 @@ test("onboarding creates a real learning context and the home shows it", async (
   await page.waitForURL(/onboarding/, { timeout: 20_000 });
 
   const topic = "Database Management Systems";
-  await page.getByLabel("What would you like to learn?").fill(topic);
-  await page.getByLabel("What’s your goal?").fill("Understanding DB normalization");
+  await page.getByLabel("What are you studying?").fill(topic);
   await page.getByRole("button", { name: /start learning/i }).click();
 
   await page.waitForURL("**/app", { timeout: 20_000 });
@@ -33,7 +32,7 @@ test("re-signing in after a context exists goes straight to the app (not onboard
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForURL(/onboarding/, { timeout: 20_000 });
-  await page.getByLabel("What would you like to learn?").fill("DSA");
+  await page.getByLabel("What are you studying?").fill("DSA");
   await page.getByRole("button", { name: /start learning/i }).click();
   await page.waitForURL("**/app", { timeout: 20_000 });
   await waitForHome(page);
@@ -70,7 +69,7 @@ test("switching context in the header updates mounted screens immediately (no re
 
   // refresh so the shared provider picks up the API-created context
   await page.reload();
-  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.locator('[data-home-ready="true"]').waitFor({ state: "visible", timeout: 20_000 });
 
   // header select now offers both; switching updates mounted screens WITHOUT reload
   const switcher = page.getByLabel("Active learning context");

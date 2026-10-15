@@ -92,7 +92,7 @@ export async function seedLearningFlow(api: AuthedApi, contextId: string): Promi
 
 /** Wait until the home dashboard has finished loading its data and rendered a stable element. */
 export async function waitForHome(page: Page): Promise<void> {
-  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.locator('[data-home-ready="true"]').waitFor({ state: "visible", timeout: 20_000 });
 }
 
 export function randomUser(): TestUser {
@@ -137,9 +137,37 @@ export async function signInAndOnboard(page: Page, user: TestUser): Promise<void
   await page.getByRole("button", { name: /sign in/i }).click();
   // fresh user has no context -> onboarding
   await page.waitForURL(/onboarding/, { timeout: 20_000 });
-  await page.getByLabel("What would you like to learn?").fill("Database Management Systems");
-  await page.getByLabel("What’s your goal?").fill("Understand database normalization");
+  await page.getByLabel("What are you studying?").fill("Database Management Systems");
   await page.getByRole("button", { name: /start learning/i }).click();
   await page.waitForURL("**/app", { timeout: 20_000 });
   await waitForHome(page);
+}
+
+
+/**
+ * Take the open quiz one question at a time: pick the first option (or type
+ * "answer"), check it in practice mode, then move on until the results show.
+ * Returns how many questions were answered.
+ */
+export async function answerQuiz(page: Page): Promise<number> {
+  const player = page.getByRole("region", { name: "Quiz" });
+  await player.waitFor({ state: "visible", timeout: 30_000 });
+  let answered = 0;
+  for (let step = 0; step < 60 && (await player.isVisible()); step++) {
+    const typed = player.getByLabel("Your answer");
+    if (await typed.count()) await typed.fill("answer");
+    else await player.locator('input[type="radio"]').first().check();
+    answered += 1;
+    const check = player.getByRole("button", { name: "Check", exact: true });
+    if (await check.isVisible()) {
+      await check.click();
+      await expect(player.locator(".quiz-feedback")).toBeVisible({ timeout: 20_000 });
+    }
+    const forward = player.getByRole("button", { name: /^(Next|Finish)/ });
+    const finishing = /^Finish/.test((await forward.innerText()).trim());
+    await forward.click();
+    if (finishing) break;
+  }
+  await expect(page.getByRole("heading", { name: "Answer review", exact: true })).toBeVisible({ timeout: 30_000 });
+  return answered;
 }

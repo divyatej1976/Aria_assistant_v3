@@ -15,7 +15,7 @@ test.describe("OCR Document & Image Ingestion", () => {
     await signInAndOnboard(page, user);
 
     await page.goto("/app/materials");
-    await page.getByRole("heading", { name: "Materials library" }).waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByRole("heading", { name: "Library", exact: true }).waitFor({ state: "visible", timeout: 20_000 });
 
     // Open Add resource modal
     await page.getByRole("button", { name: "Add resource" }).first().click();
@@ -65,8 +65,8 @@ test.describe("OCR Document & Image Ingestion", () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(imagePath);
 
-    // Wait for confirmation message inside chat
-    await expect(page.getByText(/Attached document:/i).first()).toBeVisible({ timeout: 35_000 });
+    // The file appears in this chat's file strip
+    await expect(page.locator(".chat-files .chat-file").filter({ hasText: "sample_ocr_notes" })).toBeVisible({ timeout: 35_000 });
 
     // Ask ARIA a question about the attached image notes
     await page.getByPlaceholder("Ask ARIA anything…").fill(
@@ -75,8 +75,8 @@ test.describe("OCR Document & Image Ingestion", () => {
     await page.getByRole("button", { name: "Send" }).click();
 
     // Wait for ARIA response with dual-source grounding
-    await expect(page.getByText("ARIA Tutor").first()).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Grounded in your material/i).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".msg-aria .source-chip").first()).toBeVisible({ timeout: 60_000 });
 
     await page.waitForTimeout(2000);
 

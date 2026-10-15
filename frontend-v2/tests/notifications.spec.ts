@@ -68,7 +68,7 @@ test("seeded exam reminder appears in the bell and mark-read clears the badge", 
 
   // reload so the app-shell refetches the unread count
   await page.goto("/app");
-  await page.getByText("Continue learning", { exact: true }).first().waitFor({ state: "visible", timeout: 20_000 });
+  await page.locator('[data-home-ready="true"]').waitFor({ state: "visible", timeout: 20_000 });
 
   const badge = page.locator(".bell-btn .badge");
   await expect(badge).toBeVisible({ timeout: 20_000 });

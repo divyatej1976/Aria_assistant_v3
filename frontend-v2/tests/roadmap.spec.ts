@@ -108,15 +108,27 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
   await page.goto("/app/roadmaps");
   await page.getByRole("heading", { name: "Roadmaps" }).waitFor({ state: "visible", timeout: 20_000 });
   await page.getByRole("button", { name: /Create roadmap/i }).first().click();
-  await page.getByLabel("Learning goal").fill("Master Python for data analysis");
-  await page.getByRole("button", { name: "Beginner" }).click();
-  await page.getByRole("button", { name: /Create roadmap/i }).last().click();
+  // the setup asks one question at a time
+  const setup = page.getByRole("dialog", { name: "Create roadmap" });
+  await setup.getByLabel("What do you want to be able to do?").fill("Master Python for data analysis");
+  await setup.getByRole("button", { name: /^Next/ }).click();
+  await setup.getByRole("radio", { name: /^Beginner/ }).click();
+  await setup.getByRole("button", { name: /^Next/ }).click();
+  await setup.getByRole("radio", { name: "3–5 hours" }).click();
+  await setup.getByRole("button", { name: /^Next/ }).click();
+  await setup.getByRole("button", { name: /^Next/ }).click();
+  await expect(setup.getByText("3–5 hours")).toBeVisible();
+  await setup.getByRole("button", { name: /Create roadmap/i }).click();
 
   // tree renders from real concepts with 0% completion
   await expect(page.locator(".roadmap-tier-head").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".r-n").first()).toHaveText("0%", { timeout: 30_000 });
   const topicCount = await page.locator(".roadmap-topic-card").count();
   expect(topicCount).toBeGreaterThan(0);
+  // 3–5 hours a week fits two milestones, each with Study and Quiz me
+  const week = page.locator(".plan-week li");
+  await expect(week).toHaveCount(2);
+  await expect(week.first().getByRole("link", { name: /Quiz me/ })).toHaveAttribute("href", /\/app\/assess\?quiz_topic=/);
 
   // subtopic page shows the reasoning behind the tick state
   await page.locator(".roadmap-topic-details").first().click();

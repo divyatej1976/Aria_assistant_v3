@@ -7,6 +7,7 @@ import {
   seedResource,
   signInAndOnboard,
   type TestUser,
+  answerQuiz,
 } from "./helpers";
 
 /**
@@ -31,7 +32,7 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   await input.waitFor({ state: "visible", timeout: 20_000 });
   await input.fill("Explain Python functions");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText("ARIA Tutor").first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 60_000 });
 
   // ---- planner: create and complete a task ----
   await page.goto("/app/planner");
@@ -47,23 +48,14 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   // ---- assess: create, take, submit, review ----
   await page.goto("/app/assess");
   await page.getByRole("button", { name: /Create assessment/i }).first().click();
-  await page.getByRole("button", { name: /Create assessment/i }).last().click();
-  await page.getByRole("heading", { name: "Assessment", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
-  const radios = page.locator('input[type="radio"]');
-  await radios.first().waitFor({ state: "visible", timeout: 20_000 });
-  const count = await radios.count();
-  expect(count).toBeGreaterThan(0);
-  for (let i = 0; i < count; i++) {
-    const radio = radios.nth(i);
-    if (!(await radio.isChecked())) await radio.check();
-  }
-  await page.getByRole("button", { name: /Submit answers/i }).click();
-  await expect(page.getByRole("heading", { name: "Answer review", exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Create assessment" }).getByRole("button", { name: "5", exact: true }).click();
+  await page.getByRole("button", { name: "Start quiz" }).click();
+  expect(await answerQuiz(page)).toBe(5);
   await expect(page.getByText(/You answered \d+ of \d+ questions correctly\./)).toBeVisible();
 
   // ---- materials: generate a note from the chat session + download PDF ----
   await page.goto("/app/materials");
-  await page.getByRole("heading", { name: /Materials library/i }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Library", exact: true }).waitFor({ state: "visible", timeout: 20_000 });
   await page.getByRole("button", { name: /Generate notes/i }).first().click();
   const sessionValue = await page.locator("#note-source option").nth(1).getAttribute("value");
   expect(sessionValue).toBeTruthy();
@@ -80,6 +72,7 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   // ---- audio: convert the note, play it, pause it ----
   await page.goto("/app/audio");
   await page.getByRole("button", { name: /Convert to audio/i }).first().click();
+  await page.getByLabel("Create from", { exact: true }).selectOption("saved");
   const noteValue = await page.locator("#audio-source option").nth(1).getAttribute("value");
   expect(noteValue).toContain("note:");
   await page.getByLabel("Source").selectOption(noteValue!);
@@ -99,7 +92,7 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   await expect(page.getByText("Assessment", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 
   await page.goto("/app/map");
-  await page.getByRole("heading", { name: "Knowledge map" }).waitFor({ state: "visible", timeout: 20_000 });
+  await page.getByRole("heading", { name: "Topic map" }).waitFor({ state: "visible", timeout: 20_000 });
   await expect(page.locator(".concept-node").first()).toBeVisible({ timeout: 20_000 });
 
   // ---- notifications: assessment result landed in the bell ----

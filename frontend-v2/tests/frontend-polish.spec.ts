@@ -65,7 +65,7 @@ test("tutor retry reuses the request and keeps one question bubble", async ({ pa
   expect(requests[0].request_id).toMatch(/^[0-9a-f-]{36}$/);
   await expect(page.getByText("Explain primary keys", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Retry reply" })).toHaveCount(0);
-  const focus = page.getByRole("button", { name: "Focus", exact: true });
+  const focus = page.getByRole("button", { name: "Focus mode", exact: true });
   await focus.click();
   await expect(page.getByRole("button", { name: "Exit focus" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("navigation", { name: "Workspace", exact: true })).not.toBeVisible();
@@ -77,7 +77,7 @@ test("assessment types have friendly names and distinct badges", async ({ page }
   await fixture(page);
   await page.route("**/api/v1/assessments?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify(["BASELINE", "DAILY_REVIEW", "TARGETED", "RETEST_TARGETED"].map(mode => ({ id: mode, context_id: context.id, format: "mcq", mode, status: "READY", question_count: 3, created_at: "2026-10-14T10:00:00Z" }))) }));
   await page.goto("/app/assess");
-  for (const label of ["Practice", "Daily Review", "Targeted Practice", "Targeted Review"]) await expect(page.getByText(label, { exact: true })).toBeVisible();
+  for (const label of ["Practice", "Daily Review", "Targeted Practice", "Targeted Review"]) await expect(page.locator(".route-view").getByText(label, { exact: true }).last()).toBeVisible();
   const colours = await page.locator(".assessment-kind").evaluateAll(elements => elements.map(element => getComputedStyle(element).backgroundColor));
   expect(new Set(colours).size).toBe(4);
   expect((await new AxeBuilder({ page }).analyze()).violations.filter(issue => issue.impact === "serious" || issue.impact === "critical")).toEqual([]);
@@ -150,7 +150,7 @@ test("streaming replies follow the latest message without pulling an earlier rea
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.locator(".msg-aria")).toHaveCount(2);
   await chat.evaluate(element => { element.scrollTop = 0; element.dispatchEvent(new Event("scroll")); });
-  await expect(page.getByRole("button", { name: "Jump to latest" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scroll to the latest message" })).toBeVisible();
   await expect(page.locator(".msg-aria").last()).toContainText("End of explanation.", { timeout: 30_000 });
   expect(await chat.evaluate(element => element.scrollTop)).toBeLessThan(100);
 });
@@ -160,9 +160,8 @@ test("assessment readiness explains both learning paths before submission", asyn
   await page.goto("/app/assess");
   await page.getByRole("button", { name: "Create your first assessment" }).click();
   const modal = page.getByRole("dialog", { name: "Create assessment" });
-  await expect(modal.getByRole("status")).toContainText("without notes");
-  await expect(modal.getByRole("button", { name: "Create assessment", exact: true })).toBeDisabled();
-  await expect(modal.getByRole("link", { name: "Study with ARIA" })).toHaveAttribute("href", "/app/learn");
+  await expect(modal.getByRole("status")).toContainText("Pick chats or a topic instead");
+  await expect(modal.getByRole("button", { name: "Start quiz", exact: true })).toBeDisabled();
 });
 
 test("assessment failure preserves selections and displays an inline error", async ({ page }) => {
@@ -174,16 +173,16 @@ test("assessment failure preserves selections and displays an inline error", asy
   await page.goto("/app/assess");
   await page.getByRole("button", { name: "Create assessment", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Create assessment" });
-  await modal.getByRole("button", { name: "Create assessment", exact: true }).click();
+  await modal.getByRole("button", { name: "Start quiz", exact: true }).click();
   await expect(modal.getByRole("alert")).toContainText("Add more detail");
   await expect(modal).toBeVisible();
-  await expect(modal.getByRole("button", { name: "Create assessment", exact: true })).toBeEnabled();
+  await expect(modal.getByRole("button", { name: "Start quiz", exact: true })).toBeEnabled();
 });
 
 test("first session guidance makes materials optional", async ({ page }, info) => {
   await fixture(page);
   await page.goto("/app");
-  await expect(page.getByText("A small start. A clear path.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Three small steps" })).toBeVisible();
   await expect(page.locator(".first-chapter")).toContainText("Your own notes are optional");
   await expect(page.locator(".first-chapter li").filter({ hasText: "Add your own material" })).toContainText("Optional");
   await expect(page.getByRole("img", { name: "0% of concepts supported" })).toHaveCount(0);
@@ -196,8 +195,8 @@ test("creating a review keeps the guide until the learner submits it", async ({ 
   let taken = false;
   await page.route("**/api/v1/assessments?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "review", submitted_attempt_count: taken ? 1 : 0 }]) }));
   await page.goto("/app");
-  const step = page.locator(".first-chapter li").filter({ hasText: "Take your first review" });
-  await expect(step).toContainText("Your review is ready in Assessments");
+  const step = page.locator(".first-chapter li").filter({ hasText: "Take your first quiz" });
+  await expect(step).toContainText("Your quiz is ready in Practice");
   await expect(step.getByRole("link")).toHaveAttribute("href", "/app/assess");
   await expect(step.locator(".step-check")).toHaveAttribute("aria-label", "Not completed");
   taken = true;
@@ -226,11 +225,7 @@ test("slow replies explain the wait and the daily review has a clear action", as
   await expect(page.locator(".request-lines span")).toHaveCount(3);
   release();
   await expect(page.getByText("Primary keys identify rows.", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Done for today", exact: true }).click();
-  const banner = page.locator(".daily-review-ready");
-  await expect(banner).toContainText("Your daily review is ready");
-  await expect(banner.getByRole("link", { name: "Start review" })).toHaveAttribute("href", "/app/assess?review=daily-review");
-  expect(await banner.evaluate(element => getComputedStyle(element).animationName)).toBe("none");
+  await expect(page.getByRole("button", { name: "Done for today" })).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations.filter(issue => issue.impact === "serious" || issue.impact === "critical")).toEqual([]);
 });
 
@@ -276,7 +271,7 @@ test("mobile navigation traps focus, restores it, and follows a destination", as
   await expect(drawer).toHaveCount(0);
   await expect(trigger).toBeFocused();
   await trigger.click();
-  await drawer.getByRole("link", { name: "Roadmaps", exact: true }).click();
+  await drawer.getByRole("link", { name: "Plan", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/roadmaps$/);
   await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(0);
 });

@@ -32,7 +32,7 @@ test("learn screen creates a session and sends a message to the real tutor", asy
   await page.getByRole("button", { name: "Send" }).click();
 
   // an AI reply (aria) appears
-  await expect(page.getByText("ARIA Tutor").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 30_000 });
   await noSeriousAxe(page, "learn");
 });
 
@@ -92,7 +92,7 @@ test("empty learn screen renders starter prompt chips and clicking one sends the
   await chip.click();
 
   // Sending starts and reply appears
-  await expect(page.getByText("ARIA Tutor").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 30_000 });
 });
 
 
@@ -111,7 +111,7 @@ test("returning to Learn opens a fresh chat and lists the old one by topic", asy
   await expect(page).toHaveURL(/[?&]session=/);
 
   // Leave via the workspace rail, then come back through navigation.
-  await page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Home", exact: true }).click();
   await expect(page).toHaveURL(/\/app$/);
   await page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Learn", exact: true }).click();
 

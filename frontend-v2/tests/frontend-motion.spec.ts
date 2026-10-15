@@ -14,13 +14,14 @@ async function fixture(page: Page) {
     if (path.endsWith("/auth/me")) body = { id: "learner", email: "learner@example.com", display_name: "Learner", verified: true };
     else if (path === "/api/v1/contexts") body = contexts;
     else if (path.endsWith("/unread-count")) body = { unread: 0 };
-    else if (path.endsWith("/consistency")) body = { current_streak: 4, today_active: true };
+    else if (path.endsWith("/consistency")) body = { current_streak: 4, longest_streak: 4, active_this_week: 3, active_this_month: 6, today_active: true, heatmap: [] };
     else if (path.endsWith("/adaptation")) body = { states: [{ concept_id: "one", concept_name: "Normalization", state: "SUPPORTED", confidence: 80, reason: "Assessment evidence" }, { concept_id: "two", concept_name: "Dependencies", state: "DEVELOPING", confidence: 50, reason: "Keep practicing" }], decisions: [] };
     else if (path.endsWith("/concepts")) body = [{ id: "one", name: "Normalization" }, { id: "two", name: "Dependencies" }];
     else if (path.endsWith("/one/prerequisites")) body = [{ prerequisite_concept_id: "two" }];
     else if (path === "/api/v1/roadmaps") body = [{ id: "roadmap", goal: "Understand databases", level: "Beginner", total: 2, done: 1, status: "ACTIVE" }];
     else if (path === "/api/v1/roadmaps/roadmap") body = { id: "roadmap", goal: "Understand databases", level: "Beginner", total: 2, done: 1, status: "ACTIVE", tiers: [{ name: "Foundation", icon: "book", topics: [{ id: "keys", title: "Tables and keys", key_skills: ["Primary keys"], prerequisites: [], state: "SUPPORTED", confidence: 80, ticked: true }, { id: "normalization", title: "Normalization", key_skills: ["Dependencies"], prerequisites: ["Tables and keys"], state: "DEVELOPING", confidence: 50, ticked: false }] }] };
-    else if (path === "/api/v1/study/sessions") body = [{ id: "session", context_id: "context-a", mode: "BASELINE", status: "ACTIVE", created_at: "2026-10-05T00:00:00Z" }];
+    else if (path === "/api/v1/study/sessions") body = [{ id: "session", context_id: "context-a", mode: "BASELINE", status: "ACTIVE", title: "Normalization basics", message_count: 4, created_at: "2026-10-05T00:00:00Z" }];
+    else if (path === "/api/v1/assessments") body = [{ id: "quiz", submitted_attempt_count: 1, completed_scores: [] }];
     else if (path === "/api/v1/resources") body = [{ id: "resource", context_id: "context-a", title: "Lecture notes", resource_type: "TEXT", processing_status: "READY", error_detail: null, chunk_count: 4 }];
     await route.fulfill({ status: 200, contentType: "application/json", headers: { "Access-Control-Allow-Origin": new URL(page.url()).origin, "Access-Control-Allow-Credentials": "true" }, body: JSON.stringify(body) });
   });
@@ -136,17 +137,17 @@ test("chat focus and incoming replies preserve an earlier reading position", asy
   await page.goto("/app/learn?session=session");
   await expect(page.getByPlaceholder("Ask ARIA anything…")).toBeVisible();
   await expect(page.locator(".msg")).toHaveCount(30);
-  await page.getByRole("button", { name: "Focus", exact: true }).click();
+  await page.getByRole("button", { name: "Focus mode", exact: true }).click();
   await expect(page.locator(".learn-side")).not.toBeVisible();
   await page.locator(".chat-body").evaluate(el => { el.scrollTop = 200; el.dispatchEvent(new Event("scroll")); });
-  await expect(page.getByRole("button", { name: "Jump to latest" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scroll to the latest message" })).toBeVisible();
   await page.getByPlaceholder("Ask ARIA anything…").fill("Explain normalization");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByText("A new response to your question.")).toBeAttached();
   expect(await page.locator(".chat-body").evaluate(el => el.scrollTop)).toBeLessThan(300);
-  await page.getByRole("button", { name: "Jump to latest" }).click();
+  await page.getByRole("button", { name: "Scroll to the latest message" }).click();
   await expect.poll(() => page.locator(".chat-body").evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(100);
-  await page.getByRole("button", { name: "Exit focus", exact: true }).click();
+  await page.getByRole("button", { name: "Exit focus mode", exact: true }).click();
   await expect(page.locator(".learn-side")).toBeVisible();
 });
 
@@ -197,11 +198,13 @@ test("mobile layouts and live reduced motion keep the dashboard usable", async (
   await expect(page.locator(".ambient canvas")).toHaveCount(0);
   await page.setViewportSize({ width: 375, height: 900 });
   const navigation = page.getByRole("navigation", { name: "Primary", exact: true });
-  await navigation.getByRole("link", { name: "Knowledge map", exact: true }).click();
+  await navigation.getByRole("link", { name: "Progress", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/progress$/);
+  await page.getByRole("navigation", { name: "Progress sections" }).getByRole("link", { name: "Topic map" }).click();
   await expect(page).toHaveURL(/\/app\/map$/);
-  await expect(navigation.getByRole("link", { name: "Knowledge map", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link", { name: "Progress", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(navigation.locator(".mobile-active-surface")).toHaveCount(1);
-  await expect(navigation.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link", { name: "Home", exact: true })).not.toHaveAttribute("aria-current", "page");
 });
 
 test("workspace popovers preserve focus during switching and dismissal", async ({ page }) => {
@@ -271,7 +274,7 @@ test("roadmap celebrates a newly confirmed milestone once per session", async ({
   await expect(page.locator(".milestone-status")).toBeEmpty();
 });
 
-test("onboarding supports keyboard submission and an optional learning goal", async ({ page }) => {
+test("onboarding supports keyboard submission and can be skipped", async ({ page }) => {
   await fixture(page);
   let submitted: unknown;
   await page.route("**/api/v1/contexts", async route => {
@@ -282,15 +285,18 @@ test("onboarding supports keyboard submission and an optional learning goal", as
       body: JSON.stringify({ id: "new-context", title: "Python", description: null, status: "active" }) });
   });
   await page.goto("/onboarding");
-  await page.getByRole("button", { name: "Start learning", exact: true }).click();
-  const topic = page.getByRole("textbox", { name: "What would you like to learn?" });
-  await expect(topic).toBeFocused();
-  await expect(topic).toHaveAttribute("aria-invalid", "true");
+  const topic = page.getByRole("textbox", { name: "What are you studying?" });
   await topic.fill(" Python ");
-  await page.getByRole("button", { name: "Intermediate", exact: true }).click();
   await topic.press("Enter");
   await expect(page).toHaveURL(/\/app$/);
-  expect(submitted).toEqual({ title: "Python", configuration: { mastery_level: "intermediate" } });
+  expect(submitted).toMatchObject({ title: "Python" });
+
+  // Skipping still lands on Home with a general subject that can be renamed later.
+  submitted = undefined;
+  await page.goto("/onboarding");
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await expect(page).toHaveURL(/\/app$/);
+  expect(submitted).toMatchObject({ title: "My studies" });
 });
 
 test("a delayed tutor reply stays out of a different study session", async ({ page }) => {
@@ -383,9 +389,10 @@ test("dashboard stays interactive under CPU throttling and repeated workspace na
   expect(elapsed).toBeLessThan(20_000);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   for (let cycle = 0; cycle < 3; cycle++) {
-    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Knowledge map", exact: true }).click();
+    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Progress", exact: true }).click();
+    await page.getByRole("navigation", { name: "Progress sections" }).getByRole("link", { name: "Topic map" }).click();
     await expect(page.locator(".constellation")).toBeVisible();
-    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Dashboard", exact: true }).click();
+    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Home", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Continue learning", exact: true })).toBeVisible();
     await expect(page.locator(".ambient canvas")).toHaveCount(1);
     await expect(page.locator(".shell-side")).toHaveCount(1);
@@ -465,7 +472,8 @@ test(`records ${viewport.name} animation frame pacing and navigation resource gr
       await settleUI(page);
       return;
     }
-    await page.getByRole("navigation", { name: viewport.name === "mobile" ? "Primary" : "Workspace", exact: true }).getByRole("link", { name, exact: true }).click();
+    await page.getByRole("navigation", { name: viewport.name === "mobile" ? "Primary" : "Workspace", exact: true }).getByRole("link", { name: name === "Dashboard" ? "Home" : "Progress", exact: true }).click();
+    if (name !== "Dashboard") await page.getByRole("navigation", { name: "Progress sections" }).getByRole("link", { name: "Topic map" }).click();
     await expect(name === "Dashboard" ? page.getByRole("heading", { name: "Continue learning", exact: true }) : page.locator(".constellation")).toBeVisible();
     await settleUI(page);
   };
