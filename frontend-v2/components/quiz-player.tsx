@@ -18,6 +18,20 @@ type Feedback = { correct: boolean; correct_answer: string; explanation: string 
 
 export const DONT_KNOW = "I don't know";
 
+type Clock = { startedAt: number; questionId: string; questionStartedAt: number };
+
+/** Wall-clock start times, stored per attempt so a reload resumes the timer instead of restarting it. */
+function readClock(key: string, questionId: string): Clock {
+  const now = Date.now();
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(key) ?? "null") as Clock | null;
+    if (saved && typeof saved.startedAt === "number" && typeof saved.questionStartedAt === "number") {
+      return saved.questionId === questionId ? saved : { ...saved, questionId, questionStartedAt: now };
+    }
+  } catch {}
+  return { startedAt: now, questionId, questionStartedAt: now };
+}
+
 function clock(total: number): string {
   const safe = Math.max(0, total);
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
@@ -27,7 +41,7 @@ function clock(total: number): string {
  * exam mode reveals everything at the end. Answers are reported upward on
  * every change so the page can keep a resumable draft. */
 export function QuizPlayer({
-  assessmentId, attemptId, questions, settings, answers, onAnswer, onFinish, onExit, busy,
+  assessmentId, attemptId, questions, settings, answers, onAnswer, onFinish, onExit, busy, flagged, onFlag,
 }: {
   assessmentId: string;
   attemptId: string;
@@ -38,18 +52,26 @@ export function QuizPlayer({
   onFinish: (answers: Record<string, string>) => void;
   onExit: () => void;
   busy: boolean;
+  /** Flags live in the page's saved draft so they survive a reload. */
+  flagged: Record<string, boolean>;
+  onFlag: (questionId: string) => void;
 }) {
   const practice = settings.reveal === "practice";
   const firstOpen = Math.max(0, questions.findIndex((q) => !(q.id in answers)));
   const [index, setIndex] = useState(firstOpen);
   const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
   const [checking, setChecking] = useState(false);
-  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
   // Exam mode ends on a review screen listing unanswered and flagged questions.
   const [reviewing, setReviewing] = useState(false);
   const limit = settings.time_limit_seconds ?? 0;
-  const [remaining, setRemaining] = useState(limit);
-  const [elapsed, setElapsed] = useState(0);
+  const clockKey = `aria.quiz-clock:${attemptId}`;
+  const [timing, setTiming] = useState<Clock>(() => readClock(clockKey, questions[firstOpen].id));
+  const [now, setNow] = useState(() => Date.now());
+  const elapsed = Math.max(0, Math.floor((now - timing.startedAt) / 1000));
+  const used = settings.timing === "per_question" ? Math.floor((now - timing.questionStartedAt) / 1000) : elapsed;
+  const remaining = Math.max(0, limit - used);
+  // The timeout action runs once per expiry, even if submitting fails and the clock keeps ticking.
+  const expired = useRef<string | null>(null);
   const answersRef = useRef(answers);
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
@@ -85,8 +107,8 @@ export function QuizPlayer({
   const goTo = useCallback((target: number) => {
     setReviewing(false);
     setIndex(target);
-    if (settings.timing === "per_question") setRemaining(limit);
-  }, [limit, settings.timing]);
+    setTiming((t) => ({ ...t, questionId: questions[target].id, questionStartedAt: Date.now() }));
+  }, [questions]);
 
   const next = useCallback(() => {
     if (!isLast) goTo(index + 1);
@@ -110,15 +132,19 @@ export function QuizPlayer({
 
   // Timers: a countdown for the whole quiz or for each question, otherwise a quiet stopwatch.
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setElapsed((e) => e + 1);
-      if (settings.timing !== "none") setRemaining((r) => r - 1);
-    }, 1000);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [settings.timing]);
+  }, []);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(clockKey, JSON.stringify(timing)); } catch {}
+  }, [clockKey, timing]);
 
   useEffect(() => {
     if (settings.timing === "none" || remaining > 0) return;
+    const expiry = settings.timing === "total" ? "total" : question.id;
+    if (expired.current === expiry) return;
+    expired.current = expiry;
     if (settings.timing === "total") {
       toast("Time is up. Your answers have been submitted.");
       finish();
@@ -135,6 +161,8 @@ export function QuizPlayer({
     const onKey = (event: KeyboardEvent) => {
       if (reviewing) return;
       const target = event.target as HTMLElement | null;
+      // A focused button or link handles its own Enter (e.g. "Flag to review").
+      if (target?.closest("button, a, summary")) return;
       if (target?.tagName === "TEXTAREA" || (target?.tagName === "INPUT" && (target as HTMLInputElement).type === "text")) {
         if (event.key === "Enter") { event.preventDefault(); primary(); }
         return;
@@ -198,7 +226,7 @@ export function QuizPlayer({
           <span className="quiz-kind">{question.kind === "true_false" ? "True or false" : question.kind === "short_answer" ? "Type your answer" : "Choose one"}</span>
           {!practice && (
             <button type="button" className={`quiz-flag${flagged[question.id] ? " on" : ""}`} aria-pressed={!!flagged[question.id]}
-              onClick={() => setFlagged((f) => ({ ...f, [question.id]: !f[question.id] }))}>
+              onClick={() => onFlag(question.id)}>
               <Icon name="pin" size={13} /> {flagged[question.id] ? "Flagged" : "Flag to review"}
             </button>
           )}

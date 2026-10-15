@@ -393,6 +393,7 @@ function AssessPageWorkspace() {
           )}
           <QuizPlayer key={taking.attemptId} assessmentId={taking.assessmentId} attemptId={taking.attemptId}
             questions={taking.questions} settings={taking.settings} answers={answers} busy={busy}
+            flagged={marked} onFlag={(id) => setMarked((m) => ({ ...m, [id]: !m[id] }))}
             onAnswer={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
             onFinish={(complete) => { setAnswers(complete); void submit(complete); }}
             onExit={() => { setTaking(null); toast("Progress saved. Open the quiz again to continue."); }} />
