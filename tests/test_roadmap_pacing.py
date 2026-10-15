@@ -22,11 +22,11 @@ def test_weekly_time_is_saved_and_shapes_the_timeframe(client: TestClient, monke
     cid = create_context(client, token)
 
     created = client.post("/api/v1/roadmaps", headers=h, json={
-        "goal": "Build a REST API", "level": "Beginner", "hours_per_week": 4, "context_id": cid,
+        "goal": "Build a REST API", "level": "Beginner", "hours_per_week": 4, "focus": "projects", "context_id": cid,
     })
     assert created.status_code in (200, 201), created.text
     assert created.json()["hours_per_week"] == 4
-    assert seen["target_date"] == "Self-paced (about 4 hours of study per week)"
+    assert seen["target_date"] == "Self-paced (about 4 hours of study per week); emphasise projects"
     listed = client.get(f"/api/v1/roadmaps?context_id={cid}", headers=h).json()
     assert listed[0]["hours_per_week"] == 4
 
@@ -37,3 +37,4 @@ def test_weekly_time_is_optional_and_bounded(client: TestClient) -> None:
     without = client.post("/api/v1/roadmaps", headers=h, json={"goal": "Learn SQL"})
     assert without.status_code in (200, 201) and without.json()["hours_per_week"] is None
     assert client.post("/api/v1/roadmaps", headers=h, json={"goal": "Learn SQL", "hours_per_week": 0}).status_code == 422
+    assert client.post("/api/v1/roadmaps", headers=h, json={"goal": "Learn SQL", "focus": "vibes"}).status_code == 422

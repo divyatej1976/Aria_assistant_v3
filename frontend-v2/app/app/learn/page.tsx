@@ -676,7 +676,8 @@ function ContextLearn() {
               ) : (
                 <TutorReply key={i} content={m.content} depth={m.depth} sources={m.sources} fallback={m.fallback_used} fresh={m.fresh}
                   onDeeper={i === lastReply && !typing ? () => void send("Explain that in more depth, with an example.", undefined, "deep") : undefined}
-                  onShorter={i === lastReply && !typing ? () => void send("Give me a shorter version of that.", undefined, "quick") : undefined} />
+                  onShorter={i === lastReply && !typing ? () => void send("Give me a shorter version of that.", undefined, "quick") : undefined}
+                  quickCheckHref={i === lastReply && !typing && activeId ? `/app/assess?${new URLSearchParams({ quiz_chat: activeId })}` : undefined} />
               )
             ) : (
               <div className={`msg msg-user${m.fresh ? " message-arrival" : ""}`} key={i}>{m.content}</div>

@@ -139,13 +139,17 @@ function AssessPageWorkspace() {
     };
   }, [context, load]);
 
-  // "Quiz me" from a roadmap milestone opens the setup on that topic.
+  // "Quiz me" from a roadmap milestone or "Quick check" from a chat opens the setup pre-filled.
   useEffect(() => {
-    const topic = new URLSearchParams(window.location.search).get("quiz_topic")?.trim().slice(0, 300);
-    if (!topic) return;
+    const query = new URLSearchParams(window.location.search);
+    const topic = query.get("quiz_topic")?.trim().slice(0, 300);
+    const chat = query.get("quiz_chat");
+    if (!topic && !chat) return;
+    // "Quick check" from Learn: five practice questions on that one chat.
+    const quick = { format: "mcq", count: 5, timing: "none", reveal: "practice" } as const;
     // The URL is only readable after hydration, so this one-time read happens in an effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSetup({ ...savedSetup(), source: "topic", topic });
+    setSetup(chat ? { ...savedSetup(), ...quick, source: "chats", sessionIds: [chat] } : { ...savedSetup(), source: "topic", topic: topic ?? "" });
     setCreateError("");
     setCreateOpen(true);
   }, []);

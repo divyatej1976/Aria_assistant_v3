@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { TutorMarkdown } from "@/components/tutor-markdown";
 
@@ -60,7 +61,7 @@ export function DepthBadge({ depth }: { depth: Depth }) {
 }
 
 export function TutorReply({
-  content, depth, sources, fallback, done = true, fresh, onDeeper, onShorter,
+  content, depth, sources, fallback, done = true, fresh, onDeeper, onShorter, quickCheckHref,
 }: {
   content: string;
   depth?: Depth | null;
@@ -70,6 +71,7 @@ export function TutorReply({
   fresh?: boolean;
   onDeeper?: () => void;
   onShorter?: () => void;
+  quickCheckHref?: string;
 }) {
   const { lead, blocks } = splitBlocks(content);
   const titles = [...new Set((sources ?? []).map((s) => s.title))];
@@ -92,10 +94,11 @@ export function TutorReply({
           <TutorMarkdown content={block.body} />
         </section>
       ))}
-      {done && (onDeeper || onShorter) && (
+      {done && (onDeeper || onShorter || quickCheckHref) && (
         <div className="reply-actions">
           {onDeeper && depth !== "deep" && <button type="button" className="reply-action" onClick={onDeeper}><Icon name="chevron-down" size={13} /> Go deeper</button>}
           {onShorter && depth !== "quick" && <button type="button" className="reply-action" onClick={onShorter}><Icon name="chevron-up" size={13} /> Shorter</button>}
+          {quickCheckHref && <Link className="reply-action" href={quickCheckHref}><Icon name="clipboard" size={13} /> Quick check</Link>}
         </div>
       )}
     </article>

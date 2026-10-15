@@ -2548,3 +2548,4 @@ body:has(.chat-sidebar-layout) #toasts { bottom:calc(100px + env(safe-area-inset
 .quiz-review-group { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; }
 .quiz-review-group span { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (max-width: 640px) { .quiz-presets { grid-template-columns: 1fr; } }
+a.reply-action { text-decoration: none; }

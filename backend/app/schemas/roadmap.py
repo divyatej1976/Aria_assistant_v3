@@ -67,6 +67,8 @@ class RoadmapCreateRequest(BaseModel):
     level: Literal["Beginner", "Intermediate", "Advanced"] = "Beginner"
     target_date: str | None = Field(default=None, max_length=10)
     hours_per_week: int | None = Field(default=None, ge=1, le=60)
+    # What the plan should lean towards; shapes generation only, not stored.
+    focus: Literal["concepts", "projects", "exams", "interviews", "mixed"] | None = None
     context_id: UUID | None = None
 
     @field_validator("goal")

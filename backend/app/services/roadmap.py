@@ -246,11 +246,12 @@ async def create_roadmap(
     target_date: str | None = None,
     context_id: UUID | None = None,
     hours_per_week: int | None = None,
+    focus: str | None = None,
 ) -> Roadmap:
     """Generate and persist a new goal-isolated roadmap."""
     try:
         validated = RoadmapCreateRequest(goal=goal, level=level, target_date=target_date,
-                                         hours_per_week=hours_per_week, context_id=context_id)
+                                         hours_per_week=hours_per_week, focus=focus, context_id=context_id)
     except SchemaValidationError as exc:
         raise ValidationError("Invalid roadmap goal, level, or target date") from exc
     goal, level, target_date = validated.goal, validated.level, validated.target_date
@@ -260,6 +261,8 @@ async def create_roadmap(
     pace = f"{target_date or 'Self-paced'}"
     if validated.hours_per_week:
         pace += f" (about {validated.hours_per_week} hours of study per week)"
+    if validated.focus and validated.focus != "mixed":
+        pace += f"; emphasise {validated.focus}"
     tree = await generate_roadmap_tree(
         goal=goal,
         level=level,

@@ -116,8 +116,11 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
   await setup.getByRole("button", { name: /^Next/ }).click();
   await setup.getByRole("radio", { name: "3–5 hours" }).click();
   await setup.getByRole("button", { name: /^Next/ }).click();
+  await setup.getByRole("radio", { name: "Building projects" }).click();
+  await setup.getByRole("button", { name: /^Next/ }).click();
   await setup.getByRole("button", { name: /^Next/ }).click();
   await expect(setup.getByText("3–5 hours")).toBeVisible();
+  await expect(setup.getByText("Building projects")).toBeVisible();
   await setup.getByRole("button", { name: /Create roadmap/i }).click();
 
   // tree renders from real concepts with 0% completion

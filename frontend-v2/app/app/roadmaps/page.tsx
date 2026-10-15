@@ -26,7 +26,14 @@ const WEEKLY = [
   { hours: 12, label: "10+ hours" },
 ];
 const GOAL_IDEAS = ["Pass my exam next month", "Build a small project", "Prepare for job interviews"];
-const SETUP_STEPS = 4;
+const FOCUS = [
+  { value: "concepts", label: "Understanding concepts" },
+  { value: "projects", label: "Building projects" },
+  { value: "exams", label: "Passing an exam" },
+  { value: "interviews", label: "Job interviews" },
+  { value: "mixed", label: "A mix" },
+];
+const SETUP_STEPS = 5;
 
 
 type ServerRoadmapResponse = {
@@ -78,6 +85,7 @@ function RoadmapsPageWorkspace() {
   const [targetDate, setTargetDate] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState<number | null>(null);
   const [step, setStep] = useState(0);
+  const [focus, setFocus] = useState("mixed");
   const [busy, setBusy] = useState(false);
   const [openTiers, setOpenTiers] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<RoadmapTopic | null>(null);
@@ -228,6 +236,7 @@ function RoadmapsPageWorkspace() {
           level,
           target_date: targetDate || undefined,
           hours_per_week: hoursPerWeek ?? undefined,
+          focus,
           context_id: context.id,
         }),
       });
@@ -549,6 +558,19 @@ function RoadmapsPageWorkspace() {
             </div>
           )}
           {step === 3 && (
+            <div className="plan-question" role="radiogroup" aria-label="What should the plan focus on?">
+              <p className="plan-q">What should the plan focus on?</p>
+              <div className="quiz-choice-row">
+                {FOCUS.map((option) => (
+                  <button key={option.value} type="button" role="radio" aria-checked={focus === option.value}
+                    className={`tag-chip${focus === option.value ? " tag-chip-selected" : ""}`} onClick={() => setFocus(option.value)}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {step === 4 && (
             <div className="plan-question">
               <p className="plan-q">Is there a deadline?</p>
               <div className="quiz-choice-row">
@@ -566,6 +588,7 @@ function RoadmapsPageWorkspace() {
                 <dt>Goal</dt><dd>{goal}</dd>
                 <dt>Starting level</dt><dd>{level}</dd>
                 <dt>Each week</dt><dd>{WEEKLY.find((w) => w.hours === hoursPerWeek)?.label ?? "Not sure yet"}</dd>
+                <dt>Focus</dt><dd>{FOCUS.find((f) => f.value === focus)?.label}</dd>
                 <dt>Deadline</dt><dd>{targetDate || "None"}</dd>
               </dl>
             </div>
