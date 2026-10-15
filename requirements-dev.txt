@@ -12,6 +12,9 @@ alembic>=1.14,<2
 psycopg[binary]>=3.2,<4
 pymupdf>=1.24,<2
 litellm>=1.60,<2
+langgraph==1.2.15
+langgraph-checkpoint==4.3.0
+langgraph-checkpoint-sqlite==3.1.2
 reportlab>=4,<5
 pyttsx3>=2.9,<3
 apscheduler>=3.10,<4

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.dependencies import get_db
+from app.schemas.brain import ActionResponse
 from app.schemas.orchestration import (
     ApprovalResponse,
     AuditResponse,
@@ -17,6 +18,7 @@ from app.schemas.orchestration import (
 )
 from app.security.dependencies import CurrentLearner
 from app.security.rate_limit import rate_limited
+from app.services.brain import actions as brain_actions
 from app.services.idempotency import ClaimLost, fingerprint, keep_claim_alive, replayable
 from app.services.idempotency import find as find_idempotency
 from app.services.idempotency import record as record_idempotency
@@ -35,11 +37,44 @@ router = APIRouter(prefix="/api/v1/orchestration", tags=["orchestration"])
 Db = Annotated[Session, Depends(get_db)]
 
 
+
+
 def _ai_rate_limit():
     settings = get_settings()
     return rate_limited(
         settings.aria_rate_limit_requests, settings.aria_rate_limit_window_seconds
     )
+
+
+
+@router.get("/actions/{message_id}", response_model=ActionResponse)
+def action_status(message_id: UUID, learner: CurrentLearner, db: Db) -> ActionResponse:
+    try:
+        return brain_actions.get_status(db, owner_id=learner.id, action_id=message_id)
+    except brain_actions.ActionMissing as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/actions/{message_id}/run", response_model=ActionResponse, dependencies=[Depends(_ai_rate_limit())])
+async def run_action(message_id: UUID, learner: CurrentLearner, db: Db) -> ActionResponse:
+    try:
+        return await brain_actions.run(db, owner_id=learner.id, action_id=message_id)
+    except brain_actions.ActionMissing as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/actions/{message_id}/cancel", response_model=ActionResponse)
+def cancel_action(message_id: UUID, learner: CurrentLearner, db: Db) -> ActionResponse:
+    try:
+        return brain_actions.cancel(db, owner_id=learner.id, action_id=message_id)
+    except brain_actions.ActionMissing as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except brain_actions.ActionBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 
 
 class WorkflowStartRequest(BaseModel):

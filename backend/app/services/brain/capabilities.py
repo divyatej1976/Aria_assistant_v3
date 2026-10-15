@@ -46,6 +46,7 @@ class EvidenceParams(ContextParams):
 
 class AudioSessionParams(ContextParams):
     session_id: UUID
+    source_id: UUID | None = None
     # Required: a replay must not absorb later conversation turns.
     through_position: int = Field(ge=0, strict=True)
 
@@ -93,10 +94,37 @@ def _legacy_handler(name: str):
 
 
 async def _audio_from_session(db, *, owner_id, params):
-    from app.services.audio import generate_session_audio
+    from sqlalchemy import select
+    from starlette.concurrency import run_in_threadpool
+
+    from app.db.models import AudioArtifact, Resource
+    from app.services.audio import RESOURCE, generate_audio, generate_session_audio
     from app.services.study import get_owned_session
 
     get_owned_session(db, owner_id=owner_id, session_id=params.session_id, context_id=params.context_id)
+    if params.source_id is not None:
+        source = db.scalar(
+            select(Resource).where(
+                Resource.id == params.source_id, Resource.owner_id == owner_id, Resource.context_id == params.context_id
+            )
+        )
+        if source is None:
+            raise ValidationError("Audio source not found")
+        artifact = db.scalar(
+            select(AudioArtifact)
+            .where(
+                AudioArtifact.owner_id == owner_id,
+                AudioArtifact.source_type == RESOURCE,
+                AudioArtifact.source_id == source.id,
+                AudioArtifact.status == "READY",
+            )
+            .order_by(AudioArtifact.created_at, AudioArtifact.id)
+        )
+        if artifact is None:
+            artifact = await run_in_threadpool(
+                generate_audio, db, owner_id=owner_id, source_type=RESOURCE, source_id=source.id, reuse_ready=True
+            )
+        return {"artifact_id": artifact.id, "source_id": artifact.source_id, "status": artifact.status}
     artifact = await generate_session_audio(
         db, owner_id=owner_id, session_id=params.session_id, through_position=params.through_position
     )

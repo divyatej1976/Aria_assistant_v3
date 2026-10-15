@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     aria_session_secret: str | None = Field(default=None, repr=False)
     groq_api_key: str | None = Field(default=None, repr=False)
     llm_model: str = "openai/gpt-oss-120b"
+    aria_brain_routing: bool = False
+    aria_brain_llm_routing: bool = False
+    aria_brain_checkpoint_path: str = "aria-brain-checkpoints.db"
     # Per-learner BYO keys (Step 4): separate Fernet key, NEVER the session secret.
     # Rotating ARIA_SESSION_SECRET must not invalidate encrypted learner keys.
     # Rotation: set _OLD to the previous primary, re-encrypt, then drop _OLD.
