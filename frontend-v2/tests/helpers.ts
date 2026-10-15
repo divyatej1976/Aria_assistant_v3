@@ -163,10 +163,16 @@ export async function answerQuiz(page: Page): Promise<number> {
       await check.click();
       await expect(player.locator(".quiz-feedback")).toBeVisible({ timeout: 20_000 });
     }
-    const forward = player.getByRole("button", { name: /^(Next|Finish)/ });
-    const finishing = /^Finish/.test((await forward.innerText()).trim());
+    const forward = player.getByRole("button", { name: /^(Next|Finish|Review answers)/ });
+    const label = (await forward.innerText()).trim();
     await forward.click();
-    if (finishing) break;
+    if (/^Review answers/.test(label)) {
+      // Exam mode ends on a review screen before submitting.
+      await expect(player.getByRole("heading", { name: "Ready to submit?" })).toBeVisible();
+      await player.getByRole("button", { name: /Submit answers/ }).click();
+      break;
+    }
+    if (/^Finish/.test(label)) break;
   }
   await expect(page.getByRole("heading", { name: "Answer review", exact: true })).toBeVisible({ timeout: 30_000 });
   return answered;

@@ -48,7 +48,7 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   // ---- assess: create, take, submit, review ----
   await page.goto("/app/assess");
   await page.getByRole("button", { name: /Create assessment/i }).first().click();
-  await page.getByRole("dialog", { name: "Create assessment" }).getByRole("button", { name: "5", exact: true }).click();
+  await page.getByRole("dialog", { name: "Create assessment" }).getByRole("radio", { name: /Quick practice/ }).click();
   await page.getByRole("button", { name: "Start quiz" }).click();
   expect(await answerQuiz(page)).toBe(5);
   await expect(page.getByText(/You answered \d+ of \d+ questions correctly\./)).toBeVisible();

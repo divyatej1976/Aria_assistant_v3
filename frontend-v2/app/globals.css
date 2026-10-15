@@ -2530,3 +2530,21 @@ body:has(.chat-sidebar-layout) #toasts { bottom:calc(100px + env(safe-area-inset
 @media (min-width: 641px) and (max-width: 900px) { .mobile-nav { margin: -34px -36px 22px; } }
 .msg-aria .reply-sources { margin: 0 0 8px; }
 .reply-note { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ---------- Quiz presets, navigator, review screen ---------- */
+.quiz-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.quiz-summary { margin: 8px 0 0; }
+.quiz-customize { border-top: 1px solid var(--border); padding-top: 10px; }
+.quiz-customize > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent-strong, var(--accent)); list-style: revert; }
+.quiz-customize[open] > summary { margin-bottom: 12px; }
+.quiz-customize > :not(summary) { margin-bottom: 14px; }
+.quiz-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: -10px 0 14px; }
+.quiz-nav button { min-width: 32px; height: 32px; padding: 0 6px; font-size: 12px; font-weight: 700; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-1); color: var(--text-2); cursor: pointer; }
+.quiz-nav button.answered { background: var(--accent-grad-soft, var(--bg-2)); color: var(--text-1); }
+.quiz-nav button.flagged { border-color: var(--streak, var(--accent)); box-shadow: inset 0 -3px 0 var(--streak, var(--accent)); }
+.quiz-nav button.current { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+.quiz-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quiz-review-screen h2 { font-size: 20px; margin: 0 0 6px; }
+.quiz-review-group { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; }
+.quiz-review-group span { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 640px) { .quiz-presets { grid-template-columns: 1fr; } }

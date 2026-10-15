@@ -45,6 +45,8 @@ export function QuizPlayer({
   const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
   const [checking, setChecking] = useState(false);
   const [flagged, setFlagged] = useState<Record<string, boolean>>({});
+  // Exam mode ends on a review screen listing unanswered and flagged questions.
+  const [reviewing, setReviewing] = useState(false);
   const limit = settings.time_limit_seconds ?? 0;
   const [remaining, setRemaining] = useState(limit);
   const [elapsed, setElapsed] = useState(0);
@@ -81,14 +83,16 @@ export function QuizPlayer({
 
   // Moving to another question restarts a per-question timer.
   const goTo = useCallback((target: number) => {
+    setReviewing(false);
     setIndex(target);
     if (settings.timing === "per_question") setRemaining(limit);
   }, [limit, settings.timing]);
 
   const next = useCallback(() => {
-    if (isLast) finish();
-    else goTo(index + 1);
-  }, [finish, goTo, index, isLast]);
+    if (!isLast) goTo(index + 1);
+    else if (practice) finish();
+    else setReviewing(true);
+  }, [finish, goTo, index, isLast, practice]);
 
   const answer = (text: string) => {
     if (practice && shown) return;
@@ -129,6 +133,7 @@ export function QuizPlayer({
   // Keyboard: 1-4 pick an option, Enter checks or moves on.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (reviewing) return;
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "TEXTAREA" || (target?.tagName === "INPUT" && (target as HTMLInputElement).type === "text")) {
         if (event.key === "Enter") { event.preventDefault(); primary(); }
@@ -160,7 +165,34 @@ export function QuizPlayer({
       <div className="quiz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answeredCount} aria-label="Questions answered">
         <span style={{ width: `${(answeredCount / questions.length) * 100}%` }} />
       </div>
+      <nav className="quiz-nav" aria-label="Questions">
+        {questions.map((q, i) => (
+          <button key={q.id} type="button" onClick={() => goTo(i)} aria-current={!reviewing && i === index ? "step" : undefined}
+            aria-label={`Question ${i + 1}${q.id in answers ? ", answered" : ""}${flagged[q.id] ? ", flagged" : ""}`}
+            className={`${q.id in answers ? "answered" : ""}${flagged[q.id] ? " flagged" : ""}${!reviewing && i === index ? " current" : ""}`}>
+            {i + 1}
+          </button>
+        ))}
+      </nav>
 
+      {reviewing ? (() => {
+        const unanswered = questions.map((q, i) => ({ q, i })).filter(({ q }) => !(q.id in answers));
+        const marked = questions.map((q, i) => ({ q, i })).filter(({ q }) => flagged[q.id]);
+        return (
+          <article className="quiz-card quiz-review-screen" aria-labelledby="quiz-review-title">
+            <h2 id="quiz-review-title">Ready to submit?</h2>
+            <p>{answeredCount} of {questions.length} answered.{unanswered.length ? ` Unanswered questions count as "I don't know".` : ""}</p>
+            {unanswered.length > 0 && <div className="quiz-review-group"><b>Unanswered</b>
+              <span>{unanswered.map(({ q, i }) => <button key={q.id} type="button" className="tag-chip" onClick={() => goTo(i)}>Question {i + 1}</button>)}</span></div>}
+            {marked.length > 0 && <div className="quiz-review-group"><b>Flagged to review</b>
+              <span>{marked.map(({ q, i }) => <button key={q.id} type="button" className="tag-chip" onClick={() => goTo(i)}>Question {i + 1}</button>)}</span></div>}
+            <div className="quiz-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => goTo(index)} disabled={busy}><Icon name="back" size={15} /> Back to questions</button>
+              <button type="button" className="btn btn-primary" onClick={finish} disabled={busy}>Submit answers <Icon name="arrow" size={15} /></button>
+            </div>
+          </article>
+        );
+      })() : <>
       <article className="quiz-card">
         <div className="quiz-card-top">
           <span className="quiz-kind">{question.kind === "true_false" ? "True or false" : question.kind === "short_answer" ? "Type your answer" : "Choose one"}</span>
@@ -214,15 +246,10 @@ export function QuizPlayer({
         )}
         <button type="button" className="btn btn-primary" onClick={primary}
           disabled={busy || checking || (practice && !shown && !value.trim())}>
-          {practice && !shown ? (checking ? "Checking…" : "Check") : isLast ? "Finish" : "Next"} <Icon name="arrow" size={15} />
+          {practice && !shown ? (checking ? "Checking…" : "Check") : isLast ? (practice ? "Finish" : "Review answers") : "Next"} <Icon name="arrow" size={15} />
         </button>
       </footer>
-      {!practice && isLast && (
-        <p className="quiz-hint">
-          {questions.length - answeredCount > 0 ? `${questions.length - answeredCount} unanswered will count as "I don't know". ` : ""}
-          {Object.values(flagged).filter(Boolean).length > 0 ? `${Object.values(flagged).filter(Boolean).length} flagged — use Back to review them.` : ""}
-        </p>
-      )}
+      </>}
     </section>
   );
 }

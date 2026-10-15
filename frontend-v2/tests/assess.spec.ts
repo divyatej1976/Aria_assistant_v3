@@ -55,9 +55,10 @@ test("create an assessment from real material, answer it, and see the real score
 
   // choose the quiz: hard, 5 multiple-choice questions, answers at the end
   const setup = page.getByRole("dialog", { name: "Create assessment" });
+  await setup.getByText("Customize").click();
   await setup.getByRole("radio", { name: "Hard" }).click();
   await setup.getByRole("button", { name: "5", exact: true }).click();
-  await setup.getByRole("radio", { name: "At the end" }).click();
+  await setup.getByRole("radio", { name: "At the end", exact: true }).click();
   await setup.getByRole("button", { name: "Start quiz" }).click();
 
   // one question at a time
@@ -76,7 +77,8 @@ test("create an assessment from real material, answer it, and see the real score
   await expect(player.locator('input[type="radio"]').first()).toBeChecked({ timeout: 20_000 });
 
   // exam mode: a flag control exists and nothing is revealed before the end
-  await expect(player.getByRole("button", { name: /Flag to review/ })).toBeVisible();
+  await player.getByRole("button", { name: /Flag to review/ }).click();
+  await expect(player.getByRole("button", { name: "Question 1, answered, flagged" })).toBeVisible();
   const count = await answerQuiz(page);
   expect(count).toBe(5);
 

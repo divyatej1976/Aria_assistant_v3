@@ -58,6 +58,31 @@ export function setupProblem(v: QuizSetupValues, libraryReady: boolean | null): 
 
 type Chat = { id: string; title?: string | null; message_count?: number };
 
+type Preset = { name: string; hint: string; values: Pick<QuizSetupValues, "format" | "count" | "difficulty" | "timing" | "minutes" | "reveal"> };
+const PRESETS: Preset[] = [
+  { name: "Quick practice", hint: "5 questions, answers as you go",
+    values: { format: "mcq", count: 5, difficulty: "medium", timing: "none", minutes: 10, reveal: "practice" } },
+  { name: "Topic test", hint: "10 mixed questions, answers at the end",
+    values: { format: "mixed", count: 10, difficulty: "medium", timing: "none", minutes: 10, reveal: "exam" } },
+  { name: "Mock exam", hint: "20 mixed questions, 30 minutes, answers at the end",
+    values: { format: "mixed", count: 20, difficulty: "hard", timing: "total", minutes: 30, reveal: "exam" } },
+];
+const FORMAT_NAMES: Record<QuizSetupValues["format"], string> = {
+  mcq: "Multiple choice", true_false: "True or false", short_answer: "Short answer", mixed: "Mixed questions",
+};
+
+function matches(values: QuizSetupValues, preset: Preset): boolean {
+  const v = preset.values;
+  return values.format === v.format && values.count === v.count && values.difficulty === v.difficulty
+    && values.timing === v.timing && values.reveal === v.reveal && (v.timing !== "total" || values.minutes === v.minutes);
+}
+
+function summary(v: QuizSetupValues): string {
+  const timer = v.timing === "total" ? `${v.minutes} min` : v.timing === "per_question" ? `${v.seconds}s per question` : "No timer";
+  const level = v.difficulty[0].toUpperCase() + v.difficulty.slice(1);
+  return `${FORMAT_NAMES[v.format]} · ${v.count} questions · ${level} · ${timer} · ${v.reveal === "practice" ? "Answers as you go" : "Answers at the end"}`;
+}
+
 function Choice<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: { value: T; label: string; hint?: string }[]; onChange: (v: T) => void;
 }) {
@@ -117,6 +142,21 @@ export function QuizSetup({ contextId, values, onChange }: {
           value={values.topic} onChange={(e) => set("topic", e.target.value)} />
       )}
 
+      <fieldset className="quiz-choice">
+        <legend className="field-label">Quiz style</legend>
+        <div className="quiz-presets" role="radiogroup" aria-label="Quiz style">
+          {PRESETS.map((preset) => (
+            <button key={preset.name} type="button" role="radio" aria-checked={matches(values, preset)}
+              className={`plan-option${matches(values, preset) ? " selected" : ""}`} onClick={() => onChange({ ...values, ...preset.values })}>
+              <b>{preset.name}</b><span>{preset.hint}</span>
+            </button>
+          ))}
+        </div>
+        <p className="field-help quiz-summary">{summary(values)}</p>
+      </fieldset>
+
+      <details className="quiz-customize">
+        <summary>Customize</summary>
       <Choice label="Question type" value={values.format} onChange={(v) => set("format", v)} options={[
         { value: "mcq", label: "Multiple choice" },
         { value: "true_false", label: "True or false" },
@@ -163,6 +203,7 @@ export function QuizSetup({ contextId, values, onChange }: {
         { value: "practice", label: "After each question", hint: "Practice: learn as you go" },
         { value: "exam", label: "At the end", hint: "Exam: check yourself before a test" },
       ]} />
+      </details>
     </div>
   );
 }
