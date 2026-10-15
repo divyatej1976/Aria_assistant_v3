@@ -45,6 +45,7 @@ from app.services.assessment import (
     submit_attempt,
 )
 from app.services.progress import record_activity
+from app.services.quiz_summary import summarize_attempt
 from app.services.review_planning import apply_daily_review_results
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
@@ -285,6 +286,19 @@ def check_answer_route(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return AnswerCheckResponse(correct=correct, correct_answer=answer, explanation=explanation)
+
+
+@router.post("/{assessment_id}/attempts/{attempt_id}/summary", dependencies=[Depends(_ai_rate_limit())])
+async def summary_route(assessment_id: UUID, attempt_id: UUID, learner: CurrentLearner, db: Db) -> dict[str, str]:
+    """A short debrief: what the learner understands, what to practise, what to do next."""
+    assessment = get_assessment(db, assessment_id=assessment_id, owner_id=learner.id)
+    owned_attempt = get_owned_attempt(db, owner_id=learner.id, attempt_id=attempt_id)
+    if owned_attempt is None or owned_attempt.assessment_id != assessment.id:
+        raise HTTPException(status_code=404, detail="Attempt does not belong to assessment")
+    try:
+        return {"summary": await summarize_attempt(db, owner_id=learner.id, attempt_id=attempt_id)}
+    except ValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.put("/{assessment_id}/attempts/{attempt_id}/answers")

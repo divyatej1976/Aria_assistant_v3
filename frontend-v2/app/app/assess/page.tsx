@@ -79,7 +79,7 @@ function AssessPageWorkspace() {
   const [resumed, setResumed] = useState(false);
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
 
-  const [review, setReview] = useState<{ score: number; total: number; details: ReviewDetail[]; focus: string; wrongConcepts: string[]; questions: Question[] } | null>(null);
+  const [review, setReview] = useState<{ score: number; total: number; details: ReviewDetail[]; focus: string; wrongConcepts: string[]; questions: Question[]; summary?: string | null } | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
 
   const readDraft = (): Draft | null => {
@@ -259,6 +259,11 @@ function AssessPageWorkspace() {
       writeDraft(null);
       setResumed(false);
       setReview({ score: result.score, total: result.total, details: result.details, focus, wrongConcepts, questions: taking.questions });
+      // The debrief is written after scoring so results never wait on it; null = could not be written.
+      const attemptId = taking.attemptId;
+      api<{ summary: string }>(`/api/v1/assessments/${taking.assessmentId}/attempts/${attemptId}/summary`, { method: "POST" })
+        .then((s) => setReview((r) => (r ? { ...r, summary: s.summary } : r)))
+        .catch(() => setReview((r) => (r ? { ...r, summary: null } : r)));
       void load(context.id);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not submit the assessment.", "error");
@@ -415,12 +420,12 @@ function AssessPageWorkspace() {
               </div>
             );
           })()}
-          {reviewing.focus && (
-            <div className="banner" style={{ margin: "0 0 20px" }}>
+          {(reviewing.summary !== null || reviewing.focus) && (
+            <div className="banner quiz-debrief" role="status" style={{ margin: "0 0 20px" }}>
               <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name="lightbulb" size={20} /></span>
               <div>
-                <b>ARIA Feedback</b>
-                <p style={{ marginTop: 2 }}>{reviewing.focus}</p>
+                <b>What this tells you</b>
+                <p style={{ marginTop: 2 }}>{reviewing.summary === undefined ? "Writing your feedback…" : reviewing.summary ?? reviewing.focus}</p>
               </div>
             </div>
           )}

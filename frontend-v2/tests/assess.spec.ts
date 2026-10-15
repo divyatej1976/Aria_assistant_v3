@@ -91,6 +91,8 @@ test("create an assessment from real material, answer it, and see the real score
   expect(correctVal + incorrectVal, "correct + incorrect must equal question count").toBe(5);
   // one answer-review row per question, each showing its question
   await expect(page.locator(".quiz-review li")).toHaveCount(5);
+  // a short debrief names what to practise and the next step
+  await expect(page.locator(".quiz-debrief")).toContainText(/Explain this in chat|ready to move on/, { timeout: 30_000 });
   await expect(page.locator(".quiz-review-q").first()).not.toBeEmpty();
   await noSeriousAxe(page, "assess-review");
 });

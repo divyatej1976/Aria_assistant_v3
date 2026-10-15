@@ -144,3 +144,50 @@ def test_weak_spots_need_some_history_first(client: TestClient) -> None:
     res = _create(client, h, cid, source="weak")
     assert res.status_code == 422
     assert "weak spots" in res.json()["detail"].lower()
+
+
+class _SummaryProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.user = ""
+
+    async def generate_text(self, *, system: str, user: str, prompt_version=None, temperature=0.0) -> str:
+        self.calls += 1
+        self.user = user
+        return "You understand how functions are defined. Practise return values next."
+
+    async def generate_structured(self, *, prompt: str, schema: type, prompt_version=None):
+        raise RuntimeError("use the deterministic generator")
+
+
+def _take_quiz(client: TestClient, h: dict, cid: str) -> tuple[str, str]:
+    quiz = _create(client, h, cid, question_count=3).json()
+    attempt = client.post(f"/api/v1/assessments/{quiz['id']}/attempts", headers=h).json()
+    answers = {q["id"]: "I don't know" for q in attempt["questions"]}
+    submitted = client.post(f"/api/v1/assessments/{quiz['id']}/attempts/{attempt['attempt_id']}/submit", headers=h,
+                            json={"idempotency_key": str(uuid.uuid4()), "answers": answers})
+    assert submitted.status_code == 200, submitted.text
+    return quiz["id"], attempt["attempt_id"]
+
+
+def test_summary_is_written_once_from_the_answers(client: TestClient, monkeypatch) -> None:
+    import app.services.quiz_summary as quiz_summary
+
+    h, cid = _learner(client)
+    quiz_id, attempt_id = _take_quiz(client, h, cid)
+    provider = _SummaryProvider()
+    monkeypatch.setattr(quiz_summary, "get_llm_provider_for_owner", lambda db, owner_id: provider)
+    url = f"/api/v1/assessments/{quiz_id}/attempts/{attempt_id}/summary"
+    first = client.post(url, headers=h)
+    assert first.status_code == 200, first.text
+    assert first.json()["summary"].startswith("You understand")
+    assert "I don't know" in provider.user and "WRONG" in provider.user
+    assert client.post(url, headers=h).json() == first.json()
+    assert provider.calls == 1
+
+
+def test_summary_without_ai_still_points_to_a_next_step(client: TestClient) -> None:
+    h, cid = _learner(client)
+    quiz_id, attempt_id = _take_quiz(client, h, cid)
+    summary = client.post(f"/api/v1/assessments/{quiz_id}/attempts/{attempt_id}/summary", headers=h).json()["summary"]
+    assert "Explain this in chat" in summary
