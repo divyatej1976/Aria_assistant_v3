@@ -7,20 +7,34 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
-import { tickExplanation, type Roadmap, type RoadmapSummary, type RoadmapTopic } from "@/lib/roadmap";
+import { milestonesPerWeek, tickExplanation, type Roadmap, type RoadmapSummary, type RoadmapTopic } from "@/lib/roadmap";
 import { toast } from "@/lib/toast";
 import { ErrorState, Loading } from "@/components/states";
 import { MilestoneTrail } from "@/components/milestone-trail";
 import { useDismissed } from "@/lib/use-dismissed";
 import { RequestStatus } from "@/components/request-status";
 
-const LEVELS = ["Beginner", "Intermediate", "Advanced"];
+const LEVELS = [
+  { value: "Beginner", hint: "New to this. Start from the basics." },
+  { value: "Intermediate", hint: "Know the basics. Ready to build on them." },
+  { value: "Advanced", hint: "Comfortable already. Go deep and fill gaps." },
+];
+const WEEKLY = [
+  { hours: 2, label: "1–2 hours" },
+  { hours: 4, label: "3–5 hours" },
+  { hours: 8, label: "6–10 hours" },
+  { hours: 12, label: "10+ hours" },
+];
+const GOAL_IDEAS = ["Pass my exam next month", "Build a small project", "Prepare for job interviews"];
+const SETUP_STEPS = 4;
+
 
 type ServerRoadmapResponse = {
   id: string;
   goal: string;
   level: string;
   target_date?: string;
+  hours_per_week?: number | null;
   status: string;
   generation_mode?: "ai" | "starter" | null;
   fallback_reason?: string | null;
@@ -62,6 +76,8 @@ function RoadmapsPageWorkspace() {
   const [goal, setGoal] = useState("");
   const [level, setLevel] = useState("Beginner");
   const [targetDate, setTargetDate] = useState("");
+  const [hoursPerWeek, setHoursPerWeek] = useState<number | null>(null);
+  const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [openTiers, setOpenTiers] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<RoadmapTopic | null>(null);
@@ -84,6 +100,7 @@ function RoadmapsPageWorkspace() {
         goal: data.goal,
         level: data.level,
         targetDate: data.target_date,
+        hoursPerWeek: data.hours_per_week,
         status: data.status,
         generationMode: data.generation_mode,
         fallbackReason: data.fallback_reason,
@@ -210,12 +227,14 @@ function RoadmapsPageWorkspace() {
           goal: goal.trim(),
           level,
           target_date: targetDate || undefined,
+          hours_per_week: hoursPerWeek ?? undefined,
           context_id: context.id,
         }),
       });
       setOpen(false);
       setGoal("");
-      toast("Goal-oriented roadmap created!");
+      setStep(0);
+      toast("Your roadmap is ready.");
       await load(context.id, created.id);
     } catch (e) {
       setCreateError(e instanceof ApiError ? e.message : "Could not create the roadmap. Please try again.");
@@ -257,7 +276,7 @@ function RoadmapsPageWorkspace() {
           <h1 className="pg-title">Roadmaps</h1>
           <p className="pg-sub">Choose a goal and follow milestones backed by your learning evidence.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setCreateError(""); setOpen(true); }}>
+        <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setOpen(true); }}>
           <Icon name="route" /> Create roadmap
         </button>
       </div>
@@ -292,7 +311,7 @@ function RoadmapsPageWorkspace() {
           <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
             No roadmap yet. Set a learning goal to see the skills and milestones to work through.
           </p>
-          <button className="btn btn-primary" onClick={() => { setCreateError(""); setOpen(true); }} style={{ justifyContent: "center" }}>
+          <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setOpen(true); }} style={{ justifyContent: "center" }}>
             <Icon name="route" /> Create roadmap
           </button>
         </div>
@@ -347,10 +366,41 @@ function RoadmapsPageWorkspace() {
             <Link href={`/app/learn?${new URLSearchParams({ topic: selected.title, context: context?.id ?? "", roadmap: roadmap.id ?? "", milestone: selected.key })}`} className="btn btn-primary" style={{ justifyContent: "center" }}>
               <Icon name="message" /> Study this milestone
             </Link>
+            <Link href={`/app/assess?${new URLSearchParams({ quiz_topic: selected.title })}`} className="btn btn-secondary">
+              <Icon name="clipboard" /> Quiz me on this
+            </Link>
           </div>
         </div>
       ) : (
         <>
+          {(() => {
+            const week = topics.filter((topic) => !topic.ticked).slice(0, milestonesPerWeek(roadmap.hoursPerWeek));
+            if (week.length === 0) return null;
+            return (
+              <section className="plan-week" aria-labelledby="plan-week-title">
+                <div className="plan-week-head">
+                  <h2 id="plan-week-title">This week</h2>
+                  <span>{roadmap.hoursPerWeek ? `About ${roadmap.hoursPerWeek} hours` : "Set your weekly time when you make your next roadmap"}</span>
+                </div>
+                <ol>
+                  {week.map((topic) => (
+                    <li key={topic.key}>
+                      <span className="plan-week-title">{topic.title}</span>
+                      <span className="plan-week-actions">
+                        <Link className="btn btn-secondary" href={`/app/learn?${new URLSearchParams({ topic: topic.title, context: context?.id ?? "", roadmap: roadmap.id ?? "", milestone: topic.key })}`}>
+                          <Icon name="message" size={14} /> Study
+                        </Link>
+                        <Link className="btn btn-ghost" href={`/app/assess?${new URLSearchParams({ quiz_topic: topic.title })}`}>
+                          <Icon name="clipboard" size={14} /> Quiz me
+                        </Link>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            );
+          })()}
+
           <div className="roadmap-summary">
             <div className="ring" style={{ "--p": remainingPct, "--r": "42px" } as React.CSSProperties}>
               <span className="r-n" style={{ color: "var(--accent)" }}>{remainingPct}%</span>
@@ -457,49 +507,81 @@ function RoadmapsPageWorkspace() {
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="route" size={20} /> Create roadmap</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
-          <div className="form-group">
-            <label className="field-label" htmlFor="roadmap-goal">Learning goal</label>
-            <input
-              id="roadmap-goal"
-              className="input"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              placeholder="e.g. Master Go for Cloud Microservices"
-              disabled={busy}
-            />
+          <div className="plan-steps" aria-hidden="true">
+            {Array.from({ length: SETUP_STEPS + 1 }, (_, i) => <span key={i} className={i <= step ? "on" : ""} />)}
           </div>
-          <div className="form-group">
-            <label className="field-label">Target level</label>
-            <div className="ui-flex ui-gap-8 ui-wrap">
-              {LEVELS.map((l) => (
-                <button
-                  type="button"
-                  key={l}
-                  className={`tag-chip${level === l ? " tag-chip-selected" : ""}`}
-                  onClick={() => setLevel(l)}
-                  disabled={busy}
-                >
-                  {l}
+          {step === 0 && (
+            <div className="plan-question">
+              <label className="plan-q" htmlFor="roadmap-goal">What do you want to be able to do?</label>
+              <input id="roadmap-goal" className="input" value={goal} disabled={busy}
+                onChange={(e) => setGoal(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && goal.trim()) setStep(1); }}
+                placeholder={`e.g. Build a REST API with ${context?.title ?? "Python"}`} />
+              <div className="quiz-choice-row">
+                {GOAL_IDEAS.map((idea) => <button key={idea} type="button" className="tag-chip" onClick={() => setGoal(idea)}>{idea}</button>)}
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="plan-question" role="radiogroup" aria-label="Where are you starting from?">
+              <p className="plan-q">Where are you starting from?</p>
+              {LEVELS.map((option) => (
+                <button key={option.value} type="button" role="radio" aria-checked={level === option.value}
+                  className={`plan-option${level === option.value ? " selected" : ""}`} onClick={() => setLevel(option.value)}>
+                  <b>{option.value}</b><span>{option.hint}</span>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="form-group">
-            <label className="field-label" htmlFor="roadmap-target">Target date (optional)</label>
-            <input
-              id="roadmap-target"
-              type="date"
-              className="input"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              disabled={busy}
-            />
-          </div>
+          )}
+          {step === 2 && (
+            <div className="plan-question" role="radiogroup" aria-label="How much time can you give it each week?">
+              <p className="plan-q">How much time can you give it each week?</p>
+              <div className="quiz-choice-row">
+                {WEEKLY.map((option) => (
+                  <button key={option.hours} type="button" role="radio" aria-checked={hoursPerWeek === option.hours}
+                    className={`tag-chip${hoursPerWeek === option.hours ? " tag-chip-selected" : ""}`} onClick={() => setHoursPerWeek(option.hours)}>
+                    {option.label}
+                  </button>
+                ))}
+                <button type="button" role="radio" aria-checked={hoursPerWeek === null}
+                  className={`tag-chip${hoursPerWeek === null ? " tag-chip-selected" : ""}`} onClick={() => setHoursPerWeek(null)}>Not sure yet</button>
+              </div>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="plan-question">
+              <p className="plan-q">Is there a deadline?</p>
+              <div className="quiz-choice-row">
+                <button type="button" className={`tag-chip${!targetDate ? " tag-chip-selected" : ""}`} onClick={() => setTargetDate("")}>No deadline</button>
+              </div>
+              <label className="field-label" htmlFor="roadmap-target">Or pick a date</label>
+              <input id="roadmap-target" type="date" className="input" value={targetDate} disabled={busy}
+                min={new Date().toISOString().slice(0, 10)} onChange={(e) => setTargetDate(e.target.value)} />
+            </div>
+          )}
+          {step === SETUP_STEPS && (
+            <div className="plan-question">
+              <p className="plan-q">Ready to build your roadmap?</p>
+              <dl className="plan-summary">
+                <dt>Goal</dt><dd>{goal}</dd>
+                <dt>Starting level</dt><dd>{level}</dd>
+                <dt>Each week</dt><dd>{WEEKLY.find((w) => w.hours === hoursPerWeek)?.label ?? "Not sure yet"}</dd>
+                <dt>Deadline</dt><dd>{targetDate || "None"}</dd>
+              </dl>
+            </div>
+          )}
           {createError && <div className="inline-error" role="alert"><b>Roadmap could not be created</b><p>{createError}</p></div>}
           {busy && <RequestStatus label="Building your learning path…" />}
           <div className="dialog-actions ui-mt-16">
-            <button className="btn btn-ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
-            <button className="btn btn-primary" onClick={create} disabled={busy}>
+            {step > 0
+              ? <button className="btn btn-ghost" onClick={() => setStep((s) => s - 1)} disabled={busy}><Icon name="back" /> Back</button>
+              : <button className="btn btn-ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>}
+            {step < SETUP_STEPS && (
+              <button className="btn btn-primary" onClick={() => setStep((s) => s + 1)} disabled={step === 0 && !goal.trim()}>
+                Next <Icon name="arrow" />
+              </button>
+            )}
+            {step === SETUP_STEPS && <button className="btn btn-primary" onClick={create} disabled={busy}>
               {busy ? (
                 <>
                   <Icon name="sparkles" /> Building your roadmap…
@@ -509,7 +591,7 @@ function RoadmapsPageWorkspace() {
                   Create roadmap <Icon name="arrow" />
                 </>
               )}
-            </button>
+            </button>}
           </div>
         </div>
       </Modal>

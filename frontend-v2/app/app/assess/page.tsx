@@ -16,6 +16,8 @@ import { toast } from "@/lib/toast";
 import { assessmentTypeClass, assessmentTypeLabel } from "@/lib/assessment-label";
 import { RequestStatus } from "@/components/request-status";
 import { AssessmentScoreTrend, type AssessmentScore } from "@/components/assessment-score-trend";
+import { QuizPlayer, DONT_KNOW, type QuizQuestion, type QuizSettings } from "@/components/quiz-player";
+import { QuizSetup, rememberSetup, savedSetup, setupProblem, setupRequest, DEFAULT_SETUP, type QuizSetupValues } from "@/components/quiz-setup";
 
 type Summary = {
   id: string;
@@ -27,8 +29,12 @@ type Summary = {
   created_at: string;
   completed_scores?: AssessmentScore[];
 };
-type Question = { id: string; position: number; prompt: string; options: string[]; concept_id: string | null };
-type ReviewDetail = { question_id: string; selected_option: string | null; correct: boolean; correct_option: string };
+type Question = QuizQuestion;
+type ReviewDetail = {
+  question_id: string; selected_option: string | null; correct: boolean; correct_option: string;
+  correct_answer?: string | null; explanation?: string | null;
+};
+const NO_SETTINGS: QuizSettings = { timing: "none", time_limit_seconds: null, reveal: "exam" };
 
 type Draft = {
   assessmentId: string;
@@ -37,8 +43,9 @@ type Draft = {
   marked: Record<string, boolean>;
 };
 
-const FORMAT_LABEL: Record<string, string> = { mcq: "Multiple choice" };
-const DIFFICULTIES = ["easy", "medium", "hard"];
+const FORMAT_LABEL: Record<string, string> = {
+  mcq: "Multiple choice", true_false: "True or false", short_answer: "Short answer", mixed: "Mixed questions",
+};
 const DRAFT_KEY = "aria_assess_draft";
 
 function fmtDate(value: string): string {
@@ -47,12 +54,6 @@ function fmtDate(value: string): string {
 function formatLabel(f: string): string {
   return FORMAT_LABEL[f] ?? f;
 }
-function fmtClock(total: number): string {
-  const m = Math.floor(total / 60);
-  const s = String(total % 60).padStart(2, "0");
-  return `${m}:${s}`;
-}
-
 export default function AssessPage() {
   const { context } = useActiveContext();
   const { user } = useAuth();
@@ -66,22 +67,19 @@ function AssessPageWorkspace() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [list, setList] = useState<Summary[]>([]);
-  const [formats, setFormats] = useState<{ name: string; label: string }[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [materialReady, setMaterialReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [difficulty, setDifficulty] = useState("medium");
-  const [questionCount, setQuestionCount] = useState(5);
+  const [setup, setSetup] = useState<QuizSetupValues>(DEFAULT_SETUP);
 
-  const [taking, setTaking] = useState<{ assessmentId: string; attemptId: string; questions: Question[] } | null>(null);
+  const [taking, setTaking] = useState<{ assessmentId: string; attemptId: string; questions: Question[]; settings: QuizSettings } | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [marked, setMarked] = useState<Record<string, boolean>>({});
   const [resumed, setResumed] = useState(false);
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
 
-  const [review, setReview] = useState<{ score: number; total: number; details: ReviewDetail[]; focus: string; wrongConcepts: string[] } | null>(null);
+  const [review, setReview] = useState<{ score: number; total: number; details: ReviewDetail[]; focus: string; wrongConcepts: string[]; questions: Question[] } | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
 
   const readDraft = (): Draft | null => {
@@ -110,12 +108,8 @@ function AssessPageWorkspace() {
   }, [draftKey]);
 
   const load = useCallback(async (cid: string) => {
-    const [summaries, fmtList] = await Promise.all([
-      api<Summary[]>(`/api/v1/assessments?context_id=${cid}`),
-      api<{ name: string; label: string }[]>("/api/v1/assessments/formats").catch(() => []),
-    ]);
+    const summaries = await api<Summary[]>(`/api/v1/assessments?context_id=${cid}`);
     setList(summaries);
-    setFormats(fmtList);
     setFailed(false);
   }, []);
 
@@ -145,6 +139,17 @@ function AssessPageWorkspace() {
     };
   }, [context, load]);
 
+  // "Quiz me" from a roadmap milestone opens the setup on that topic.
+  useEffect(() => {
+    const topic = new URLSearchParams(window.location.search).get("quiz_topic")?.trim().slice(0, 300);
+    if (!topic) return;
+    // The URL is only readable after hydration, so this one-time read happens in an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSetup({ ...savedSetup(), source: "topic", topic });
+    setCreateError("");
+    setCreateOpen(true);
+  }, []);
+
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("review");
     if (!requested || !list.some(item => item.id === requested)) return;
@@ -153,16 +158,9 @@ function AssessPageWorkspace() {
     card?.focus({ preventScroll: true });
   }, [list]);
 
-  // timer while an attempt is open
-  useEffect(() => {
-    if (!taking) return;
-    const t = window.setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => window.clearInterval(t);
-  }, [taking]);
-
   // persist draft whenever answers/marks change mid-attempt
   useEffect(() => {
-    if (!taking || !resumed) return;
+    if (!taking) return;
     if (Object.keys(answers).length === 0 && Object.keys(marked).length === 0) return;
     const persistence = window.setTimeout(() => {
       writeDraft({ assessmentId: taking.assessmentId, attemptId: taking.attemptId, answers, marked });
@@ -176,25 +174,23 @@ function AssessPageWorkspace() {
       const draft = readDraft();
       if (opts?.resume && draft && draft.assessmentId === assessmentId) {
         // resume: reuse saved attempt id, refetch stable question list
-        const detail = await api<{ questions: Question[] }>(`/api/v1/assessments/${assessmentId}`);
+        const detail = await api<{ questions: Question[]; settings?: QuizSettings }>(`/api/v1/assessments/${assessmentId}`);
         setAnswers(draft.answers);
         setMarked(draft.marked ?? {});
-        setElapsed(0);
         setReview(null);
         setResumed(true);
-        setTaking({ assessmentId, attemptId: draft.attemptId, questions: detail.questions });
+        setTaking({ assessmentId, attemptId: draft.attemptId, questions: detail.questions, settings: detail.settings ?? NO_SETTINGS });
         return;
       }
-      const attempt = await api<{ attempt_id: string; questions: Question[] }>(
+      const attempt = await api<{ attempt_id: string; questions: Question[]; settings?: QuizSettings }>(
         `/api/v1/assessments/${assessmentId}/attempts`,
         { method: "POST" },
       );
       setAnswers({});
       setMarked({});
-      setElapsed(0);
       setReview(null);
-      setResumed(true);
-      setTaking({ assessmentId, attemptId: attempt.attempt_id, questions: attempt.questions });
+      setResumed(false);
+      setTaking({ assessmentId, attemptId: attempt.attempt_id, questions: attempt.questions, settings: attempt.settings ?? NO_SETTINGS });
       writeDraft({ assessmentId, attemptId: attempt.attempt_id, answers: {}, marked: {} });
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not start the assessment.", "error");
@@ -204,18 +200,16 @@ function AssessPageWorkspace() {
   };
 
   const create = async () => {
-    if (!context || busy || materialReady === false) return;
+    if (!context || busy || setupProblem(setup, materialReady)) return;
     setBusy(true);
     setCreateError("");
     try {
       const created = await api<{ id: string }>("/api/v1/assessments", {
         method: "POST",
-        body: JSON.stringify({ context_id: context.id, format: "mcq", question_count: questionCount, difficulty }),
+        body: JSON.stringify(setupRequest(context.id, setup)),
       });
+      rememberSetup(setup);
       setCreateOpen(false);
-      setDifficulty("medium");
-      setQuestionCount(5);
-      toast("Assessment created.");
       void load(context.id);
       await beginAttempt(created.id);
     } catch (e) {
@@ -225,9 +219,9 @@ function AssessPageWorkspace() {
     }
   };
 
-  const submit = async () => {
+  const submit = async (finalAnswers: Record<string, string> = answers) => {
     if (!taking || !context) return;
-    if (Object.keys(answers).length < taking.questions.length) {
+    if (Object.keys(finalAnswers).length < taking.questions.length) {
       toast("Answer every question before submitting.");
       return;
     }
@@ -239,7 +233,7 @@ function AssessPageWorkspace() {
           method: "POST",
           body: JSON.stringify({
             idempotency_key: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `aria-${Date.now()}`,
-            answers,
+            answers: finalAnswers,
           }),
         },
       );
@@ -260,7 +254,7 @@ function AssessPageWorkspace() {
       setTaking(null);
       writeDraft(null);
       setResumed(false);
-      setReview({ score: result.score, total: result.total, details: result.details, focus, wrongConcepts });
+      setReview({ score: result.score, total: result.total, details: result.details, focus, wrongConcepts, questions: taking.questions });
       void load(context.id);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not submit the assessment.", "error");
@@ -276,10 +270,8 @@ function AssessPageWorkspace() {
       const created = await api<{ id: string }>("/api/v1/assessments", {
         method: "POST",
         body: JSON.stringify({
-          context_id: context.id,
-          format: "mcq",
+          ...setupRequest(context.id, { ...savedSetup(), source: "library" }),
           question_count: Math.max(3, Math.min(10, review.wrongConcepts.length * 2)),
-          difficulty: "medium",
           concept_ids: review.wrongConcepts,
         }),
       });
@@ -296,13 +288,13 @@ function AssessPageWorkspace() {
 
   return (
     <div>
-      <div className="section-head">
+      <div className="section-head" hidden={!!taking}>
         <div>
-          <h1 className="pg-title">Assessments</h1>
+          <h1 className="pg-title">Practice</h1>
           <p className="pg-sub">Test what you know. Find what you don&apos;t. Improve where it matters.</p>
         </div>
         {!taking && !reviewing && (
-          <button className="btn btn-primary" onClick={() => { setCreateError(""); setMaterialReady(null); setCreateOpen(true); }} disabled={busy}>
+          <button className="btn btn-primary" onClick={() => { setCreateError(""); setMaterialReady(null); setSetup(savedSetup()); setCreateOpen(true); }} disabled={busy}>
             <Icon name="plus" /> Create assessment
           </button>
         )}
@@ -324,7 +316,7 @@ function AssessPageWorkspace() {
                 Create your first assessment to test what you&apos;ve learned.
               </p>
               <div className="page-actions" style={{ justifyContent: "center", marginTop: 16 }}>
-                <button className="btn btn-primary" onClick={() => { setCreateError(""); setMaterialReady(null); setCreateOpen(true); }}>Create your first assessment</button>
+                <button className="btn btn-primary" onClick={() => { setCreateError(""); setMaterialReady(null); setSetup(savedSetup()); setCreateOpen(true); }}>Create your first assessment</button>
                 <Link className="btn btn-ghost" href="/app/learn">Study with ARIA</Link>
               </div>
             </div>
@@ -365,21 +357,22 @@ function AssessPageWorkspace() {
       )}
 
       {taking && (
-        <div className="card card-pad" style={{ maxWidth: 760 }}>
+        <>
           {resumed && (
-            <div className="banner" style={{ marginBottom: 16 }}>
+            <div className="banner" style={{ marginBottom: 16, maxWidth: 760 }}>
               <span style={{ display: "inline-flex" }}><Icon name="refresh" size={18} /></span>
-              <div style={{ flex: 1 }}>Saved progress restored — finish and submit when ready.</div>
+              <div style={{ flex: 1 }}>Saved progress restored. Pick up where you left off.</div>
               <button
                 className="btn btn-ghost"
                 onClick={() =>
                   setConfirmState({
                     title: "Discard saved progress",
-                    body: "Discard your saved answers for this test? This cannot be undone.",
+                    body: "Discard your saved answers for this quiz? This cannot be undone.",
                     confirmLabel: "Discard",
                     onConfirm: () => {
                       writeDraft(null);
                       setResumed(false);
+                      setAnswers({});
                       toast("Saved progress discarded.");
                     },
                   })
@@ -389,59 +382,12 @@ function AssessPageWorkspace() {
               </button>
             </div>
           )}
-          <div className="section-head" style={{ marginBottom: 16 }}>
-            <h2 style={{ fontSize: 22, fontWeight: 800 }}>Assessment</h2>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-2)", display: "inline-flex", alignItems: "center", gap: 12 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Icon name="clock" size={14} /> {fmtClock(elapsed)}
-              </span>
-              {Object.keys(marked).filter(Boolean).length > 0 && (
-                <span className="tag-chip">{Object.values(marked).filter(Boolean).length} marked</span>
-              )}
-              <span>{Object.keys(answers).length}/{taking.questions.length} answered</span>
-            </span>
-          </div>
-          <div className="quiz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={taking.questions.length} aria-valuenow={Object.keys(answers).length} aria-label="Questions answered">
-            <span style={{ width: `${(Object.keys(answers).length / taking.questions.length) * 100}%` }} />
-          </div>
-          {taking.questions.map((q) => (
-            <div key={q.id} style={{ marginBottom: 22 }}>
-              <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <span>{q.position}. {q.prompt}</span>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  aria-label={`Mark for review`}
-                  aria-pressed={!!marked[q.id]}
-                  title="Mark for review"
-                  style={{ padding: "2px 6px", color: marked[q.id] ? "var(--streak)" : "var(--text-3)", flexShrink: 0 }}
-                  onClick={() => setMarked((m) => ({ ...m, [q.id]: !m[q.id] }))}
-                >
-                  <Icon name="pin" size={15} />
-                </button>
-              </p>
-              <div className="quiz-options">
-                {q.options.map((opt) => (
-                  <label key={opt} className={`quiz-option${answers[q.id] === opt ? " selected" : ""}`}>
-                    <input
-                      type="radio"
-                      name={`q-${q.id}`}
-                      checked={answers[q.id] === opt}
-                      onChange={() => setAnswers((a) => ({ ...a, [q.id]: opt }))}
-                    />
-                    <span>{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="dialog-actions">
-            <button className="btn btn-ghost" onClick={() => setTaking(null)} disabled={busy}>Cancel</button>
-            <button className="btn btn-primary" onClick={submit} disabled={busy}>
-              Submit answers <Icon name="arrow" />
-            </button>
-          </div>
-        </div>
+          <QuizPlayer key={taking.attemptId} assessmentId={taking.assessmentId} attemptId={taking.attemptId}
+            questions={taking.questions} settings={taking.settings} answers={answers} busy={busy}
+            onAnswer={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
+            onFinish={(complete) => { setAnswers(complete); void submit(complete); }}
+            onExit={() => { setTaking(null); toast("Progress saved. Open the quiz again to continue."); }} />
+        </>
       )}
 
       {reviewing && (
@@ -475,14 +421,22 @@ function AssessPageWorkspace() {
             </div>
           )}
           <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>Answer review</h3>
-          {reviewing.details.map((d) => (
-            <div className="kv" key={d.question_id}>
-              <span className="k" style={{ color: d.correct ? "var(--success-strong)" : "var(--danger-strong)" }}>
-                <Icon name={d.correct ? "check" : "x"} size={16} /> {d.selected_option ?? "No answer"}
-              </span>
-              <span className="v">{d.correct ? "Correct" : <>Correct: {d.correct_option}</>}</span>
-            </div>
-          ))}
+          <ol className="quiz-review">
+            {reviewing.details.map((d) => {
+              const question = reviewing.questions.find((q) => q.id === d.question_id);
+              const answer = d.correct_answer ?? d.correct_option;
+              const ask = `I got this quiz question wrong. Help me understand it.\n\nQuestion: ${question?.prompt ?? ""}\nMy answer: ${d.selected_option ?? DONT_KNOW}\nCorrect answer: ${answer}`;
+              return (
+                <li key={d.question_id} className={d.correct ? "right" : "wrong"}>
+                  <p className="quiz-review-q">{question?.prompt}</p>
+                  <p><Icon name={d.correct ? "check" : "x"} size={14} /> Your answer: <b>{d.selected_option || DONT_KNOW}</b></p>
+                  {!d.correct && <p>Correct answer: <b>{answer}</b></p>}
+                  {d.explanation && <p className="quiz-review-why">{d.explanation}</p>}
+                  {!d.correct && <Link className="quiz-review-ask" href={`/app/learn?ask=${encodeURIComponent(ask.slice(0, 1500))}`}><Icon name="message" size={13} /> Explain this in chat</Link>}
+                </li>
+              );
+            })}
+          </ol>
           <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
             {reviewing.wrongConcepts.length > 0 && (
               <button className="btn btn-secondary" onClick={() => void retryMissed()} disabled={busy}>
@@ -503,49 +457,14 @@ function AssessPageWorkspace() {
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="clipboard" size={20} /> Create assessment</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setCreateOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
-          <div className="form-group">
-            <label className="field-label">Format</label>
-            <div className="ui-flex ui-gap-8 ui-wrap">
-              {(formats.length ? formats : [{ name: "mcq", label: "Multiple choice" }]).map((f) => (
-                <span className="tag-chip tag-chip-selected" key={f.name}>{f.label}</span>
-              ))}
-            </div>
-          </div>
-          {materialReady === false && <div className="inline-guidance" role="status">
-            <b>Choose how you want to review</b>
-            <p>For a material-based assessment, add ready study material. You can also study with ARIA without notes and choose Done for today to create a daily review.</p>
-            <div className="action-links"><Link href="/app/materials">Add material</Link><Link href="/app/learn">Study with ARIA</Link></div>
-          </div>}
-          {materialReady !== false && <p className="field-help">Questions use your ready material. Very short material may need more detail to make a useful assessment.</p>}
+          {context && <QuizSetup contextId={context.id} values={setup} onChange={setSetup} />}
+          {setupProblem(setup, materialReady) && <p className="field-help" role="status">{setupProblem(setup, materialReady)}</p>}
           {createError && <div className="inline-error" role="alert"><b>Assessment could not be created</b><p>{createError}</p></div>}
           {busy && <RequestStatus label="Preparing your assessment…" />}
-          <div className="form-group">
-            <label className="field-label">Difficulty</label>
-            <div className="ui-flex ui-gap-8 ui-wrap">
-              {DIFFICULTIES.map((d) => (
-                <button
-                  type="button"
-                  key={d}
-                  className={`tag-chip${difficulty === d ? " tag-chip-selected" : ""}`}
-                  onClick={() => setDifficulty(d)}
-                >
-                  {d[0].toUpperCase() + d.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="field-label" htmlFor="question-count">Number of Questions</label>
-            <div className="ui-row ui-gap-12">
-              <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => setQuestionCount((q) => Math.max(1, q - 1))} aria-label="Fewer questions">−</button>
-              <span id="question-count" style={{ minWidth: 40, textAlign: "center", fontWeight: 800 }}>{questionCount}</span>
-              <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => setQuestionCount((q) => Math.min(20, q + 1))} aria-label="More questions">+</button>
-            </div>
-          </div>
           <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={create} disabled={busy || materialReady === false} title={materialReady === false ? "Add ready material, or create a daily review from Learn" : undefined}>
-              {busy ? "Preparing…" : "Create assessment"} <Icon name="arrow" />
+            <button className="btn btn-primary" onClick={create} disabled={busy || !!setupProblem(setup, materialReady)}>
+              {busy ? "Preparing…" : "Start quiz"} <Icon name="arrow" />
             </button>
           </div>
         </div>

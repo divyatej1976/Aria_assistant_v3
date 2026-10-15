@@ -938,6 +938,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orchestration/actions/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Action Status */
+        get: operations["action_status_api_v1_orchestration_actions__message_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orchestration/actions/{message_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Action */
+        post: operations["run_action_api_v1_orchestration_actions__message_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orchestration/actions/{message_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Action */
+        post: operations["cancel_action_api_v1_orchestration_actions__message_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orchestration/workflows/{name}": {
         parameters: {
             query?: never;
@@ -1122,6 +1173,40 @@ export interface paths {
         put?: never;
         /** Generate Resource Audio */
         post: operations["generate_resource_audio_api_v1_audio_resources__resource_id__generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audio/text/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Text */
+        post: operations["generate_text_api_v1_audio_text_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audio/sessions/{session_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Session */
+        post: operations["generate_session_api_v1_audio_sessions__session_id__generate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1652,6 +1737,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionResponse */
+        ActionResponse: {
+            /** Id */
+            id: string;
+            /** Capability */
+            capability: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "proposed" | "running" | "done" | "failed" | "cancelled";
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Auto Run
+             * @default true
+             */
+            auto_run: boolean;
+        };
         /** ActivityResponse */
         ActivityResponse: {
             /** Id */
@@ -2557,6 +2665,7 @@ export interface components {
             position: number;
             /** Fallback Used */
             fallback_used?: boolean | null;
+            action?: components["schemas"]["ActionResponse"] | null;
         };
         /** StudyMessageCreate */
         StudyMessageCreate: {
@@ -2567,6 +2676,8 @@ export interface components {
         };
         /** StudyMessageResponse */
         StudyMessageResponse: {
+            /** Id */
+            id?: string | null;
             /** Session Id */
             session_id: string;
             /** Content */
@@ -2575,6 +2686,7 @@ export interface components {
             sources: components["schemas"]["SourceReference"][];
             /** Fallback Used */
             fallback_used: boolean;
+            action?: components["schemas"]["ActionResponse"] | null;
         };
         /** StudySessionCreate */
         StudySessionCreate: {
@@ -2629,6 +2741,21 @@ export interface components {
             deadline_id?: string | null;
             /** Due At */
             due_at?: string | null;
+        };
+        /** TextAudioRequest */
+        TextAudioRequest: {
+            /**
+             * Context Id
+             * Format: uuid
+             */
+            context_id: string;
+            /**
+             * Title
+             * @default Audio from text
+             */
+            title: string;
+            /** Text */
+            text: string;
         };
         /** TextResourceCreate */
         TextResourceCreate: {
@@ -4582,6 +4709,99 @@ export interface operations {
             };
         };
     };
+    action_status_api_v1_orchestration_actions__message_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_action_api_v1_orchestration_actions__message_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_action_api_v1_orchestration_actions__message_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_api_v1_orchestration_workflows__name__post: {
         parameters: {
             query?: never;
@@ -4871,6 +5091,70 @@ export interface operations {
             header?: never;
             path: {
                 resource_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_text_api_v1_audio_text_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextAudioRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudioResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_session_api_v1_audio_sessions__session_id__generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
             };
             cookie?: never;
         };

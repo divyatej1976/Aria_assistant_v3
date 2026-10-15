@@ -3,16 +3,16 @@
 /* eslint-disable react-hooks/set-state-in-effect -- LearnPage must clear stale session state synchronously on context switch to prevent cross-context sends */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { api, apiFormData, apiUpload, ApiError } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { toast } from "@/lib/toast";
-import { TutorMarkdown } from "@/components/tutor-markdown";
+import { TutorReply, DEPTH_LABEL, type Depth, type RequestedDepth, type Source } from "@/components/tutor-reply";
 import { AssistantPresence } from "@/components/assistant-presence";
 import { useMotionPreference } from "@/components/motion-system";
 import { RequestStatus } from "@/components/request-status";
 import { ErrorState, Loading } from "@/components/states";
+import { ActionCard, type ChatAction } from "@/components/action-card";
 
 type Session = {
   id: string;
@@ -25,9 +25,28 @@ type Session = {
   message_count?: number;
   last_message_at?: string | null;
 };
-type Source = { resource_id: string; chunk_id: string; title: string; score: number };
-type Msg = { id?: string; role: "user" | "aria"; content: string; sources?: Source[]; fallback_used?: boolean; fresh?: boolean; streaming?: boolean; fullContent?: string };
-type RetryRequest = { content: string; requestId: string; sessionId?: string };
+type Msg = { id?: string; action?: ChatAction | null; role: "user" | "aria"; content: string; sources?: Source[]; fallback_used?: boolean; depth?: Depth | null; fresh?: boolean; streaming?: boolean; fullContent?: string };
+type RetryRequest = { content: string; requestId: string; sessionId?: string; depth: RequestedDepth };
+
+type ChatFile = { id: string; title: string; processing_status: string; error_detail?: string | null };
+
+const DEPTH_KEY = "aria.reply-depth";
+const DEPTH_OPTIONS: RequestedDepth[] = ["auto", "quick", "balanced", "deep"];
+
+/** Phones get shorter replies; the backend uses this with the chosen depth. */
+function screenSize(): "compact" | "regular" | "wide" {
+  if (typeof window === "undefined") return "regular";
+  return window.innerWidth < 640 ? "compact" : window.innerWidth >= 1280 ? "wide" : "regular";
+}
+
+function savedDepth(): RequestedDepth {
+  try {
+    const value = window.localStorage.getItem(DEPTH_KEY);
+    return DEPTH_OPTIONS.includes(value as RequestedDepth) ? (value as RequestedDepth) : "auto";
+  } catch {
+    return "auto";
+  }
+}
 
 function useTypewriter(fullText: string, active: boolean, wordsPerTick = 3, intervalMs = 30): string {
   const [revealed, setRevealed] = useState(active ? "" : fullText);
@@ -59,34 +78,7 @@ function StreamingMessage({ msg, onDone, onProgress }: { msg: Msg; onDone: () =>
   useEffect(() => { if (done) onDone(); }, [done, onDone]);
   useEffect(() => { onProgress(); }, [text, onProgress]);
 
-  return (
-    <div className="msg msg-aria message-arrival">
-      <div className="mh"><Icon name="sparkles" size={14} /> ARIA Tutor</div>
-      {msg.sources && msg.sources.length > 0 ? (
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--success-strong)", background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 10px", marginBottom: 8 }}>
-          <Icon name="file" size={12} /> Grounded in your material · {msg.sources.length} source{msg.sources.length === 1 ? "" : "s"}
-        </div>
-      ) : msg.fallback_used ? (
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--text-2)", background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 10px", marginBottom: 8 }}>
-          <Icon name="sparkles" size={12} /> General guidance — add material for grounded answers
-        </div>
-      ) : null}
-      <div style={{ whiteSpace: "pre-wrap" }}><TutorMarkdown content={text} /></div>
-      {done && msg.sources && msg.sources.length > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-3)" }}>
-          <b>Sources:</b>{" "}
-          {msg.sources.map((s) => (
-            <span key={s.chunk_id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 8px", margin: "2px 4px 0 0" }}>
-              <Icon name="file" size={11} /> {s.title}
-            </span>
-          ))}
-        </div>
-      )}
-      {done && msg.fallback_used && (
-        <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-3)" }}>Answer generated without source documents.</div>
-      )}
-    </div>
-  );
+  return <TutorReply content={text} depth={msg.depth} sources={msg.sources} fallback={msg.fallback_used} done={done} fresh />;
 }
 
 /** Server timestamps are UTC; SQLite drops the offset, so treat a bare ISO
@@ -152,9 +144,6 @@ function ContextLearn() {
   const { context, loading: ctxLoading } = useActiveContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [creatingAudio, setCreatingAudio] = useState(false);
-  const [chatAudio, setChatAudio] = useState<{ sessionId: string; status: string } | null>(null);
-  const [chatAudioError, setChatAudioError] = useState<{ sessionId: string; message: string } | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
@@ -168,9 +157,9 @@ function ContextLearn() {
   const reducedMotion = useMotionPreference();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [finishingDay, setFinishingDay] = useState(false);
-  const [dailyReview, setDailyReview] = useState<string | null>(null);
+  const [depth, setDepthState] = useState<RequestedDepth>("auto");
   const [attaching, setAttaching] = useState(false);
+  const [chatFiles, setChatFiles] = useState<ChatFile[]>([]);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -179,6 +168,7 @@ function ContextLearn() {
   const audioChunksRef = useRef<Blob[]>([]);
   const conversationVersion = useRef(0);
   const topicPrefilled = useRef(false);
+  const pendingAsk = useRef<string | null>(null);
   const followStreamingReply = useCallback(() => {
     if (followLatest.current) bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "instant" });
   }, []);
@@ -186,6 +176,15 @@ function ContextLearn() {
   useEffect(() => {
     if (!context || topicPrefilled.current) return;
     const query = new URLSearchParams(window.location.search);
+    // "Explain this in chat" from a quiz result arrives with the exact question to ask.
+    const ask = query.get("ask")?.trim().slice(0, 2000);
+    if (ask) {
+      topicPrefilled.current = true;
+      // A question typed on Home is sent straight away; a quiz follow-up waits for review.
+      if (query.get("autosend") === "1") pendingAsk.current = ask;
+      else setInput(ask);
+      return;
+    }
     const topic = query.get("topic")?.trim().slice(0, 255);
     const subject = query.get("context");
     if (!topic || (subject && subject !== context.id)) return;
@@ -194,6 +193,37 @@ function ContextLearn() {
   }, [context]);
 
   useEffect(() => () => { conversationVersion.current += 1; }, []);
+
+  useEffect(() => { setDepthState(savedDepth()); }, []);
+
+  // A newer upload or chat switch makes an in-flight file list stale.
+  const filesVersion = useRef(0);
+  const loadChatFiles = useCallback(async (sid: string) => {
+    if (!context) return;
+    const version = ++filesVersion.current;
+    const files = await api<ChatFile[]>(`/api/v1/resources?context_id=${context.id}&session_id=${sid}`);
+    if (version === filesVersion.current) setChatFiles(files);
+  }, [context]);
+
+  useEffect(() => {
+    setChatFiles([]);
+    if (activeId) loadChatFiles(activeId).catch(() => {});
+  }, [activeId, loadChatFiles]);
+
+  const addToLibrary = async (file: ChatFile) => {
+    try {
+      await api(`/api/v1/resources/${file.id}/library`, { method: "POST" });
+      setChatFiles((files) => files.filter((f) => f.id !== file.id));
+      toast(`"${file.title}" is now in your library, so every chat can use it.`, "success");
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : "Could not add the file to your library.", "error");
+    }
+  };
+
+  const setDepth = (value: RequestedDepth) => {
+    setDepthState(value);
+    try { window.localStorage.setItem(DEPTH_KEY, value); } catch {}
+  };
 
   const loadList = useCallback(async (cid: string) => {
     const list = await api<Session[]>("/api/v1/study/sessions?context_id=" + cid);
@@ -205,15 +235,18 @@ function ContextLearn() {
     followLatest.current = true;
     setAwayFromLatest(false);
     const list = await api<
-      Array<{ role: "user" | "assistant" | "aria"; content: string; sources?: Source[]; fallback_used?: boolean }>
+      Array<{ id: string; action?: ChatAction | null; role: "user" | "assistant" | "aria"; content: string; sources?: Source[]; fallback_used?: boolean; depth?: Depth | null }>
     >("/api/v1/study/sessions/" + sid + "/messages");
     if (version !== conversationVersion.current) return;
     // Backend persists the standard "assistant" role; the UI bubble model uses "aria".
     const normalized: Msg[] = list.map((m) => ({
+      id: m.id,
+      action: m.action,
       role: m.role === "assistant" ? "aria" : m.role,
       content: m.content,
       sources: m.sources,
       fallback_used: m.fallback_used,
+      depth: m.depth,
     }));
     setMsgs(normalized);
     setActiveId(sid);
@@ -268,14 +301,14 @@ function ContextLearn() {
     return () => window.clearTimeout(timer);
   }, [responding]);
 
-  const send = async (text: string, retry?: RetryRequest) => {
+  const send = async (text: string, retry?: RetryRequest, depthOverride?: RequestedDepth) => {
     if (loading || typing || requestLock.current || ctxLoading || !context || !text.trim()) return;
     const version = conversationVersion.current;
     // guard against stale session from previous context
     if (activeId && !sessions.some((s) => s.id === activeId && s.context_id === context.id)) return;
     const content = text.trim();
     requestLock.current = true;
-    const pending: RetryRequest = retry ?? { content, requestId: crypto.randomUUID() };
+    const pending: RetryRequest = retry ?? { content, requestId: crypto.randomUUID(), depth: depthOverride ?? depth };
     setRetryRequest(pending);
     setReplyError(false);
     setReplyErrorText("");
@@ -300,12 +333,12 @@ function ContextLearn() {
       setRetryRequest({ ...pending, sessionId: sid });
       const res = await api<Msg>("/api/v1/study/sessions/" + sid + "/messages", {
         method: "POST",
-        body: JSON.stringify({ content, request_id: pending.requestId }),
+        body: JSON.stringify({ content, request_id: pending.requestId, depth: pending.depth, screen: screenSize() }),
       });
       if (version !== conversationVersion.current) return;
       setMsgs((m) => [
         ...m,
-        { role: "aria", content: reducedMotion ? res.content : "", fullContent: res.content, sources: res.sources, fallback_used: res.fallback_used, fresh: true, streaming: !reducedMotion },
+        { id: res.id, action: res.action, role: "aria", content: reducedMotion || res.action ? res.content : "", fullContent: res.content, sources: res.sources, fallback_used: res.fallback_used, depth: res.depth, fresh: true, streaming: !reducedMotion && !res.action },
       ]);
       setRetryRequest(null);
       setResponding(true);
@@ -323,6 +356,15 @@ function ContextLearn() {
     }
   };
 
+  useEffect(() => {
+    if (!pendingAsk.current || loading || ctxLoading || !context) return;
+    const question = pendingAsk.current;
+    pendingAsk.current = null;
+    // Start a fresh chat for it and drop the parameters so a reload does not resend.
+    window.history.replaceState(window.history.state, "", window.location.pathname);
+    void send(question);
+  }); // Runs after each render until the page is ready; the ref ensures it sends once.
+
   const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !context) return;
@@ -330,21 +372,28 @@ function ContextLearn() {
     setAttaching(true);
     const title = file.name.replace(/\.[^/.]+$/, "");
     try {
+      let sid = activeId;
+      if (!sid) {
+        const created = await api<Session>("/api/v1/study/sessions", {
+          method: "POST",
+          body: JSON.stringify({ context_id: context.id, mode: "BASELINE" }),
+        });
+        if (version !== conversationVersion.current) return;
+        sid = created.id;
+        setSessions((p) => [created, ...p]);
+        setActiveId(sid);
+        syncSessionUrl(sid);
+      }
       const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
-      const endpoint = isPdf
-        ? `/api/v1/resources/pdf?context_id=${context.id}&title=${encodeURIComponent(title)}`
-        : `/api/v1/resources/image?context_id=${context.id}&title=${encodeURIComponent(title)}`;
+      const query = `context_id=${context.id}&session_id=${sid}&title=${encodeURIComponent(title)}`;
+      const endpoint = isPdf ? `/api/v1/resources/pdf?${query}` : `/api/v1/resources/image?${query}`;
       const mime = isPdf ? "application/pdf" : (file.type || "image/png");
-      await apiUpload(endpoint, file, mime);
+      const saved = await apiUpload<ChatFile>(endpoint, file, mime);
       if (version !== conversationVersion.current) return;
-      toast(`Attached "${file.name}" — processed via OCR.`);
-      setMsgs((m) => [
-        ...m,
-        {
-          role: "aria",
-          content: `📎 **Attached document:** \`${file.name}\` has been processed via OCR into your study materials. What would you like to explore or practice from it?`,
-        },
-      ]);
+      filesVersion.current += 1;
+      setChatFiles((files) => [...files.filter((f) => f.id !== saved.id), saved]);
+      if (saved.processing_status === "READY") toast(`Attached "${file.name}" to this chat.`, "success");
+      else toast(saved.error_detail ?? `"${file.name}" could not be read. Try a clearer PDF or image.`, "error");
     } catch (err) {
       if (version === conversationVersion.current) toast(err instanceof ApiError ? err.message : "Failed to upload and process file.", "error");
     } finally {
@@ -362,22 +411,6 @@ function ContextLearn() {
       }
     };
   }, []);
-
-  const createChatAudio = async () => {
-    if (!activeId || creatingAudio || typing || responding) return;
-    const sessionId = activeId;
-    const version = conversationVersion.current;
-    setCreatingAudio(true);
-    setChatAudioError(null);
-    try {
-      const result = await api<{ status: string }>(`/api/v1/audio/sessions/${sessionId}/generate`, { method: "POST" });
-      if (version === conversationVersion.current) setChatAudio({ sessionId, status: result.status });
-    } catch (error) {
-      if (version === conversationVersion.current) setChatAudioError({ sessionId, message: error instanceof ApiError ? error.message : "Could not create audio. Please retry." });
-    } finally {
-      setCreatingAudio(false);
-    }
-  };
 
   const toggleRecording = async () => {
     const version = conversationVersion.current;
@@ -508,26 +541,8 @@ function ContextLearn() {
 
   // Empty sessions (legacy rows, or a chat abandoned before its first reply)
   // stay hidden unless they are the one currently open.
+  const lastReply = msgs.reduce((last, m, i) => (m.role === "aria" && !m.action ? i : last), -1);
   const visibleSessions = sessions.filter((s) => (s.message_count ?? 0) > 0 || s.id === activeId);
-
-  const finishDay = async () => {
-    if (!context || finishingDay || typing || attaching || transcribing || recording) return;
-    const version = conversationVersion.current;
-    setFinishingDay(true);
-    try {
-      const review = await api<{ assessment_id: string }>(
-        `/api/v1/study/contexts/${context.id}/finish-day`, { method: "POST" },
-      );
-      if (version === conversationVersion.current) {
-        setDailyReview(review.assessment_id);
-        toast("Your daily review is ready in Assessments.");
-      }
-    } catch (error) {
-      if (version === conversationVersion.current) toast(error instanceof Error ? error.message : "Could not create your daily review. Try again.", "error");
-    } finally {
-      setFinishingDay(false);
-    }
-  };
 
   if (loading || ctxLoading) {
     return <div className="chat-shell"><Loading label="your tutor" /></div>;
@@ -574,44 +589,24 @@ function ContextLearn() {
 
       <div className="chat-shell">
         <div className="chat-head">
-          <div>
-            <h1 style={{ fontSize: 16, fontWeight: 800 }}>{context?.title ?? "Learn"}</h1>
+          <div className="chat-title">
+            <h1>{sessions.find((s) => s.id === activeId)?.title ?? "New chat"}</h1>
+            <span className="chat-subject">{context?.title ?? "Learn"}</span>
             <AssistantPresence state={recording ? "listening" : typing || transcribing ? "thinking" : replyError ? "error" : responding ? "responding" : "idle"} />
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="btn btn-secondary" onClick={() => void createChatAudio()}
-              disabled={!activeId || creatingAudio || typing || responding || !msgs.some(m => m.role === "aria")}
-              title="Save a copy of this conversation and read it aloud">
-              <Icon name="headphones" size={15} /> {creatingAudio ? "Creating audio…" : "Create audio"}
-            </button>
-            <button className="btn btn-secondary daily-finish" onClick={() => void finishDay()}
-              disabled={!context || finishingDay || typing || attaching || transcribing || recording || !visibleSessions.length}
-              title="Create a review of today's learning in this subject">
-              <Icon name="check" size={15} /> {finishingDay ? "Preparing review…" : "Done for today"}
-            </button>
-            <button className="btn btn-ghost focus-toggle" title={focusMode ? "Restore your conversation list and navigation" : "Hide the conversation list and navigation to focus on learning"} aria-pressed={focusMode} onClick={() => setFocusMode(value => !value)}><Icon name="target" size={15} /> {focusMode ? "Exit focus" : "Focus"}</button>
-            <button
-              className="btn btn-ghost"
-              style={{ padding: "6px 12px", borderRadius: 99, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!context || attaching}
-              title="Attach a PDF or image (PNG, JPG, WEBP) to transcribe with OCR"
-            >
-              <Icon name="image" size={14} />
-              <span>{attaching ? "Processing OCR…" : "Attach document / image"}</span>
-            </button>
-          </div>
+          <button className="icon-btn focus-toggle" aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Show the chat list and navigation again" : "Hide the chat list and navigation"} aria-pressed={focusMode} onClick={() => setFocusMode(value => !value)}><Icon name="target" size={17} /></button>
         </div>
 
-        {chatAudio?.sessionId === activeId && <div className="banner" role="status">
-          <span>{chatAudio.status === "READY" ? "Your conversation audio is ready." : chatAudio.status === "FAILED" ? "Audio creation failed. Your source is saved; retry in Audio studio." : "Your conversation audio is processing."}</span>
-          <Link className="btn btn-secondary" href="/app/audio">Open Audio studio</Link>
-        </div>}
-        {chatAudioError?.sessionId === activeId && <div className="banner" role="alert"><span>{chatAudioError.message}</span><button className="btn btn-secondary" disabled={creatingAudio} onClick={() => void createChatAudio()}>Retry audio</button></div>}
-        {dailyReview && <div className="banner daily-review-ready" role="status">
-          <Icon name="check" size={20} />
-          <div><b>Your daily review is ready.</b><p>Practise what you discussed today. Questions grounded in your material also update your knowledge map.</p></div>
-          <Link className="btn btn-primary" href={`/app/assess?review=${dailyReview}`}>Start review <Icon name="arrow" size={15} /></Link>
+        {chatFiles.length > 0 && <div className="chat-files" aria-label="Files in this chat">
+          <span className="chat-files-label">In this chat</span>
+          {chatFiles.map((file) => (
+            <span key={file.id} className={`chat-file${file.processing_status === "READY" ? "" : " failed"}`} title={file.error_detail ?? "Only this chat uses this file"}>
+              <Icon name="file" size={12} /> {file.title}
+              {file.processing_status === "READY"
+                ? <button type="button" onClick={() => void addToLibrary(file)} aria-label={`Add ${file.title} to library`}>Add to library</button>
+                : <em>could not read</em>}
+            </span>
+          ))}
         </div>}
 
         <div className="chat-body" ref={bodyRef} role="region" aria-label="Conversation" tabIndex={0} onScroll={() => {
@@ -627,10 +622,10 @@ function ContextLearn() {
                 <Icon name="sparkles" size={32} />
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: "0 0 6px" }}>
-                Meet ARIA, your AI learning agent
+                What do you want to learn?
               </h3>
               <p style={{ fontSize: 13, color: "var(--text-3)", margin: "0 0 24px" }}>
-                Ask anything about <b>{context?.title ?? "your topic"}</b>, explore ideas, or practice concepts. Upload materials whenever you want grounded source citations.
+                Ask anything about <b>{context?.title ?? "your topic"}</b>. Short questions get short answers; pick a depth below for more or less detail.
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
                 {[
@@ -676,35 +671,12 @@ function ContextLearn() {
           )}
           {msgs.map((m, i) =>
             m.role === "aria" ? (
-              m.streaming ? (
+              m.action ? <ActionCard key={m.action.id} initial={m.action} /> : m.streaming ? (
                 <StreamingMessage key={i} msg={m} onProgress={followStreamingReply} onDone={() => setMsgs(prev => prev.map((pm, pi) => pi === i ? { ...pm, streaming: false, content: pm.fullContent ?? pm.content } : pm))} />
               ) : (
-                <div className={`msg msg-aria${m.fresh ? " message-arrival" : ""}`} key={i}>
-                  <div className="mh"><Icon name="sparkles" size={14} /> ARIA Tutor</div>
-                  {m.sources && m.sources.length > 0 ? (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--success-strong)", background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 10px", marginBottom: 8 }}>
-                      <Icon name="file" size={12} /> Grounded in your material · {m.sources.length} source{m.sources.length === 1 ? "" : "s"}
-                    </div>
-                  ) : m.fallback_used ? (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--text-2)", background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 10px", marginBottom: 8 }}>
-                      <Icon name="sparkles" size={12} /> General guidance — add material for grounded answers
-                    </div>
-                  ) : null}
-                  <div style={{ whiteSpace: "pre-wrap" }}><TutorMarkdown content={m.content} /></div>
-                  {m.sources && m.sources.length > 0 && (
-                    <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-3)" }}>
-                      <b>Sources:</b>{" "}
-                      {m.sources.map((s) => (
-                        <span key={s.chunk_id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-1)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 8px", margin: "2px 4px 0 0" }}>
-                          <Icon name="file" size={11} /> {s.title}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {m.fallback_used && (
-                    <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-3)" }}>Answer generated without source documents.</div>
-                  )}
-                </div>
+                <TutorReply key={i} content={m.content} depth={m.depth} sources={m.sources} fallback={m.fallback_used} fresh={m.fresh}
+                  onDeeper={i === lastReply && !typing ? () => void send("Explain that in more depth, with an example.", undefined, "deep") : undefined}
+                  onShorter={i === lastReply && !typing ? () => void send("Give me a shorter version of that.", undefined, "quick") : undefined} />
               )
             ) : (
               <div className={`msg msg-user${m.fresh ? " message-arrival" : ""}`} key={i}>{m.content}</div>
@@ -715,14 +687,24 @@ function ContextLearn() {
           {typing && <RequestStatus label="ARIA is thinking…" />}
         </div>
 
-        {awayFromLatest && <button className="btn btn-secondary jump-latest" onClick={() => {
+        {awayFromLatest && <button type="button" className="jump-latest" aria-label="Scroll to the latest message" title="Latest message" onClick={() => {
           followLatest.current = true;
           setAwayFromLatest(false);
           bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: reducedMotion ? "instant" : "smooth" });
-        }}>Jump to latest <Icon name="arrow" size={15} /></button>}
+        }}><Icon name="chevron-down" size={18} /></button>}
         {focusMode && msgs.length > 0 && <p className="focus-session-summary">This session · {msgs.filter(message => message.role === "user").length} questions · {msgs.filter(message => message.role === "aria").length} ARIA replies</p>}
 
         <div className="chat-input-row">
+          <div className="depth-meter" role="radiogroup" aria-label="Answer depth">
+            <span className="depth-meter-label">Depth</span>
+            {DEPTH_OPTIONS.map((option) => (
+              <button key={option} type="button" role="radio" aria-checked={depth === option}
+                className={`depth-option${depth === option ? " active" : ""}`} onClick={() => setDepth(option)}
+                title={option === "auto" ? "ARIA matches the length to how you ask" : `${DEPTH_LABEL[option]} answers`}>
+                {option === "auto" ? "Auto" : DEPTH_LABEL[option]}
+              </button>
+            ))}
+          </div>
           <div className="bar">
             <button
               className="btn btn-secondary"

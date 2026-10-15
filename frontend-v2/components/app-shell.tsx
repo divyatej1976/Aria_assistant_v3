@@ -27,7 +27,7 @@ function ShellPopover({ children, style, onClick }: { children: ReactNode; style
   </motion.div>;
 }
 
-type NavGroup = { sec: string; items: { href: string; label: string; icon: IconName }[] };
+type NavItem = { href: string; label: string; icon: IconName; pages: { href: string; label: string }[] };
 
 type AppNotification = {
   id: string;
@@ -63,30 +63,32 @@ function relTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const NAV: NavGroup[] = [
-  { sec: "Learn", items: [
-    { href: "/app", label: "Dashboard", icon: "home" },
-    { href: "/app/learn", label: "Learn", icon: "message" },
-    { href: "/app/map", label: "Knowledge map", icon: "target" },
-    { href: "/app/roadmaps", label: "Roadmaps", icon: "route" },
+// Seven destinations. Where two pages serve one job they share a destination
+// and switch with tabs, so the sidebar stays short.
+const NAV: NavItem[] = [
+  { href: "/app", label: "Home", icon: "home", pages: [{ href: "/app", label: "Home" }] },
+  { href: "/app/learn", label: "Learn", icon: "message", pages: [{ href: "/app/learn", label: "Learn" }] },
+  { href: "/app/materials", label: "Library", icon: "folder", pages: [{ href: "/app/materials", label: "Library" }] },
+  { href: "/app/audio", label: "Audio", icon: "headphones", pages: [{ href: "/app/audio", label: "Audio" }] },
+  { href: "/app/assess", label: "Practice", icon: "clipboard", pages: [{ href: "/app/assess", label: "Practice" }] },
+  { href: "/app/roadmaps", label: "Plan", icon: "route", pages: [
+    { href: "/app/roadmaps", label: "Roadmap" }, { href: "/app/planner", label: "Exams & deadlines" },
   ]},
-  { sec: "Organize", items: [
-    { href: "/app/planner", label: "Planner", icon: "calendar" },
-    { href: "/app/assess", label: "Assessments", icon: "clipboard" },
-    { href: "/app/materials", label: "Materials", icon: "file" },
-    { href: "/app/audio", label: "Audio", icon: "headphones" },
-  ]},
-  { sec: "Grow", items: [
-    { href: "/app/progress", label: "Progress", icon: "trend" },
+  { href: "/app/progress", label: "Progress", icon: "trend", pages: [
+    { href: "/app/progress", label: "Overview" }, { href: "/app/map", label: "Topic map" },
   ]},
 ];
 
-const FLAT: NavGroup["items"] = NAV.flatMap((g) => g.items);
+function navItemFor(pathname: string): NavItem | undefined {
+  return NAV.find((item) => item.pages.some((page) => page.href === "/app"
+    ? pathname === "/app"
+    : pathname === page.href || pathname.startsWith(page.href + "/")));
+}
 
 // Account lives in the profile menu, not the workspace nav; it still needs a
 // page title in the top bar.
 const PAGE_TITLES: Record<string, string> = {
-  ...Object.fromEntries(FLAT.map((item) => [item.href, item.label])),
+  ...Object.fromEntries(NAV.flatMap((item) => item.pages.map((page) => [page.href, page.href === item.href ? item.label : `${item.label} · ${page.label}`]))),
   "/app/account": "Account",
 };
 
@@ -97,6 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { signout, user, loading: authLoading } = useAuth();
   const { context, contexts, selectContext, loading: contextLoading } = useActiveContext();
   const isChat = pathname === "/app/learn";
+  const current = navItemFor(pathname);
 
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -234,30 +237,19 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <LayoutGroup id="workspace-navigation">
         <nav aria-label="Workspace">
-        {NAV.map((group) => (
-          <div key={group.sec}>
-            <div className="nav-sec">{group.sec}</div>
-            {group.items.map((item) => {
-              const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
-              return (
-                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`} title={isChat ? item.label : undefined}>
-                  {active && <motion.span layoutId="active-navigation" className="nav-active-surface" aria-hidden="true" />}
-                  <Icon name={item.icon} size={17} />
-                  <span className="shell-label">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {NAV.map((item) => {
+          const active = current === item;
+          return (
+            <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`} title={isChat ? item.label : undefined}>
+              {active && <motion.span layoutId="active-navigation" className="nav-active-surface" aria-hidden="true" />}
+              <Icon name={item.icon} size={17} />
+              <span className="shell-label">{item.label}</span>
+            </Link>
+          );
+        })}
         </nav>
         </LayoutGroup>
 
-        <div className="shell-label" style={{ marginTop: "auto", fontSize: 11, color: "var(--text-3)", padding: "14px 12px 0", fontWeight: 700 }}>
-          <span style={{ display: "inline-flex", verticalAlign: "-2px", color: "var(--accent)" }}>
-            <Icon name="flame" size={13} />
-          </span>{" "}
-          Tutor Mode: <span style={{ color: "var(--accent-strong)" }}>Adaptive</span>
-        </div>
       </aside>
 
       <div className="shell-main">
@@ -380,11 +372,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           {!isChat && (
             <LayoutGroup id="mobile-workspace-navigation">
             <nav className="mobile-nav" aria-label="Primary">
-              {FLAT.map((item) => {
-                const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
+              {NAV.map((item) => {
+                const active = current === item;
                 return (
                   <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : undefined}>
                     {active && <motion.span layoutId="mobile-active-navigation" className="mobile-active-surface" aria-hidden="true" />}
+                    <Icon name={item.icon} size={20} />
                     <span>{item.label}</span>
                   </Link>
                 );
@@ -392,7 +385,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </nav>
             </LayoutGroup>
           )}
-          {/* Route changes are transitions, so the browser cross-fades the
+          {current && current.pages.length > 1 && (
+            <nav className="section-tabs" aria-label={`${current.label} sections`}>
+              {current.pages.map((page) => (
+                <Link key={page.href} href={page.href} aria-current={pathname === page.href ? "page" : undefined} className={pathname === page.href ? "active" : undefined}>
+                  {page.label}
+                </Link>
+              ))}
+            </nav>
+          )}
+                    {/* Route changes are transitions, so the browser cross-fades the
               outgoing page into the incoming one while the shell stays put. */}
           <ViewTransition key={pathname} enter="page-enter" exit="page-exit" default="none">
             <div className="route-view">{children}</div>
@@ -405,7 +407,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <label className="field-label" htmlFor="mobile-subject">Learning subject</label>
           <select className="input" id="mobile-subject" value={context?.id ?? ""} onChange={event => selectContext(event.target.value)}>{contexts.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
           <nav aria-label="Mobile workspace">
-            {[...FLAT, { href: "/app/account", label: "Account", icon: "user" as IconName }].map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} onClick={() => setMobileMenuOpen(false)}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
+            {[...NAV, { href: "/app/account", label: "Account", icon: "user" as IconName }].map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} onClick={() => setMobileMenuOpen(false)}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
           </nav>
         </div>
       </Modal>

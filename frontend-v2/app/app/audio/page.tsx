@@ -33,6 +33,7 @@ type Artifact = {
   title?: string;
 };
 type Progress = { position_seconds: number; completed: boolean };
+type Chat = { id: string; title?: string | null; message_count?: number };
 type AudioListItem = {
   id: string;
   source_type: string;
@@ -64,6 +65,8 @@ function AudioPageWorkspace() {
   const [failed, setFailed] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [chatId, setChatId] = useState("");
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   const [open, setOpen] = useState(false);
@@ -131,13 +134,15 @@ function AudioPageWorkspace() {
 
   const load = useCallback(
     async (cid: string) => {
-      const [n, r, capabilities] = await Promise.all([
+      const [n, r, c, capabilities] = await Promise.all([
         api<Note[]>(`/api/v1/notes?context_id=${cid}`),
         api<Resource[]>(`/api/v1/resources?context_id=${cid}`),
+        api<Chat[]>(`/api/v1/study/sessions?context_id=${cid}`).catch(() => []),
         api<{ cloud_speech_configured: boolean }>("/api/v1/settings/capabilities").catch(() => null),
       ]);
       setNotes(n);
       setResources(r);
+      setChats(c.filter((chat) => (chat.message_count ?? 0) > 1));
       setSpeechSetup(typeof capabilities?.cloud_speech_configured === "boolean" ? capabilities.cloud_speech_configured : null);
       await hydrate(cid);
     },
@@ -163,13 +168,17 @@ function AudioPageWorkspace() {
 
   const hasPendingAudio = artifacts.some(a => a.status === "PENDING" || a.status === "PROCESSING");
   useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (id.startsWith("episode-")) document.getElementById(id)?.scrollIntoView({ block: "center" });
+  }, [artifacts]);
+  useEffect(() => {
     if (!context || !hasPendingAudio) return;
     const timer = setInterval(() => { void hydrate(context.id).catch(() => {}); }, 5000);
     return () => clearInterval(timer);
   }, [context, hasPendingAudio, hydrate]);
 
   const convert = async () => {
-    if (!context || busy || (sourceMode === "saved" ? !source : sourceMode === "file" ? !uploadFile : !draftText.trim())) {
+    if (!context || busy || (sourceMode === "chat" ? !chatId : sourceMode === "saved" ? !source : sourceMode === "file" ? !uploadFile : !draftText.trim())) {
       return;
     }
     setBusy(true);
@@ -189,12 +198,14 @@ function AudioPageWorkspace() {
         }
       }
       const artifact = await api<Artifact>(
+        sourceMode === "chat" ? `/api/v1/audio/sessions/${chatId}/generate` :
         sourceMode === "text" ? "/api/v1/audio/text/generate" : `/api/v1/audio/${kind === "note" ? "notes" : "resources"}/${id}/generate`,
         { method: "POST", ...(sourceMode === "text" ? { body: JSON.stringify({context_id: context.id, title: draftTitle.trim() || "Audio from text", text: draftText.trim()}) } : {}) },
       );
       if (!mountedRef.current) return;
       invalidateAudio(artifact.id);
       artifact.title =
+        sourceMode === "chat" ? artifact.title ?? chats.find((chat) => chat.id === chatId)?.title ?? "Chat" :
         sourceMode === "text" ? draftTitle.trim() || "Audio from text" : sourceMode === "file" ? uploadFile?.name : kind === "note"
           ? notes.find((n) => n.id === id)?.title ?? "Note"
           : resources.find((r) => r.id === id)?.title ?? "Resource";
@@ -202,6 +213,7 @@ function AudioPageWorkspace() {
       setProgress((prev) => ({ ...prev, [artifact.id]: { position_seconds: 0, completed: false } }));
       setOpen(false);
       setSource("");
+      setChatId("");
       setDraftText("");
       setDraftTitle("");
       setUploadFile(null);
@@ -313,7 +325,7 @@ function AudioPageWorkspace() {
         <div className="empty-state">
           <Icon name="headphones" size={30} />
           <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
-            No audio yet. Paste text or turn a tutor conversation into audio. No saved materials needed.
+            No audio yet. Pick one of your chats, paste text, or upload a file to make your first episode.
           </p>
           <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ justifyContent: "center" }}>
             <Icon name="plus" /> Convert to audio
@@ -324,7 +336,7 @@ function AudioPageWorkspace() {
           const p = progress[a.id] ?? { position_seconds: 0, completed: false };
           const isPlaying = playing === a.id;
           return (
-            <div className="audio-card" key={a.id}>
+            <div className="audio-card" id={`episode-${a.id}`} key={a.id}>
               <div className="card-header">
                 <button
                   className="play-btn"
@@ -421,7 +433,7 @@ function AudioPageWorkspace() {
         {sources.length === 0 && (
           <div className="card card-pad" style={{ gridColumn: "1 / -1" }}>
             <p style={{ fontSize: 13, color: "var(--text-1)", margin: 0 }}>
-              You can paste text here or create audio from a conversation in Learn.{" "}
+              Choose Convert to audio to turn a chat, pasted text, or a file into an episode.{" "}
               <Link href="/app/materials" style={{ color: "var(--accent-strong)", fontWeight: 700 }}>
                 Open materials library
               </Link>
@@ -440,12 +452,20 @@ function AudioPageWorkspace() {
           <div className="form-group">
             <label className="field-label" htmlFor="audio-mode">Create from</label>
             <select id="audio-mode" className="input" value={sourceMode} disabled={busy} onChange={e => { setSourceMode(e.target.value); setConversionError(""); }}>
+              <option value="chat">A chat with ARIA</option>
               <option value="text">Paste text</option>
               <option value="file">Upload PDF or image</option>
               <option value="saved">Saved material</option>
             </select>
           </div>
-          {sourceMode === "text" ? <>
+          {sourceMode === "chat" ? <div className="form-group">
+            <label className="field-label" htmlFor="audio-chat">Chat</label>
+            <select id="audio-chat" className="input" value={chatId} disabled={busy} onChange={(e) => setChatId(e.target.value)}>
+              <option value="">Choose a chat…</option>
+              {chats.map((chat) => <option key={chat.id} value={chat.id}>{chat.title ?? "Untitled chat"}</option>)}
+            </select>
+            <p>{chats.length ? "ARIA reads the conversation aloud, both your questions and the answers." : "No chats yet. Talk to ARIA in Learn first, then come back here."}</p>
+          </div> : sourceMode === "text" ? <>
             <div className="form-group"><label className="field-label" htmlFor="audio-title">Episode title (optional)</label><input id="audio-title" className="input" maxLength={200} value={draftTitle} disabled={busy} onChange={e => setDraftTitle(e.target.value)} /></div>
             <div className="form-group"><label className="field-label" htmlFor="audio-text">Text to read aloud</label><textarea id="audio-text" className="input" rows={7} maxLength={20000} value={draftText} disabled={busy} onChange={e => setDraftText(e.target.value)} /><p>{draftText.length.toLocaleString()} / 20,000 characters. A copy is saved to Materials automatically.</p></div>
           </> : sourceMode === "file" ? <div className="form-group">
@@ -475,7 +495,7 @@ function AudioPageWorkspace() {
           {busy && <p role="status">Creating your audio… This may take a minute. Your episode will be saved in this library.</p>}
           <div className="dialog-actions ui-mt-16">
             <button className="btn btn-ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={convert} disabled={busy || (sourceMode === "saved" ? !source : sourceMode === "file" ? !uploadFile : !draftText.trim())}>
+            <button className="btn btn-primary" onClick={convert} disabled={busy || (sourceMode === "chat" ? !chatId : sourceMode === "saved" ? !source : sourceMode === "file" ? !uploadFile : !draftText.trim())}>
               {busy ? "Creating audio…" : "Create audio"} <Icon name="arrow" />
             </button>
           </div>

@@ -39,6 +39,7 @@ export type Roadmap = {
   goal: string;
   level: string;
   targetDate?: string;
+  hoursPerWeek?: number | null;
   status?: string;
   generationMode?: "ai" | "starter" | null;
   fallbackReason?: string | null;
@@ -145,4 +146,9 @@ export function tickExplanation(topic: RoadmapTopic): string {
     return topic.reason || `Not ticked yet — "${topic.title}" is still developing (${topic.confidence}% confidence). It ticks once it reaches Supported (2 consecutive correct answers).`;
   }
   return topic.reason || `Not ticked yet — there is no evidence for "${topic.title}" yet. It ticks as soon as it reaches Supported in your Knowledge map.`;
+}
+/** How many milestones fit in a week, from the learner's weekly study time. */
+export function milestonesPerWeek(hours: number | null | undefined): number {
+  if (!hours) return 2;
+  return hours <= 2 ? 1 : hours <= 5 ? 2 : hours <= 10 ? 3 : 4;
 }

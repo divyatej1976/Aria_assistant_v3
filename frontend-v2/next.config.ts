@@ -18,6 +18,9 @@ const CSP = [
 const nextConfig: NextConfig = {
   distDir: process.env.ARIA_NEXT_DIST_DIR ?? ".next",
   poweredByHeader: false,
+  // The phone tab bar and top bar fill every corner; Next.js still reports
+  // compile and runtime errors without the badge.
+  devIndicators: false,
   async headers() {
     const headers = [
       { key: "X-Content-Type-Options", value: "nosniff" },

@@ -148,7 +148,7 @@ function ContextMap({ context }: { context: ActiveContext | null }) {
     <div>
       <div className="section-head">
         <div>
-          <h1 className="pg-title">Knowledge map</h1>
+          <h1 className="pg-title">Topic map</h1>
           <p className="eyebrow">{context?.title}</p>
           <p className="pg-sub">Your learning universe — explore concepts, prerequisites, and the evidence behind your understanding.</p>
         </div>

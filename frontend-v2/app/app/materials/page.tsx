@@ -235,8 +235,8 @@ function ContextMaterials() {
     <div>
       <div className="section-head">
         <div>
-          <h1 className="pg-title">Materials library</h1>
-          <p className="pg-sub">Keep your sources and saved learning notes together.</p>
+          <h1 className="pg-title">Library</h1>
+          <p className="pg-sub">Files and notes here are shared with every chat in this subject. Files you attach inside a chat stay in that chat.</p>
         </div>
         <div className="page-actions">
           <button className="btn btn-secondary" onClick={() => { setGenerationError(""); setGenOpen(true); }} title="Save notes from a conversation or your study material"><Icon name="sparkles" /> Generate notes</button>
@@ -285,14 +285,14 @@ function ContextMaterials() {
       )}
 
       <div style={{ margin: "26px 0 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span className="nav-sec" style={{ marginBottom: 0 }}>Resources</span>
+        <span className="nav-sec" style={{ marginBottom: 0 }}>Shared files</span>
         <button className="btn btn-secondary" onClick={() => { setUploadError(""); setResOpen(true); }}>
           <Icon name="plus" /> Add resource
         </button>
       </div>
       {resources.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--text-1)", margin: "6px 0 0" }}>
-          No resources yet — add study material so ARIA can learn from it.
+          No shared files yet. Add a file here when you want every chat to be able to use it.
         </p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>

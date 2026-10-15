@@ -6,9 +6,12 @@ import { toast } from "@/lib/toast";
 import { useActiveContext, type ActiveContext } from "@/components/use-active-context";
 import { pickNextAction } from "@/lib/next-action";
 
-import { DashboardView } from "@/components/dashboard-view";
+import { DashboardView, type WeekItem } from "@/components/dashboard-view";
+import { milestonesPerWeek } from "@/lib/roadmap";
 
 type Upcoming = { id: string; title: string; due_at: string };
+type Chat = { id: string; title?: string | null; message_count?: number; last_message_at?: string | null; created_at: string };
+type RoadmapDetail = { hours_per_week?: number | null; tiers: { topics: { id: string; title: string; ticked: boolean }[] }[] };
 
 export default function HomePage() {
   const { context } = useActiveContext();
@@ -22,7 +25,8 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
   const [focusDecision, setFocusDecision] = useState<{ reason: string; concept?: string } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [upcoming, setUpcoming] = useState<{ id: string; title: string; due_at: string }[]>([]);
-  const [insight, setInsight] = useState<string>("");
+  const [lastChat, setLastChat] = useState<{ id: string; title: string } | null>(null);
+  const [milestones, setMilestones] = useState<WeekItem[]>([]);
   const [progress, setProgress] = useState<{ contextId: string; pct: number } | null>(null);
   const [progressError, setProgressError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -32,12 +36,17 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
     if (!context) return;
     let cancelled = false;
     Promise.allSettled([
-      api<{ message_count?: number }[]>(`/api/v1/study/sessions?context_id=${context.id}`),
+      api<Chat[]>(`/api/v1/study/sessions?context_id=${context.id}`),
       api<{ submitted_attempt_count?: number }[]>(`/api/v1/assessments?context_id=${context.id}`),
       api<unknown[]>(`/api/v1/notes?context_id=${context.id}`),
       api<{ processing_status: string }[]>(`/api/v1/resources?context_id=${context.id}`),
     ]).then(([sessions, assessments, notes, resources]) => {
       if (cancelled) return;
+      if (sessions.status === "fulfilled") {
+        const chats = sessions.value.filter((item) => (item.message_count ?? 0) > 0)
+          .sort((a, b) => (b.last_message_at ?? b.created_at).localeCompare(a.last_message_at ?? a.created_at));
+        setLastChat(chats[0] ? { id: chats[0].id, title: chats[0].title ?? "Your last chat" } : null);
+      }
       setFirstSteps({
         learned: sessions.status === "fulfilled" ? sessions.value.some(item => (item.message_count ?? 0) > 0) : null,
         reviewCreated: assessments.status === "fulfilled" ? assessments.value.length > 0 : null,
@@ -59,6 +68,17 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
     api<Upcoming[]>(`/api/v1/planner/upcoming?days=30&context_id=${context.id}`)
       .then((u) => !cancelled && setUpcoming(u.slice(0, 3)))
       .catch(() => {});
+    // This week: the next milestones of the newest roadmap, paced by its weekly time.
+    api<{ id: string }[]>(`/api/v1/roadmaps?context_id=${context.id}`)
+      .then(async (list) => {
+        if (!list[0]) return;
+        const detail = await api<RoadmapDetail>(`/api/v1/roadmaps/${list[0].id}`);
+        if (cancelled) return;
+        const open = detail.tiers.flatMap((tier) => tier.topics).filter((topic) => !topic.ticked);
+        setMilestones(open.slice(0, milestonesPerWeek(detail.hours_per_week))
+          .map((topic) => ({ key: topic.id, title: topic.title, kind: "milestone" as const })));
+      })
+      .catch(() => {});
     api<{ states: { concept_name?: string; state: string }[]; decisions: { decision_type: string; reason: string; concept_id?: string | null }[] }>(
       `/api/v1/contexts/${context.id}/adaptation`,
     )
@@ -66,7 +86,6 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
         if (cancelled) return;
         setProgressError(false);
         const focus = s.decisions.filter((d) => d.decision_type === "FOCUS_STUDY")[0];
-        setInsight(focus?.reason ?? "");
         setProgress({ contextId: context.id, pct:
           s.states.length
             ? Math.round((s.states.filter((x) => x.state === "SUPPORTED").length / s.states.length) * 100)
@@ -124,9 +143,15 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
     }
   };
 
+  const week: WeekItem[] = [
+    ...upcoming.filter((item) => new Date(item.due_at).getTime() - nowMs <= 7 * 86_400_000)
+      .map((item) => ({ key: item.id, title: item.title, kind: "deadline" as const, due: item.due_at })),
+    ...milestones,
+  ];
+
   return <DashboardView title={context?.title ?? "Start learning"}
     pct={progress?.contextId === context?.id ? progress?.pct ?? null : null}
-    nextAction={nextAction} streak={streak} upcoming={upcoming}
-    dueNotes={dueNotes} insight={insight} onReview={review}
+    nextAction={nextAction} streak={streak} week={week} lastChat={lastChat}
+    dueNotes={dueNotes} onReview={review}
     progressError={progressError} onRetry={() => setRetryNonce(n => n + 1)} firstSteps={firstSteps} />;
 }
