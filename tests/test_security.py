@@ -24,6 +24,16 @@ def test_session_and_csrf_cookies_are_set_on_register(client: TestClient) -> Non
     assert "aria_csrf" in cookie_names
 
 
+def test_csrf_cookie_outlives_browser_close_like_session(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "ttl@example.com", "password": "correct-horse"},
+    )
+    cookies = {h.split("=", 1)[0]: h for h in response.headers.get_list("set-cookie")}
+    assert "Max-Age=86400" in cookies["aria_session"]
+    assert "Max-Age=86400" in cookies["aria_csrf"]
+
+
 def test_cookie_authenticated_mutation_requires_csrf_token(client: TestClient) -> None:
     _register(client)
     assert "aria_csrf" in client.cookies

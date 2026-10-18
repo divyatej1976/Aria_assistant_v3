@@ -49,6 +49,9 @@ def set_auth_cookies(response, token: str) -> None:
     response.set_cookie(
         CSRF_COOKIE,
         secrets.token_urlsafe(32),
+        # Same lifetime as the session: the frontend reads this cookie to know
+        # a session exists, and a browser-session cookie would vanish on close.
+        max_age=SESSION_TTL_SECONDS,
         httponly=False,
         samesite="strict",
         secure=secure,

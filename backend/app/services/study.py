@@ -24,6 +24,7 @@ from app.db.models import (
     ResourceChunk,
     StudySession,
 )
+from app.db.session import release_connection
 from app.services.context_assembly import (
     STUDY_SYSTEM_PROMPT,  # noqa: F401  (re-exported for tests/consumers)
     assemble_context,
@@ -390,6 +391,7 @@ async def retrieve_chunks(
     query_embedding: list[float] | None = None
     if semantic:
         try:
+            release_connection(db)
             query_embedding = (await provider.embed([query]))[0]
             expected_dim = get_settings().aria_embedding_dim
             if len(query_embedding) != expected_dim:

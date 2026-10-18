@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -363,6 +364,15 @@ class Resource(OwnedModel, Base):
 
 class ResourceChunk(OwnedModel, Base):
     __tablename__ = "resource_chunks"
+    __table_args__ = (
+        # Created by migration 0011; declared so autogenerate does not drop it.
+        Index(
+            "ix_resource_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ).ddl_if(dialect="postgresql"),
+    )
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     resource_id: Mapped[UUID] = mapped_column(ForeignKey("resources.id"), index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -471,7 +481,7 @@ class AssessmentAttempt(OwnedModel, Base):
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     assessment_id: Mapped[UUID] = mapped_column(ForeignKey("assessments.id"), index=True)
     status: Mapped[str] = mapped_column(String(32), default="IN_PROGRESS", nullable=False)
-    idempotency_key: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
 
 
 class AttemptAnswer(OwnedModel, Base):

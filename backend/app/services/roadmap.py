@@ -1,3 +1,4 @@
+import logging
 import re
 from uuid import UUID
 
@@ -25,6 +26,8 @@ from app.schemas.roadmap import (
     RoadmapTierResponse,
 )
 from app.services.contexts import get_owned_context
+
+logger = logging.getLogger(__name__)
 
 TIER_NAMES = ["Foundations", "Core Concepts", "Advanced Topics", "Mastery Track"]
 TIER_ICONS = ["book", "target", "zap", "trophy"]
@@ -118,19 +121,31 @@ async def generate_roadmap_tree(
             validated = GeneratedRoadmapTree.model_validate(
                 parsed.model_dump() if isinstance(parsed, GeneratedRoadmapTree) else parsed
             )
-            if " ".join(validated.goal.split()).casefold() != " ".join(goal.split()).casefold():
+            if not _same_goal(goal, validated.goal):
                 raise ValueError("Provider changed the requested learning goal")
             if validated.level != level:
                 raise ValueError("Provider changed the requested learning level")
+            # Keep the learner's own wording; the provider may rephrase it.
+            validated.goal = goal
             validated._generation_mode = "ai"
             return validated
         except Exception:
-            pass
+            logger.warning("roadmap generation fell back fallback_reason=%s", fallback_reason, exc_info=True)
 
     fallback = _fallback_roadmap_tree(goal, level)
     fallback._generation_mode = "starter"
     fallback._fallback_reason = fallback_reason
     return fallback
+
+
+def _same_goal(requested: str, generated: str) -> bool:
+    """Tolerate rephrasing ("Learn SQL" -> "Learning SQL fundamentals") but
+    not a different subject: most of the requested words must survive."""
+    wanted = {_stem(w) for w in _normalize(requested)}
+    if not wanted:
+        return True
+    got = {_stem(w) for w in _normalize(generated)}
+    return len(wanted & got) * 2 >= len(wanted)
 
 
 def _normalize(text: str) -> set[str]:

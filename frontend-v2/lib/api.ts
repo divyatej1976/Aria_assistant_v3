@@ -40,6 +40,8 @@ export class ApiError extends Error {
   }
 }
 
+// The HttpOnly session cookie is unreadable here; the CSRF cookie is issued
+// alongside it with the same max-age, so it stands in for "signed in".
 function hasSessionCookie(): boolean {
   return getCookie(CSRF_COOKIE) !== null;
 }

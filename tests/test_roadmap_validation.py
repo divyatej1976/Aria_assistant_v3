@@ -141,6 +141,26 @@ def test_provider_cannot_change_requested_goal_or_level(monkeypatch, field, valu
     assert "Offline starter plan" in result.phases[0].milestones[0].description
 
 
+def test_rephrased_goal_keeps_ai_plan_and_fallback_is_logged(monkeypatch, caplog):
+    payload = tree()
+    payload["goal"] = "Biology fundamentals"
+
+    class Provider:
+        async def generate_structured(self, **kwargs):
+            return GeneratedRoadmapTree.model_validate(payload)
+
+    monkeypatch.setattr("app.ai.registry.get_llm_provider", lambda: Provider())
+    result = asyncio.run(generate_roadmap_tree("Learn biology", "Beginner"))
+    assert result._generation_mode == "ai"
+    assert result.goal == "Learn biology"
+
+    payload["goal"] = "Astronomy"
+    with caplog.at_level("WARNING", logger="app.services.roadmap"):
+        result = asyncio.run(generate_roadmap_tree("Learn biology", "Beginner"))
+    assert result._generation_mode == "starter"
+    assert "fallback_reason=invalid_output" in caplog.text
+
+
 @pytest.mark.parametrize("goal", ["x" * 255, "."])
 def test_fallback_supports_all_accepted_goal_lengths_and_text(monkeypatch, goal):
     monkeypatch.setattr("app.ai.registry.get_llm_provider", lambda: None)

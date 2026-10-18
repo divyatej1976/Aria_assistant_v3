@@ -1,5 +1,8 @@
+import asyncio
 import hashlib
 import logging
+import os
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -10,6 +13,10 @@ import httpx
 from app.ai.speech_audio import assemble_wav, speech_segments
 
 logger = logging.getLogger(__name__)
+# Use litellm's bundled price map instead of fetching it over the network on import.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+RATE_LIMIT_RETRIES = 2
+MAX_RETRY_AFTER_SECONDS = 10.0
 
 
 def estimate_tokens(chars: int, *, margin: float = 1.25) -> int:
@@ -347,11 +354,45 @@ def completion_reserve_tokens() -> int:
     )
 
 
+def retry_after_seconds(exc: Exception) -> float:
+    """Groq's retry hint: the retry-after header, else "try again in 7.6s"."""
+    headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+    try:
+        return max(0.0, float(headers.get("retry-after")))
+    except (TypeError, ValueError):
+        pass
+    match = re.search(r"try again in (?:(\d+)m)?([\d.]+)(ms|s)", str(exc))
+    if match:
+        minutes, value, unit = match.groups()
+        seconds = float(value) / (1000 if unit == "ms" else 1)
+        return seconds + 60 * int(minutes or 0)
+    return 1.0
+
+
 class LiteLLMGroqProvider:
-    def __init__(self, *, api_key: str, model: str, owner_id=None) -> None:
+    def __init__(self, *, api_key: str, model: str, owner_id=None, db=None) -> None:
         self.api_key = api_key
         self.model = model
         self.owner_id = owner_id
+        # Request session whose transaction is ended before each provider await.
+        self.db = db
+
+    async def _acompletion(self, **kwargs):
+        from litellm import RateLimitError, acompletion
+
+        if self.db is not None:
+            from app.db.session import release_connection
+
+            release_connection(self.db)
+        for attempt in range(RATE_LIMIT_RETRIES + 1):
+            try:
+                return await acompletion(**kwargs)
+            except RateLimitError as exc:
+                delay = retry_after_seconds(exc)
+                if attempt == RATE_LIMIT_RETRIES or delay > MAX_RETRY_AFTER_SECONDS:
+                    raise
+                logger.info("groq rate limited model=%s retry_in=%.1fs", self.model, delay)
+                await asyncio.sleep(delay)
 
     def _log_call(
         self,
@@ -425,6 +466,20 @@ class LiteLLMGroqProvider:
             return 0
         content = getattr(getattr(choices[0], "message", None), "content", None)
         return len(content) if isinstance(content, str) else 0
+
+    # Budget bookkeeping is blocking DB work; callers run these two in a thread
+    # so they never stall the event loop that serves every other request.
+    def _begin(self, prompt_chars: int):
+        from app.ai.budget import assert_learner_within_budget, assert_within_budget
+
+        assert_within_budget()
+        if self.owner_id is not None:
+            assert_learner_within_budget(self.owner_id)
+        return self._reserve_budgets(prompt_chars)
+
+    def _settle(self, reserved, global_reserved, final) -> None:
+        self._settle_learner(reserved, final)
+        self._settle_global(global_reserved, final)
 
     def _reserve_budgets(self, prompt_chars: int):
         from app.ai.budget import monthly_budget_usd, reserve_usage
@@ -509,19 +564,12 @@ class LiteLLMGroqProvider:
         prompt_version: str | None = None,
         temperature: float = 0.0,
     ) -> str:
-        from litellm import acompletion
-
-        from app.ai.budget import assert_learner_within_budget, assert_within_budget
-
-        assert_within_budget()
-        if self.owner_id is not None:
-            assert_learner_within_budget(self.owner_id)
-        global_reserved, reserved = self._reserve_budgets(len(system) + len(user))
+        global_reserved, reserved = await asyncio.to_thread(self._begin, len(system) + len(user))
         output_reservation = global_reserved or reserved
         started = time.monotonic()
         final = None
         try:
-            response = await acompletion(
+            response = await self._acompletion(
                 model=f"groq/{self.model}",
                 api_key=self.api_key,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -529,7 +577,8 @@ class LiteLLMGroqProvider:
                 **({"max_tokens": output_reservation[1]} if output_reservation is not None else {}),
                 timeout=60,
             )
-            final = self._log_call(
+            final = await asyncio.to_thread(
+                self._log_call,
                 kind="generate_text",
                 started=started,
                 response=response,
@@ -544,31 +593,22 @@ class LiteLLMGroqProvider:
             # Log the model so fallback_used=true is triageable server-side
             # (e.g. invalid model vs bad key vs terms acceptance).
             logger.warning("groq generate_text failed model=%s", self.model, exc_info=True)
-            self._settle_learner(reserved, final)
-            self._settle_global(global_reserved, final)
+            await asyncio.to_thread(self._settle, reserved, global_reserved, final)
             raise
-        self._settle_learner(reserved, final)
-        self._settle_global(global_reserved, final)
+        await asyncio.to_thread(self._settle, reserved, global_reserved, final)
         return text
 
     async def generate_structured(
         self, *, prompt: str, schema: type, prompt_version: str | None = None
     ) -> object:
-        from litellm import acompletion
-
-        from app.ai.budget import assert_learner_within_budget, assert_within_budget
-
-        assert_within_budget()
-        if self.owner_id is not None:
-            assert_learner_within_budget(self.owner_id)
         system = "You produce only valid JSON matching the schema."
         prompt_chars = len(system) + len(prompt)
-        global_reserved, reserved = self._reserve_budgets(prompt_chars)
+        global_reserved, reserved = await asyncio.to_thread(self._begin, prompt_chars)
         output_reservation = global_reserved or reserved
         started = time.monotonic()
         final = None
         try:
-            response = await acompletion(
+            response = await self._acompletion(
                 model=f"groq/{self.model}",
                 api_key=self.api_key,
                 messages=[
@@ -579,7 +619,8 @@ class LiteLLMGroqProvider:
                 **({"max_tokens": output_reservation[1]} if output_reservation is not None else {}),
                 timeout=60,
             )
-            final = self._log_call(
+            final = await asyncio.to_thread(
+                self._log_call,
                 kind="generate_structured",
                 started=started,
                 response=response,
@@ -592,9 +633,7 @@ class LiteLLMGroqProvider:
         except Exception:
             # Returned provider usage is chargeable even with malformed choices.
             logger.warning("groq generate_structured failed model=%s", self.model, exc_info=True)
-            self._settle_learner(reserved, final)
-            self._settle_global(global_reserved, final)
+            await asyncio.to_thread(self._settle, reserved, global_reserved, final)
             raise
-        self._settle_learner(reserved, final)
-        self._settle_global(global_reserved, final)
+        await asyncio.to_thread(self._settle, reserved, global_reserved, final)
         return schema.model_validate_json(text)

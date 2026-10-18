@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -35,6 +36,11 @@ from app.security.csrf import CSRFMiddleware
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging()
+    # litellm takes ~8-10s to import; pay it at startup, not on the event loop
+    # during a learner's first AI request. The bundled cost map avoids a fetch.
+    os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+    import litellm  # noqa: F401
+
     init_sentry()
     start_scheduler()
     try:

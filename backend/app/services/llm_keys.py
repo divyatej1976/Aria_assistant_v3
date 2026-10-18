@@ -258,4 +258,4 @@ def get_llm_provider_for_owner(db: Session, *, owner_id: UUID):
     api_key, model, _source = resolve_credential(db, owner_id=owner_id)
     if not api_key:
         return None
-    return LiteLLMGroqProvider(api_key=api_key, model=model, owner_id=owner_id)
+    return LiteLLMGroqProvider(api_key=api_key, model=model, owner_id=owner_id, db=db)

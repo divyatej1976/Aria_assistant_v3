@@ -620,3 +620,83 @@ def test_global_fallback_reservation_and_refund_stay_in_original_month(monkeypat
     assert budget.spend_usd() == pytest.approx(expected_new)
     current[0] = "2026-10"
     assert budget.spend_usd() == pytest.approx(0)
+
+
+def _stub_budgets(monkeypatch):
+    import app.ai.budget as budget
+
+    monkeypatch.setattr(budget, "assert_within_budget", lambda: None)
+    monkeypatch.setattr(budget, "assert_learner_within_budget", lambda owner: None)
+    monkeypatch.setattr(LiteLLMGroqProvider, "_reserve_budgets", lambda self, chars: (None, None))
+    monkeypatch.setattr(LiteLLMGroqProvider, "_log_call", lambda *a, **kw: (1, 1))
+
+
+def _reply(text="ok"):
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+
+
+def test_rate_limit_retries_after_groq_hint(monkeypatch):
+    import asyncio
+
+    import litellm
+
+    import app.ai.providers as providers
+
+    _stub_budgets(monkeypatch)
+    sleeps, calls = [], []
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    async def completion(**kw):
+        calls.append(kw)
+        if len(calls) == 1:
+            raise litellm.RateLimitError(
+                "Rate limit reached. Please try again in 1.5s.", llm_provider="groq", model="m"
+            )
+        return _reply()
+
+    monkeypatch.setattr(providers.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(litellm, "acompletion", completion)
+    provider = LiteLLMGroqProvider(api_key="test", model="m")
+    assert asyncio.run(provider.generate_text(system="s", user="u")) == "ok"
+    assert sleeps == [1.5] and len(calls) == 2
+
+
+def test_rate_limit_with_long_wait_is_not_retried(monkeypatch):
+    import asyncio
+
+    import litellm
+
+    _stub_budgets(monkeypatch)
+    calls = []
+
+    async def completion(**kw):
+        calls.append(kw)
+        raise litellm.RateLimitError("Please try again in 1m2.5s.", llm_provider="groq", model="m")
+
+    monkeypatch.setattr(litellm, "acompletion", completion)
+    with pytest.raises(litellm.RateLimitError):
+        asyncio.run(LiteLLMGroqProvider(api_key="t", model="m").generate_text(system="s", user="u"))
+    assert len(calls) == 1
+
+
+def test_provider_releases_db_transaction_before_awaiting(monkeypatch, session_factory):
+    import asyncio
+
+    import litellm
+    from sqlalchemy import text
+
+    _stub_budgets(monkeypatch)
+    db = session_factory()
+    db.execute(text("SELECT 1"))
+    assert db.in_transaction()
+
+    async def completion(**kw):
+        assert not db.in_transaction(), "connection held idle-in-transaction during LLM call"
+        return _reply()
+
+    monkeypatch.setattr(litellm, "acompletion", completion)
+    provider = LiteLLMGroqProvider(api_key="t", model="m", db=db)
+    assert asyncio.run(provider.generate_text(system="s", user="u")) == "ok"
+    db.close()
