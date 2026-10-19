@@ -1,7 +1,16 @@
 from functools import lru_cache
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def normalize_database_url(url: str) -> str:
+    """Hosts (Render, Heroku) hand out postgres(ql):// URLs; SQLAlchemy would pick the
+    uninstalled psycopg2 for those, so point them at the psycopg 3 driver we ship."""
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
 
 
 class Settings(BaseSettings):
@@ -111,6 +120,11 @@ class Settings(BaseSettings):
     @property
     def trusted_hosts(self) -> list[str]:
         return [host.strip() for host in self.aria_trusted_hosts.split(",") if host.strip()]
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg3(cls, value: str) -> str:
+        return normalize_database_url(value)
 
     @model_validator(mode="after")
     def _enforce_prod_database(self):

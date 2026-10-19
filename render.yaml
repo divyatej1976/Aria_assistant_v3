@@ -1,0 +1,97 @@
+# Render Blueprint for ARIA: Dashboard → New → Blueprint → pick this repo.
+#
+# Same shape as docker-compose.prod.yml: one public proxy (Caddy) in front of a
+# private backend and a private frontend, plus managed PostgreSQL (pgvector).
+# Values marked sync: false are asked for once when the Blueprint is created.
+# PUBLIC_URL below means the proxy's address, e.g. https://aria.onrender.com or
+# your custom domain; enter the same origin everywhere it is asked for.
+
+databases:
+  - name: aria-db
+    databaseName: aria
+    user: aria
+    # Matches the pg_dump 16 client in the backend image and the CI database.
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: aria
+    runtime: docker
+    dockerContext: ./deploy/render
+    dockerfilePath: ./deploy/render/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: BACKEND_HOSTPORT
+        fromService:
+          type: pserv
+          name: aria-backend
+          property: hostport
+      - key: FRONTEND_HOSTPORT
+        fromService:
+          type: pserv
+          name: aria-frontend
+          property: hostport
+
+  - type: pserv
+    name: aria-backend
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile.prod
+    # Importing the AI stack needs ~400 MB; 512 MB plans run out of memory.
+    plan: 1c-2g
+    preDeployCommand: alembic upgrade head
+    disk:
+      name: audio
+      mountPath: /audio
+      sizeGB: 1
+    envVars:
+      - key: ARIA_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aria-db
+          property: connectionString
+      - key: ARIA_SESSION_SECRET
+        generateValue: true
+      - key: ARIA_PUBLIC_URL
+        sync: false # PUBLIC_URL, e.g. https://aria.onrender.com
+      - key: ARIA_CORS_ORIGINS
+        sync: false # PUBLIC_URL again
+      - key: ARIA_TRUSTED_HOSTS
+        sync: false # host only, e.g. aria.onrender.com
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: openai/gpt-oss-120b
+      - key: ARIA_LLM_KEYS_ENCRYPTION_KEY
+        sync: false # python scripts/generate_llm_keys_key.py
+      - key: ARIA_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: ARIA_RATE_LIMIT_BACKEND
+        value: db
+      - key: ARIA_SCHEDULER_ENABLED
+        value: "true"
+      - key: ARIA_AUDIO_DIR
+        value: /audio
+      # Render Postgres keeps its own backups; the in-app pg_dump job would only
+      # write to this service's disk.
+      - key: ARIA_BACKUP_ENABLED
+        value: "false"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false # e.g. ARIA <noreply@yourdomain.com>
+
+  - type: pserv
+    name: aria-frontend
+    runtime: docker
+    dockerContext: ./frontend-v2
+    dockerfilePath: ./frontend-v2/Dockerfile.prod
+    envVars:
+      # Baked in at build time (Render passes env vars as Docker build args).
+      - key: NEXT_PUBLIC_API_URL
+        sync: false # PUBLIC_URL again

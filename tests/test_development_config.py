@@ -40,3 +40,12 @@ def test_container_tools_match_supported_runtime_features():
         assert "postgresql-client-16" in source
         assert "trixie-pgdg main" in source
         assert "signed-by=" in source
+
+
+def test_hosted_postgres_urls_use_the_psycopg3_driver() -> None:
+    from app.core.config import normalize_database_url
+
+    assert normalize_database_url("postgresql://u:p@h:5432/d") == "postgresql+psycopg://u:p@h:5432/d"
+    assert normalize_database_url("postgres://u:p@h/d") == "postgresql+psycopg://u:p@h/d"
+    assert normalize_database_url("postgresql+psycopg://u:p@h/d") == "postgresql+psycopg://u:p@h/d"
+    assert normalize_database_url("sqlite:///aria.db") == "sqlite:///aria.db"

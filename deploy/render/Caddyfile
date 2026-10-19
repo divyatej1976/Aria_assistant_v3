@@ -1,0 +1,59 @@
+# ARIA on Render: the single public entry point (same routes as deploy/caddy).
+#
+# Render terminates TLS and forwards plain HTTP to $PORT. Frontend and backend
+# are private services on Render's network; keeping one public origin is what
+# makes the SameSite=Strict session + CSRF cookies work (two *.onrender.com
+# hosts would count as different sites).
+{
+	auto_https off
+	admin off
+	servers {
+		# Render's load balancer reaches us from a private address and appends the
+		# real client to X-Forwarded-For; read it right-to-left so a client cannot
+		# spoof its own IP (rate limits key on it).
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+:{$PORT} {
+	encode gzip
+
+	# Render's health check: proves the proxy is up without depending on the
+	# Host header the backend's trusted-host check expects.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle /metrics {
+		respond 403
+	}
+
+	handle /health {
+		respond 403
+	}
+
+	handle /api/* {
+		reverse_proxy {$BACKEND_HOSTPORT} {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
+	handle /ready {
+		reverse_proxy {$BACKEND_HOSTPORT} {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
+	handle {
+		reverse_proxy {$FRONTEND_HOSTPORT}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
