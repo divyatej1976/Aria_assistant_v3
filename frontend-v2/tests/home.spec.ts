@@ -11,7 +11,7 @@ test("first visit asks one question, then home turns into continue-learning", as
   await expect(page.getByRole("heading", { name: "What do you want to learn?" })).toBeVisible();
   await expect(page.locator(".first-chapter li")).toHaveCount(3);
   await expect(page.getByText(/0-day streak/)).toHaveCount(0);
-  await expect(page.getByRole("img", { name: /of concepts supported/ })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: /of concepts strong/ })).toHaveCount(0);
 
   // Asking from Home opens a chat and sends the question straight away.
   await page.getByLabel("Your question").fill("What is a primary key?");

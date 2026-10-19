@@ -28,6 +28,7 @@ type Summary = {
   question_count: number;
   created_at: string;
   completed_scores?: AssessmentScore[];
+  topic?: string | null;
 };
 type Question = QuizQuestion;
 type ReviewDetail = {
@@ -346,7 +347,7 @@ function AssessPageWorkspace() {
                     <div className="card-header">
                       <div className="fsq-ic"><Icon name="clipboard" size={26} /></div>
                       <div>
-                        <b style={{ fontSize: 17 }}>{a.mode === "DAILY_REVIEW" ? "Daily learning review" : formatLabel(a.format)}</b>
+                        <b style={{ fontSize: 17 }}>{a.mode === "DAILY_REVIEW" ? "Daily learning review" : a.topic ?? formatLabel(a.format)}</b>
                         <div style={{ fontSize: 12, color: "var(--text-3)" }}>{a.question_count} questions · {fmtDate(a.created_at)}</div>
                         {a.mode === "DAILY_REVIEW" && <div style={{ fontSize: 12, color: "var(--text-2)" }}>Reviews today&apos;s tutoring conversation.</div>}
                       </div>
@@ -467,7 +468,7 @@ function AssessPageWorkspace() {
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="clipboard" size={20} /> Create assessment</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setCreateOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
-          {context && <QuizSetup contextId={context.id} values={setup} onChange={setSetup} />}
+          {context && <QuizSetup contextId={context.id} values={setup} onChange={setSetup} libraryReady={materialReady} />}
           {setupProblem(setup, materialReady) && <p className="field-help" role="status">{setupProblem(setup, materialReady)}</p>}
           {createError && <div className="inline-error" role="alert"><b>Assessment could not be created</b><p>{createError}</p></div>}
           {busy && <RequestStatus label="Preparing your assessment…" />}

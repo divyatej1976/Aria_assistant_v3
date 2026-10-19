@@ -6,6 +6,14 @@ class MCQItem(BaseModel):
     options: list[str] = Field(min_length=4, max_length=4)
     correct_option: str = Field(min_length=1, max_length=1)
     explanation: str | None = Field(default=None, max_length=400)
+    # Short topic label, used to file chat-quiz evidence under a concept.
+    concept: str | None = None
+
+    @field_validator("concept")
+    @classmethod
+    def tidy_concept(cls, value: str | None) -> str | None:
+        name = " ".join((value or "").split())[:80]
+        return name or None
 
     @field_validator("correct_option")
     @classmethod

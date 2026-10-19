@@ -70,7 +70,7 @@ export function pickNextAction(input: NextActionInput): NextAction {
     kind: input.hasLastSession ? "study" : "study",
     icon: "message",
     title: input.hasLastSession ? "Continue your study session" : "Start your first study session",
-    why: "Small consistent sessions are how concepts reach Supported.",
+    why: "Small, regular sessions are how topics become strong.",
     cta: "Open ARIA tutor",
     href: "/app/learn",
   };

@@ -82,6 +82,7 @@ class AssessmentSummary(BaseModel):
     completed_scores: list[AssessmentScore] = Field(default_factory=list)
     created_at: datetime
     settings: QuizSettings = Field(default_factory=QuizSettings)
+    topic: str | None = None
 
 
 class AttemptStartResponse(BaseModel):

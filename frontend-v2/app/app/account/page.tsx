@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
-import { api, apiBlob, ApiError } from "@/lib/api";
+import { api, apiBlob, ApiError, clearToken } from "@/lib/api";
 import { useAuth } from "@/components/auth-provider";
 import { useActiveContext } from "@/components/use-active-context";
 import { disablePush, enablePush, pushSupported } from "@/lib/push";
@@ -20,12 +20,6 @@ type Capabilities = { allowed_models: string[]; model: string; personal_keys_ena
 
 const PREF_REMINDERS = "notify_reminders";
 const PREF_PUSH = "notify_push";
-
-function initialsOf(name: string | null | undefined, email: string | null | undefined): string {
-  const source = (name || email || "AR").trim();
-  const parts = source.split(/[\s@._-]+/).filter(Boolean);
-  return (parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "AR");
-}
 
 function fmtDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -81,8 +75,6 @@ export default function AccountPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
-  const [pic, setPic] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [remindersOn, setRemindersOn] = useState(false);
   const [pushOn, setPushOn] = useState(false);
@@ -342,7 +334,6 @@ export default function AccountPage() {
     }
   };
 
-  const initials = initialsOf(me?.display_name, me?.email);
 
   if (loadFailed) {
     return <ErrorState message="This screen could not be loaded." onRetry={() => window.location.reload()} />;
@@ -356,25 +347,6 @@ export default function AccountPage() {
 
       <div className="grid-2">
         <div className="ui-stack ui-gap-18">
-          <div className="card card-pad">
-            <h2 className="card-heading">Profile picture <span className="profile-preview-note" title="This picture is a temporary preview and disappears when you leave or refresh this page.">Preview only — not saved</span></h2>
-            <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 14 }}>
-              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--accent-grad)", color: "var(--on-accent)", fontWeight: 800, fontSize: 30, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "var(--shadow-2)", flexShrink: 0 }}>
-                {pic ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- local data-URL preview; next/image adds nothing for blob previews
-                  <img src={pic} alt="Temporary profile preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  initials
-                )}
-              </div>
-              <div className="ui-stack ui-gap-8">
-                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}><Icon name="user" /> Preview photo</button>
-                {pic && <button className="btn btn-ghost" onClick={() => setPic(null)}>Remove</button>}
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = () => setPic(r.result as string); r.readAsDataURL(f); } }} />
-              </div>
-            </div>
-          </div>
-
           <div className="card card-pad">
             <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Notifications</h2>
             <ToggleRow
@@ -394,12 +366,9 @@ export default function AccountPage() {
           </div>
 
           <div className="card card-pad">
-            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Your AI key</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>AI model</h2>
             <p style={{ fontSize: 12.5, color: "var(--text-2)", margin: "0 0 12px" }}>
-              ARIA answers with a shared model until you add your own Groq key. Your key is
-              stored encrypted, only ever used for your requests, and never shown again — not
-              even to you. Get one free at{" "}
-              <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>.
+              ARIA works out of the box — you don&apos;t need to set anything up here.
             </p>
             {llmStatus === null ? (
               llmUnavailable ? (
@@ -446,7 +415,13 @@ export default function AccountPage() {
             ) : !personalKeysEnabled ? (
               <p>Personal AI keys are disabled on this deployment. Contact the administrator to enable secure key storage.</p>
             ) : (
-              <div>
+              <details className="quiz-customize">
+                <summary>Advanced: use your own Groq key</summary>
+                <p style={{ fontSize: 12.5, color: "var(--text-2)", margin: "8px 0 12px" }}>
+                  Your key is stored encrypted, only used for your requests, and never shown again.
+                  Get one free at{" "}
+                  <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>.
+                </p>
                 <div className="form-group">
                   <label className="field-label" htmlFor="llm-key">Groq API Key</label>
                   <input
@@ -470,7 +445,7 @@ export default function AccountPage() {
                 <button className="btn btn-primary" onClick={() => void saveLlmKey()} disabled={llmBusy || !llmModel}>
                   <Icon name="lock" /> Save my key
                 </button>
-              </div>
+              </details>
             )}
           </div>
 
@@ -523,6 +498,30 @@ export default function AccountPage() {
                   <Icon name="alert" /> Delete this context
                 </button>
               )}
+              <button
+                className="btn btn-ghost"
+                style={{ color: "var(--danger-strong)" }}
+                onClick={() =>
+                  setConfirmState({
+                    title: "Delete all my data",
+                    body: "Permanently delete every subject, chat, file, quiz and roadmap, and sign out on all devices? Security audit records are kept per the retention policy. This cannot be undone.",
+                    confirmLabel: "Delete everything",
+                    onConfirm: async () => {
+                      try {
+                        await api("/api/v1/account/data", { method: "DELETE" });
+                        clearToken();
+                        // Full reload is intentional: it clears all client state after the data is gone.
+                        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                        window.location.assign("/");
+                      } catch (e) {
+                        toast(e instanceof ApiError ? e.message : "Could not delete your data. Please try again.", "error");
+                      }
+                    },
+                  })
+                }
+              >
+                <Icon name="x" /> Delete all my data
+              </button>
             </div>
           </div>
 

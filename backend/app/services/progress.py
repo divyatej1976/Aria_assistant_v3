@@ -30,7 +30,7 @@ BADGE_CATALOG = [
     ("streak_3", "3-day learning streak"),
     ("streak_7", "7-day learning streak"),
     ("streak_30", "30-day learning streak"),
-    ("concept_supported", "First supported concept"),
+    ("concept_supported", "First strong concept"),
 ]
 
 HEATMAP_DAYS = 182
@@ -191,7 +191,7 @@ def sync_badges(
         if stats["longest_streak"] >= threshold:
             earn(f"streak_{threshold}", f"{threshold}-day learning streak")
     if (supported or 0) > 0:
-        earn("concept_supported", "First supported concept")
+        earn("concept_supported", "First strong concept")
     db.commit()
 
 

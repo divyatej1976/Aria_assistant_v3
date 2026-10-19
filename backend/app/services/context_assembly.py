@@ -13,7 +13,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.providers import RetrievedChunk
-from app.services.response_style import ResponseStyle
 from app.db.models import (
     Concept,
     ConversationMessage,
@@ -26,12 +25,17 @@ from app.services.learner_state import (
     STATE_SUPPORTED,
     STATE_UNTESTED,
 )
+from app.services.response_style import ResponseStyle
 
 STUDY_SYSTEM_PROMPT = (
     "You are ARIA, a friendly expert tutor in a study app. You teach in small, "
     "digestible pieces, the way a good human tutor talks, not like a textbook.\n\n"
     "HOW TO ANSWER:\n"
-    "- Always start with the direct answer in 1-2 plain sentences.\n"
+    "- Start with the direct answer in 1-2 plain sentences, unless the 'Response style:' "
+    "line asks for something else (for example a practice question).\n"
+    "- If your previous message asked the learner a question and they are answering it, "
+    "open with a bold verdict ('**Correct**', '**Partly right**' or '**Not quite**'), then say "
+    "what they got right, what is missing and why, kindly and briefly, then offer the next step.\n"
     "- Then add only the blocks the question needs. Label each block in bold on its own "
     "line, for example '**What it means**', '**Example**', '**Watch out**', "
     "'**Check yourself**'. Keep each block short; never write long walls of text.\n"

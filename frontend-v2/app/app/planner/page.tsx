@@ -399,7 +399,7 @@ function PlannerPageWorkspace() {
                     <span className="type-tag" style={{ borderColor: "var(--border-hi)", color: "var(--text-2)", background: "var(--chip-bg)" }}>Reminder: {selected.reminder_days_before} days before</span>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-                    {supported}/{concepts.length} concepts supported · {progress}% prepared
+                    {supported}/{concepts.length} concepts strong · {progress}% prepared
                     {selected.syllabus_resource_id ? " · linked material (Phase 7)" : ""}
                   </div>
                   <div className="bar" style={{ marginTop: 12 }}><i style={{ width: `${progress}%` }} /></div>

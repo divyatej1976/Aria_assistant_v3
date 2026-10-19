@@ -54,7 +54,7 @@ _PROMPTS: dict[str, PromptVersion] = {
     ),
     "mcq_generation": PromptVersion(
         key="mcq_generation",
-        version=3,
+        version=4,
         system="You produce only valid JSON matching the schema.",
         template=(
             "Generate multiple-choice questions grounded only in the supplied study material. "
@@ -63,7 +63,8 @@ _PROMPTS: dict[str, PromptVersion] = {
             "every other option must be clearly wrong, never an equivalent way of writing or "
             "saying the right answer. Return JSON matching the schema:\n"
             '{{"questions": [{{"prompt": "...", "options": ["...", "...", "...", "..."], '
-            '"correct_option": "A", "explanation": "One sentence on why the answer is right."}}]}}\n\n'
+            '"correct_option": "A", "explanation": "One sentence on why the answer is right.", '
+            '"concept": "The topic it tests, 2-4 words, e.g. HAVING clause"}}]}}\n\n'
             "Difficulty: {difficulty}. Produce {count} questions.\n\nStudy material:\n{material}"
         ),
     ),

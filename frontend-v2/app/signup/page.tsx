@@ -7,6 +7,7 @@ import { AuthShell } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { toast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
+import { deviceName } from "@/lib/device-name";
 import { useAuth, type AuthUser } from "@/components/auth-provider";
 
 export default function SignUpPage() {
@@ -33,7 +34,7 @@ export default function SignUpPage() {
     try {
       await api("/api/v1/auth/register?bearer=false", {
         method: "POST",
-        body: JSON.stringify({ email, password, display_name: name }),
+        body: JSON.stringify({ email, password, display_name: name, device_label: deviceName() }),
       });
       const me = await api<AuthUser & { display_name?: string | null }>("/api/v1/auth/me");
       setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false });

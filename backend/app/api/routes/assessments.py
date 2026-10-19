@@ -13,6 +13,8 @@ from app.db.models import (
     Assessment,
     AssessmentAttempt,
     AssessmentQuestion,
+    Concept,
+    ConversationMessage,
     Evaluation,
     LearningContext,
 )
@@ -113,6 +115,7 @@ def summary_response(
     question_count: int = 0,
     submitted_attempt_count: int = 0,
     completed_scores: list[AssessmentScore] | None = None,
+    topic: str | None = None,
 ) -> AssessmentSummary:
     return AssessmentSummary(
         id=str(assessment.id),
@@ -125,6 +128,7 @@ def summary_response(
         completed_scores=completed_scores or [],
         created_at=assessment.created_at,
         settings=quiz_settings(assessment),
+        topic=topic,
     )
 
 
@@ -168,6 +172,39 @@ def list_assessments(
             .group_by(AssessmentAttempt.assessment_id)
         ).all()
     )
+    # Name each quiz after the concept most of its questions test (ordered so the top one wins).
+    topics: dict[UUID, str] = {}
+    for assessment_id, name, _ in db.execute(
+        select(AssessmentQuestion.assessment_id, Concept.name, func.count(AssessmentQuestion.id))
+        .join(Concept, Concept.id == AssessmentQuestion.concept_id)
+        .where(AssessmentQuestion.assessment_id.in_([item.id for item in assessments]))
+        .group_by(AssessmentQuestion.assessment_id, Concept.name)
+        .order_by(func.count(AssessmentQuestion.id).desc(), Concept.name)
+    ).all():
+        topics.setdefault(assessment_id, name)
+    # Chat and topic quizzes have no concepts: fall back to the typed topic, then the chat's first question.
+    from app.services.study import _plain_snippet
+
+    first_chat = {
+        item.id: UUID(ids[0]) for item in assessments
+        if item.id not in topics and (ids := (item.configuration or {}).get("session_ids"))
+    }
+    openers: dict[UUID, str] = {}
+    for session_id, content in db.execute(
+        select(ConversationMessage.study_session_id, ConversationMessage.content)
+        .where(ConversationMessage.study_session_id.in_(set(first_chat.values())),
+               ConversationMessage.owner_id == learner.id, ConversationMessage.role == "user")
+        .order_by(ConversationMessage.position)
+    ).all():
+        openers.setdefault(session_id, content)
+    for item in assessments:
+        config = item.configuration or {}
+        if item.id in topics:
+            continue
+        if config.get("topic"):
+            topics[item.id] = str(config["topic"])[:60]
+        elif item.id in first_chat and first_chat[item.id] in openers:
+            topics[item.id] = _plain_snippet(openers[first_chat[item.id]], 60)
     scores: dict[UUID, list[AssessmentScore]] = {}
     ranked = (
         select(
@@ -221,6 +258,7 @@ def list_assessments(
             question_count=counts.get(assessment.id, 0),
             submitted_attempt_count=submitted.get(assessment.id, 0),
             completed_scores=scores.get(assessment.id),
+            topic=topics.get(assessment.id),
         )
         for assessment in assessments
     ]

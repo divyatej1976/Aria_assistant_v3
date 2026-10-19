@@ -163,9 +163,9 @@ def test_badges_earn_on_read(client: TestClient) -> None:
     assert catalog["first_study"]["earned"] is False
 
     again = client.get("/api/v1/progress/badges", headers=headers(token))
-    assert [item["code"] for item in again.json() if item["earned"]] == [
-        "first_assessment"
-    ]
+    earned_codes = {item["code"] for item in again.json() if item["earned"]}
+    # Blind "A" answers may or may not support a concept now that options are shuffled.
+    assert "first_assessment" in earned_codes and "first_study" not in earned_codes
 
 
 def test_timezone_preference_changes_local_today(client: TestClient) -> None:
@@ -212,3 +212,12 @@ def test_progress_is_isolated(client: TestClient) -> None:
         "/api/v1/progress/consistency", headers=headers(second["access_token"])
     ).json()
     assert second_consistency["current_streak"] == 0
+
+
+def test_badge_earned_at_is_sent_as_utc() -> None:
+    from datetime import datetime
+
+    from app.schemas.progress import BadgeResponse
+
+    badge = BadgeResponse(code="x", label="X", earned=True, earned_at=datetime(2026, 10, 18, 20, 5))
+    assert '"earned_at":"2026-10-18T20:05:00Z"' in badge.model_dump_json()

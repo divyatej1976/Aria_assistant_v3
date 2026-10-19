@@ -132,6 +132,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     refreshCount();
   }, [refreshCount]);
 
+  // Streaks, "today" and dates are computed server-side in the learner's timezone; tell it ours once per session.
+  useEffect(() => {
+    if (!user) return;
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    try { if (!zone || window.sessionStorage.getItem("aria.tz") === zone) return; } catch {}
+    api("/api/v1/me/preferences", { method: "PUT", body: JSON.stringify({ key: "timezone", value: zone }) })
+      .then(() => { try { window.sessionStorage.setItem("aria.tz", zone); } catch {} })
+      .catch(() => {});
+  }, [user]);
+
   const initials = (user?.display_name || user?.email || "AR")
     .split(/[\s@.]+/)
     .filter(Boolean)
@@ -282,7 +292,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <PaletteSwitcher />
             <button ref={profileTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="avatar-btn" onClick={(e) => { e.stopPropagation(); setProfileOpen((o) => !o); setBellOpen(false); }} aria-label="Profile" aria-expanded={profileOpen}>
               {initials}
-              <span className="online" />
+              {user && !user.verified && <span className="attention-dot" title="Email not verified" />}
             </button>
 
             <AnimatePresence>

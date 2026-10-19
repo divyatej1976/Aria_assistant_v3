@@ -311,7 +311,7 @@ function RoadmapsPageWorkspace() {
           <h1 className="pg-title">Roadmaps</h1>
           <p className="pg-sub">Choose a goal and follow milestones backed by your learning evidence.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setOpen(true); }}>
+        <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setGoal((g) => g || context?.title || ""); setOpen(true); }}>
           <Icon name="route" /> Create roadmap
         </button>
       </div>
@@ -346,7 +346,7 @@ function RoadmapsPageWorkspace() {
           <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
             No roadmap yet. Set a learning goal to see the skills and milestones to work through.
           </p>
-          <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setOpen(true); }} style={{ justifyContent: "center" }}>
+          <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setGoal((g) => g || context?.title || ""); setOpen(true); }} style={{ justifyContent: "center" }}>
             <Icon name="route" /> Create roadmap
           </button>
         </div>
@@ -368,7 +368,7 @@ function RoadmapsPageWorkspace() {
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
             <span className={`tag-chip${selected.ticked ? " tag-chip-selected" : ""}`}>
-              {selected.ticked ? "Completed" : ({ NOT_STARTED: "Upcoming", DEVELOPING: "Developing", NEEDS_REVIEW: "Review needed", SUPPORTED: "Evidence supported" }[selected.state] ?? "Learning in progress")}
+              {selected.ticked ? "Completed" : ({ NOT_STARTED: "Upcoming", DEVELOPING: "Developing", NEEDS_REVIEW: "Review needed", SUPPORTED: "Strong" }[selected.state] ?? "Learning in progress")}
             </span>
             <span className="tag-chip">{selected.confidence}% confidence</span>
             {selected.prereqNames && selected.prereqNames.length > 0 && (

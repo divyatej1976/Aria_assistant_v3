@@ -10,7 +10,7 @@ export type MapConcept = { concept_id: string; concept_name: string; state: stri
 type Evidence = { concept_id: string; signal: string; valid: boolean };
 
 const STATES: Record<string, { label: string; color: string; icon: IconName }> = {
-  SUPPORTED: { label: "Supported", color: "var(--success-strong)", icon: "check" },
+  SUPPORTED: { label: "Strong", color: "var(--success-strong)", icon: "check" },
   DEVELOPING: { label: "Developing", color: "var(--accent-strong)", icon: "activity" },
   NEEDS_REVIEW: { label: "Needs review", color: "var(--danger-strong)", icon: "refresh" },
   UNTESTED: { label: "Untested", color: "var(--text-2)", icon: "target" },

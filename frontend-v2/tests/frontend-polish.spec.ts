@@ -185,7 +185,7 @@ test("first session guidance makes materials optional", async ({ page }, info) =
   await expect(page.getByRole("heading", { name: "Three small steps" })).toBeVisible();
   await expect(page.locator(".first-chapter")).toContainText("Your own notes are optional");
   await expect(page.locator(".first-chapter li").filter({ hasText: "Add your own material" })).toContainText("Optional");
-  await expect(page.getByRole("img", { name: "0% of concepts supported" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "0% of concepts strong" })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("first-session.png"), fullPage: true });
 });
 
@@ -202,7 +202,7 @@ test("creating a review keeps the guide until the learner submits it", async ({ 
   taken = true;
   await page.reload();
   await expect(page.locator(".first-chapter")).toHaveCount(0);
-  await expect(page.getByRole("img", { name: "0% of concepts supported" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "0% of concepts strong" })).toBeVisible();
 });
 
 test("slow replies explain the wait and the daily review has a clear action", async ({ page }) => {

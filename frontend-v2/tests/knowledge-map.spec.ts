@@ -60,7 +60,7 @@ test("knowledge map renders real concepts and evidence after learning", async ({
   await expect(page.getByLabel("Search concepts")).toBeVisible({ timeout: 20_000 });
 
   // filter chips narrow the visible set to zero and back
-  await page.getByRole("button", { name: "Supported" }).click();
+  await page.getByRole("button", { name: "Strong" }).click();
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "All", exact: true }).click();
 

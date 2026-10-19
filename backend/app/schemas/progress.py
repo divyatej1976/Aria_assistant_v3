@@ -1,6 +1,6 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class HeatmapDay(BaseModel):
@@ -22,6 +22,12 @@ class BadgeResponse(BaseModel):
     label: str
     earned: bool
     earned_at: datetime | None
+
+    @field_validator("earned_at")
+    @classmethod
+    def assume_utc(cls, value: datetime | None) -> datetime | None:
+        # SQLite returns naive UTC; without an offset browsers read it as local time (wrong day).
+        return value.replace(tzinfo=UTC) if value is not None and value.tzinfo is None else value
 
 
 class ActivityResponse(BaseModel):

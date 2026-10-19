@@ -30,7 +30,6 @@
 .ui-mt-16 { margin-top: 16px; }
 .card-header { display: flex; align-items: center; gap: 14px; }
 .card-heading { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
-.profile-preview-note { display: inline-block; font-size: 11px; color: var(--text-3); font-weight: 600; margin-left: 8px; }
 .card.empty-state-card { text-align: center; color: var(--text-3); padding: 60px; }
 .m-head.dialog-heading { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 18px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 18px; }
@@ -112,8 +111,8 @@ html[data-theme="noir"].noir-gold { --on-accent: #22190d; }
 .learning-progress p:not(.eyebrow) { color: var(--text-2); font-size: 12px; }
 .text-link { color: var(--accent-strong); display: inline-flex; gap: 8px; align-items: center; font-weight: 700; font-size: 12px; text-decoration: none; margin-top: 18px; }
 .text-link:hover { text-decoration: underline; text-underline-offset: 4px; }
-.next-action-card { display: flex; align-items: center; gap: 18px; padding: 22px; margin-top: 22px; border-radius: 22px; border: 1px solid var(--border-hi); background: var(--bg-1); }
-.next-action-card > div { flex: 1; min-width: 0; }
+.next-action-card { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px; margin-top: 22px; border-radius: 22px; border: 1px solid var(--border-hi); background: var(--bg-1); }
+.next-action-card > div { flex: 1 1 180px; min-width: 0; }
 .next-action-card h2 { font-size: 16px; margin: 5px 0; }
 .next-action-card p:not(.eyebrow) { font-size: 12px; color: var(--text-2); }
 .next-action-card > .btn { flex-shrink: 0; }
@@ -771,7 +770,6 @@ body {
 }
 .cw {
   display: inline-block;
-  margin-right: 0.28em;
   opacity: 0;
   filter: blur(10px);
   transform: translateY(12px);
@@ -1193,7 +1191,10 @@ body {
 @media (max-width: 640px) {
   .shell-top { padding: 0 18px; }
   .shell-content { padding: 22px 18px 90px; }
-  .shell-banner { margin: 14px 18px 0; }
+  .shell-banner { margin: 14px 18px 0; padding: 10px 12px; flex-wrap: nowrap; align-items: center; gap: 10px; }
+  /* One compact row on phones: the heading alone says what to do. */
+  .shell-banner p { display: none; }
+  .shell-banner .btn { padding: 8px 12px; font-size: 12px; white-space: nowrap; }
 }
 .nav-sec {
   font-size: 10px;
@@ -1254,14 +1255,14 @@ body {
   position: relative;
   box-shadow: var(--shadow-1);
 }
-.avatar-btn .online {
+.avatar-btn .attention-dot {
   position: absolute;
   bottom: 1px;
   right: 1px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--success);
+  background: var(--streak);
   border: 2px solid var(--bg-1);
 }
 .popover-card {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 
 export type QuizSetupValues = {
@@ -17,7 +17,8 @@ export type QuizSetupValues = {
 };
 
 export const DEFAULT_SETUP: QuizSetupValues = {
-  source: "library", sessionIds: [], topic: "", format: "mcq", count: 10, difficulty: "medium",
+  // Matches the "Quick practice" preset.
+  source: "library", sessionIds: [], topic: "", format: "mcq", count: 5, difficulty: "medium",
   timing: "none", minutes: 10, seconds: 45, reveal: "practice",
 };
 export const MAX_QUESTIONS = 50;
@@ -102,23 +103,44 @@ function Choice<T extends string>({ label, value, options, onChange }: {
   );
 }
 
-export function QuizSetup({ contextId, values, onChange }: {
-  contextId: string; values: QuizSetupValues; onChange: (v: QuizSetupValues) => void;
+export function QuizSetup({ contextId, values, onChange, libraryReady = null }: {
+  contextId: string; values: QuizSetupValues; onChange: (v: QuizSetupValues) => void; libraryReady?: boolean | null;
 }) {
   const [chats, setChats] = useState<Chat[] | null>(null);
+  // The chat list loads after the learner may already have changed settings; read the latest ones.
+  const latest = useRef({ values, onChange });
+  useEffect(() => { latest.current = { values, onChange }; });
   const set = <K extends keyof QuizSetupValues>(key: K, value: QuizSetupValues[K]) => onChange({ ...values, [key]: value });
 
   useEffect(() => {
     let cancelled = false;
     api<Chat[]>(`/api/v1/study/sessions?context_id=${contextId}`)
-      .then((list) => { if (!cancelled) setChats(list.filter((chat) => (chat.message_count ?? 0) > 1)); })
+      .then((list) => {
+        if (cancelled) return;
+        const usable = list.filter((chat) => (chat.message_count ?? 0) > 1);
+        setChats(usable);
+      })
       .catch(() => { if (!cancelled) setChats([]); });
     return () => { cancelled = true; };
   }, [contextId]);
 
+  // No ready files but some chats (the usual new learner): quiz on the latest chat, ready in one tap.
+  const switched = useRef(false);
+  useEffect(() => {
+    const { values: now, onChange: apply } = latest.current;
+    if (switched.current || libraryReady !== false || !chats?.length || now.source !== "library") return;
+    switched.current = true;
+    apply({ ...now, source: "chats", sessionIds: now.sessionIds.length ? now.sessionIds : [chats[0].id] });
+  }, [libraryReady, chats]);
+
+  const chooseSource = (source: QuizSetupValues["source"]) => onChange({
+    ...values, source,
+    sessionIds: source === "chats" && values.sessionIds.length === 0 && chats?.length ? [chats[0].id] : values.sessionIds,
+  });
+
   return (
     <div className="quiz-setup">
-      <Choice label="Quiz me on" value={values.source} onChange={(v) => set("source", v)} options={[
+      <Choice label="Quiz me on" value={values.source} onChange={chooseSource} options={[
         { value: "library", label: "My library", hint: "Files and notes shared with every chat" },
         { value: "chats", label: "My chats", hint: "Pick the conversations to quiz on" },
         { value: "topic", label: "A topic", hint: "Type any topic" },

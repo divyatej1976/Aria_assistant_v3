@@ -28,7 +28,7 @@ type EvidenceItem = {
 
 const FILTERS: { key: "ALL" | "SUPPORTED" | "DEVELOPING" | "NEEDS_REVIEW" | "UNTESTED"; label: string }[] = [
   { key: "ALL", label: "All" },
-  { key: "SUPPORTED", label: "Supported" },
+  { key: "SUPPORTED", label: "Strong" },
   { key: "DEVELOPING", label: "Developing" },
   { key: "NEEDS_REVIEW", label: "Needs review" },
   { key: "UNTESTED", label: "Untested" },

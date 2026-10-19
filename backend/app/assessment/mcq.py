@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import random
 import re
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from app.core.errors import ValidationError
 from app.db.models import Resource, ResourceChunk
 from app.services.concepts import chunk_ids_for_concepts, concept_id_for_chunk
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class GeneratedMCQ:
@@ -23,6 +26,7 @@ class GeneratedMCQ:
     concept_id: UUID | None
     kind: str = "mcq"
     explanation: str | None = None
+    concept_name: str | None = None
 
 
 def _sentences(content: str) -> list[str]:
@@ -267,11 +271,11 @@ async def generate_conversation_mcqs(
             )
             if parsed.questions:
                 return [GeneratedMCQ(item.prompt, item.options, item.correct_option, None,
-                                     explanation=item.explanation)
+                                     explanation=item.explanation, concept_name=item.concept)
                         for item in parsed.questions[:count]]
         except Exception:
             # A provider outage still permits explicitly labelled recall practice.
-            pass
+            logger.warning("conversation quiz generation failed; using recall fallback", exc_info=True)
     sentences = list(dict.fromkeys(_sentences(transcript)))
     if len(sentences) < 4:
         raise ValidationError("Not enough learning yet for a daily review. Explore a topic with your tutor first.")

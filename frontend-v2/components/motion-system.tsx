@@ -60,8 +60,8 @@ function useCountUp(value: number, enabled: boolean) {
   return { ref, display: enabled ? animated : value };
 }
 
-export function ProgressRing({ value, label, caption = "supported", size, tone = "accent" }: {
-  value: number; label: string; caption?: string; size?: number;
+export function ProgressRing({ value, label, caption = "strong", size, tone = "accent", text }: {
+  value: number; label: string; caption?: string; size?: number; text?: string;
   tone?: "accent" | "success" | "warning" | "danger";
 }) {
   const reduced = useMotionPreference();
@@ -70,7 +70,7 @@ export function ProgressRing({ value, label, caption = "supported", size, tone =
   const { ref, display } = useCountUp(percent, !reduced);
   const style = size ? ({ width: size, height: size } as CSSProperties) : undefined;
   return (
-    <div ref={ref} className={`learning-ring ring-tone-${tone}`} role="img" aria-label={`${percent}% ${label}`} style={style}>
+    <div ref={ref} className={`learning-ring ring-tone-${tone}`} role="img" aria-label={text ? `${text} ${caption}` : `${percent}% ${label}`} style={style}>
       <svg viewBox="0 0 120 120" aria-hidden="true">
         <circle cx="60" cy="60" r="48" className="ring-track" />
         <motion.circle cx="60" cy="60" r="48" className="ring-value"
@@ -80,7 +80,7 @@ export function ProgressRing({ value, label, caption = "supported", size, tone =
           viewport={{ once: true, amount: 0.5 }}
           transition={{ duration: reduced ? 0 : 0.85, ease: [0.22, 1, 0.36, 1] }} />
       </svg>
-      <div className="ring-label"><strong>{display}<small>%</small></strong>{caption && <span>{caption}</span>}</div>
+      <div className="ring-label"><strong>{text ?? <>{display}<small>%</small></>}</strong>{caption && <span>{caption}</span>}</div>
     </div>
   );
 }

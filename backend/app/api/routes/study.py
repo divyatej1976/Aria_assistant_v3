@@ -33,7 +33,7 @@ from app.services.study import (
     persist_conversation_turn,
     session_summaries,
 )
-from app.services.study_requests import ReplyPending, answer_and_save
+from app.services.study_requests import ReplyPending, answer_and_save, last_tutor_message
 
 router = APIRouter(prefix="/api/v1/study", tags=["study"])
 Db = Annotated[Session, Depends(get_db)]
@@ -176,7 +176,8 @@ async def send_message(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         record_activity(db, owner_id=learner.id, activity_type="study", source_id=session.id)
         return response
-    style = resolve_style(request.content, request.depth, request.screen)
+    style = resolve_style(request.content, request.depth, request.screen,
+                          last_tutor_message(db, owner_id=learner.id, session_id=session.id))
     result = await answer_question(
         db,
         owner_id=learner.id,

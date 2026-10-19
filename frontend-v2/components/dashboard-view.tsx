@@ -109,7 +109,7 @@ export function DashboardView({ title, pct, nextAction, streak, dueNotes, onRevi
                   { label: "Take your first quiz", done: firstSteps?.reviewTaken ?? null, href: "/app/assess", hint: firstSteps?.reviewCreated ? "Your quiz is ready in Practice." : "After a chat, create a short quiz in Practice." },
                   { label: "Add your own material", done: firstSteps ? Boolean(firstSteps.materialAdded || firstSteps.noteSaved) : null, href: "/app/materials", hint: "Optional · a PDF, image, text or saved notes." },
                 ].map((step, index) => <li key={step.label} className={step.done ? "done" : ""}>
-                  <span className="step-check" aria-label={step.done ? "Completed" : step.done === null ? "Status unavailable" : "Not completed"}>{step.done ? <Icon name="check" size={14} /> : index + 1}</span>
+                  <span className="step-check" role="img" aria-label={step.done ? "Completed" : step.done === null ? "Status unavailable" : "Not completed"}>{step.done ? <Icon name="check" size={14} /> : index + 1}</span>
                   <Link href={step.href}><b>{step.label}</b><small>{step.hint}</small></Link>
                 </li>)}
               </ol>
@@ -130,7 +130,7 @@ export function DashboardView({ title, pct, nextAction, streak, dueNotes, onRevi
                 {progressError
                   ? <div className="progress-unavailable"><p>Progress is unavailable.</p><button className="btn btn-ghost" onClick={onRetry}>Retry progress</button></div>
                   : pct === null ? <div className="ring-placeholder skeleton" role="status"><span className="sr-only">Loading concept progress</span></div>
-                  : <ProgressRing value={pct} label="of concepts supported" size={110} />}
+                  : <ProgressRing value={pct} label="of concepts strong" size={110} />}
                 <Link href="/app/progress" className="text-link">See your progress <Icon name="arrow" size={15} /></Link>
               </section>
             </Reveal>

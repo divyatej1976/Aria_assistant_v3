@@ -86,3 +86,31 @@ def test_depth_reaches_the_prompt_and_is_saved(client: TestClient, monkeypatch) 
 
     messages = client.get(f"/api/v1/study/sessions/{session['id']}/messages", headers=headers).json()
     assert [m["depth"] for m in messages] == [None, "deep"]
+
+
+@pytest.mark.parametrize(
+    ("question", "practice"),
+    [
+        ("Quiz me on joins", True),
+        ("Give me one tricky interview question on this so I can try answering it.", True),
+        ("give me 3 practice questions", True),
+        ("let me try a problem", True),
+        ("What's the difference between WHERE and HAVING?", False),
+        ("Give me an example of a join", False),
+    ],
+)
+def test_practice_requests_ask_instead_of_answer(question: str, practice: bool) -> None:
+    style = resolve_style(question)
+    assert style.practice is practice
+    assert ("do not answer it" in style.instruction()) is practice
+
+
+def test_answering_the_tutors_question_gets_a_verdict() -> None:
+    asked = "Should you use WHERE, HAVING, or both, and why?\n\nGive it a try and reply with your answer!"
+    graded = resolve_style("I think HAVING because it filters on an aggregate", last_tutor=asked)
+    assert graded.grading and not graded.practice
+    assert "'**Partly right**'" in graded.instruction()
+    # Not an attempt: a new question, a two-word thanks, or a tutor message that asked nothing.
+    assert not resolve_style("Why can't WHERE use COUNT?", last_tutor=asked).grading
+    assert not resolve_style("ok thanks", last_tutor=asked).grading
+    assert not resolve_style("I think HAVING because it filters", last_tutor="WHERE filters rows.").grading

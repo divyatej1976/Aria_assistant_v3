@@ -12,6 +12,14 @@ from app.services.response_style import RequestedDepth, Screen, resolve_style
 from app.services.study import answer_question, persist_conversation_turn
 
 
+def last_tutor_message(db: Session, *, owner_id: UUID, session_id: UUID) -> str | None:
+    """The tutor's latest reply in this chat, so a learner's answer to its question can be graded."""
+    return db.scalar(select(ConversationMessage.content).where(
+        ConversationMessage.owner_id == owner_id, ConversationMessage.study_session_id == session_id,
+        ConversationMessage.role == "assistant",
+    ).order_by(ConversationMessage.position.desc()).limit(1))
+
+
 class ReplyPending(Exception):
     pass
 
@@ -55,7 +63,8 @@ async def answer_and_save(
         if state != "ok":
             raise ReplyPending("This reply is still being prepared. Wait a moment and retry.")
     try:
-        style = resolve_style(content, depth, screen)
+        style = resolve_style(content, depth, screen,
+                              last_tutor_message(db, owner_id=owner_id, session_id=session.id))
         assistant_id = uuid5(NAMESPACE_URL, f"aria:assistant:{owner_id}:{key}") if key else uuid4()
         async def respond():
             from app.core.errors import ValidationError

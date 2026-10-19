@@ -82,7 +82,7 @@ for (const palette of ["aurora", "noir"] as const) for (const width of [375, 144
     await snap("dashboard-new");
     state.activity = true; state.progress = true; state.ready = true; state.assessments = true;
     await page.reload();
-    await expect(page.getByRole("img", { name: "50% of concepts supported" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "50% of concepts strong" })).toBeVisible();
     await expect(page.locator(".learning-ring strong")).toHaveText("50%");
     await snap("dashboard-progress");
     await page.goto("/app/roadmaps");

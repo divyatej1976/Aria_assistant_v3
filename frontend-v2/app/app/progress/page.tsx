@@ -26,7 +26,7 @@ const BADGE_META: Record<string, { icon: IconName; gradient: string }> = {
   first_planned_task: { icon: "check", gradient: "var(--badge-grad-study)" },
   streak_3: { icon: "flame", gradient: "var(--badge-grad-streak)" },
   streak_7: { icon: "flame", gradient: "var(--badge-grad-streak)" },
-  streak_30: { icon: "crown", gradient: "var(--badge-grad-milestone)" },
+  streak_30: { icon: "flame", gradient: "var(--badge-grad-milestone)" },
   concept_supported: { icon: "lightbulb", gradient: "var(--badge-grad-review)" },
 };
 
@@ -108,9 +108,9 @@ export default function ProgressPage() {
       : "Last 26 weeks";
 
   const rings = [
-    { label: "Overall", caption: "concepts", v: supportedPct ?? 0 },
-    { label: "Weekly", caption: "of 7 days", v: consistency ? Math.round((consistency.active_this_week / 7) * 100) : 0 },
-    { label: "Monthly", caption: "of 30 days", v: consistency ? Math.round((consistency.active_this_month / 30) * 100) : 0 },
+    { label: "Overall", caption: "of topics strong", v: supportedPct ?? 0, text: undefined },
+    { label: "Weekly", caption: "days this week", v: consistency ? Math.round((consistency.active_this_week / 7) * 100) : 0, text: `${consistency?.active_this_week ?? 0}/7` },
+    { label: "Monthly", caption: "days this month", v: consistency ? Math.round((consistency.active_this_month / 30) * 100) : 0, text: `${consistency?.active_this_month ?? 0}/30` },
   ];
 
   // Month labels for the heatmap: the column where each new month first appears.
@@ -121,7 +121,10 @@ export default function ProgressPage() {
       const date = new Date(d.date.length === 10 ? d.date + "T00:00:00" : d.date);
       const m = date.getMonth();
       if (m !== lastMonth) {
-        monthMarks.push({ col: Math.floor(i / 7), label: date.toLocaleDateString(undefined, { month: "short" }) });
+        const col = Math.floor(i / 7);
+        // A partial first month leaves no room for its label; let the next month's label take its place.
+        if (monthMarks.length && col - monthMarks[monthMarks.length - 1].col < 3) monthMarks.pop();
+        monthMarks.push({ col, label: date.toLocaleDateString(undefined, { month: "short" }) });
         lastMonth = m;
       }
     });
@@ -142,7 +145,7 @@ export default function ProgressPage() {
         <div className="pg-rings">
           {rings.map((m) => (
             <div key={m.label} className="pg-ring-col">
-              <ProgressRing value={m.v} label={`${m.label} progress`} caption={m.caption} size={132} />
+              <ProgressRing value={m.v} label={`${m.label} progress`} caption={m.caption} text={m.text} size={132} />
               <div className="pg-ring-label">{m.label} Progress</div>
             </div>
           ))}
@@ -208,11 +211,12 @@ export default function ProgressPage() {
         <div className="badge-grid" style={{ marginBottom: 26 }}>
           {badges.map((b) => {
             const meta = BADGE_META[b.code] ?? { icon: "trophy" as IconName, gradient: "var(--accent-grad)" };
+            const streakTarget = Number(/^streak_(\d+)$/.exec(b.code)?.[1] ?? 0);
             return (
               <div className={`badge-card${b.earned ? " earned" : " locked"}`} key={b.code}>
                 {b.earned && <span className="badge-check" aria-hidden="true"><Icon name="check" size={12} /></span>}
                 <div className="badge-ic" style={b.earned ? { background: meta.gradient } : undefined}>
-                  <Icon name={b.earned ? meta.icon : "lock"} size={26} />
+                  <Icon name={meta.icon} size={26} />
                 </div>
                 <b>{b.label}</b>
                 <span className="badge-state">
@@ -220,7 +224,9 @@ export default function ProgressPage() {
                     ? b.earned_at
                       ? dayLabel(b.earned_at)
                       : "Unlocked"
-                    : "Locked"}
+                    : streakTarget
+                      ? `${Math.min(consistency?.current_streak ?? 0, streakTarget)} / ${streakTarget} days`
+                      : "Locked"}
                 </span>
               </div>
             );

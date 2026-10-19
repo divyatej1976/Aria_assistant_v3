@@ -18,7 +18,7 @@ export function AssessmentScoreTrend({ scores }: { scores: AssessmentScore[] }) 
   return <section className="assessment-score-trend" aria-labelledby="score-trend-heading">
     <div><p className="eyebrow">YOUR PRACTICE OVER TIME</p><h2 id="score-trend-heading">Assessment scores</h2>
       <p className="score-trend-description">{points.length === 1 ? "Your first completed review. Keep practising to build your trend." : `${points.length} recent completed attempts, from oldest to newest.`}</p></div>
-    <div className="score-trend-chart">
+    {points.length > 1 && <div className="score-trend-chart">
       <span className="score-trend-scale">100%</span>
       <svg viewBox="0 0 320 100" role="img" aria-label={`Assessment score trend. Latest score ${latest.percent} percent. Scale zero to one hundred percent.`}>
         <path d="M10 14H310M10 86H310" className="score-trend-grid" />
@@ -26,7 +26,7 @@ export function AssessmentScoreTrend({ scores }: { scores: AssessmentScore[] }) 
         {points.map(point => <circle key={point.attempt_id} cx={point.x} cy={point.y} r="3.5" className="score-trend-point"><title>{point.score}/{point.total} · {point.percent}% · {completedDate(point.completed_at).toLocaleDateString()}</title></circle>)}
       </svg>
       <span className="score-trend-scale">0%</span>
-    </div>
+    </div>}
     <div className="score-trend-latest"><strong>{latest.percent}%</strong><span>Latest · {latest.score}/{latest.total}</span></div>
     <details className="score-trend-details"><summary>View scores as a list</summary><ol>{points.map(point => <li key={point.attempt_id}>{completedDate(point.completed_at).toLocaleDateString()} · {point.score}/{point.total} ({point.percent}%)</li>)}</ol></details>
   </section>;

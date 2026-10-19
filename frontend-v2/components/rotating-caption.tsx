@@ -50,9 +50,11 @@ export function RotatingCaption({
         transition: "opacity .45s var(--spring)",
       }}
     >
+      {/* Real spaces between words, so copy-paste and screen readers get "Learn smarter." */}
       {words.map((w, i) => (
-        <span key={`${index}-${i}`} className={`cw${reduced ? " in" : ""}`}>
-          {w}
+        <span key={`${index}-${i}`}>
+          {i > 0 && " "}
+          <span className={`cw${reduced ? " in" : ""}`}>{w}</span>
         </span>
       ))}
     </span>

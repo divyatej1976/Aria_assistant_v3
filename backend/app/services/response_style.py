@@ -19,6 +19,8 @@ DEEP_RE = re.compile(
     r"explain (?:everything|fully)|with examples|how does .+ work under the hood)\b",
     re.IGNORECASE,
 )
+# The tutor's last message ended by asking the learner something.
+ASKED_RE = re.compile(r"\?[\s*\"”)]*$|reply with your answer|give it a try|try answering|your answer", re.IGNORECASE)
 QUICK_RE = re.compile(
     r"\b(quick(?:ly)?|briefly|short|tl;?dr|in one line|one[- ]liner|just tell me|"
     r"what(?:'s| is) (?:a|an|the)?\s*\w+\??$|define)\b",
@@ -30,6 +32,12 @@ CONFUSED_RE = re.compile(
     re.IGNORECASE,
 )
 CASUAL_RE = re.compile(r"^(hey|hi|hello|yo|ok|okay|so|hmm|btw)\b|!\s*$|\b(lol|pls|plz)\b", re.IGNORECASE)
+# "Quiz me", "test me", "give me an interview question": the learner wants to answer, not read.
+PRACTICE_RE = re.compile(
+    r"\b(quiz me|test me|ask me|drill me|let me (?:try|answer|practi[cs]e)|"
+    r"(?:give|show) me (?:a|an|one|some|\d+) (?:[\w-]+ ){0,3}(?:question|problem|exercise|challenge)s?)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +45,8 @@ class ResponseStyle:
     depth: Depth
     tone: Tone
     screen: Screen
+    practice: bool = False
+    grading: bool = False
 
     def instruction(self) -> str:
         """The per-message style rules placed in the user prompt."""
@@ -50,6 +60,15 @@ class ResponseStyle:
                     "blocks (each with a bold label), worked examples, common mistakes, and finish "
                     "with one '**Check yourself**' question.",
         }[self.depth]
+        if self.grading:
+            size = ("The learner is answering the question you just asked. Open with a bold verdict: "
+                    "'**Correct**', '**Partly right**' or '**Not quite**'. Then in 2-5 short lines say what "
+                    "they got right, what is missing or wrong and why; add a tiny corrected example only "
+                    "if needed. Finish by offering another question. No other block labels.")
+        elif self.practice:
+            size = ("The learner wants to practise. Ask the question(s) they asked for (one if they did "
+                    "not say how many) and stop: do not answer it, do not give hints, and do not use "
+                    "'Direct answer' or other block labels. End by inviting them to reply with their answer.")
         tone = {
             "casual": "Match the learner's relaxed tone: friendly and plain, no formal preamble.",
             "confused": "The learner is struggling: use simpler words, one everyday analogy, and "
@@ -81,6 +100,12 @@ def auto_depth(question: str) -> Depth:
     return "balanced"
 
 
-def resolve_style(question: str, requested: RequestedDepth = "auto", screen: Screen = "regular") -> ResponseStyle:
+def resolve_style(
+    question: str, requested: RequestedDepth = "auto", screen: Screen = "regular", last_tutor: str | None = None,
+) -> ResponseStyle:
     depth: Depth = auto_depth(question) if requested == "auto" else requested
-    return ResponseStyle(depth=depth, tone=detect_tone(question), screen=screen)
+    # A reply of a few words ("ok thanks") is not an attempt at the question.
+    grading = (bool(last_tutor) and len(question.split()) >= 3 and not question.rstrip().endswith("?")
+               and bool(ASKED_RE.search(last_tutor[-300:])))
+    return ResponseStyle(depth=depth, tone=detect_tone(question), screen=screen,
+                         practice=bool(PRACTICE_RE.search(question)) and not grading, grading=grading)

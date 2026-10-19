@@ -83,7 +83,8 @@ def submit_all_wrong(client: TestClient, token: str, assessment_id: str) -> None
     result = client.post(
         f"/api/v1/assessments/{assessment_id}/attempts/{attempt_id}/submit",
         headers=headers(token),
-        json={"idempotency_key": f"key-{uuid4()}", "answers": {q["id"]: "A" for q in questions}},
+        # Matches no option, so every answer is wrong whatever order the options were shuffled into.
+        json={"idempotency_key": f"key-{uuid4()}", "answers": {q["id"]: "not-an-option" for q in questions}},
     )
     assert result.status_code == 200
 

@@ -664,3 +664,24 @@ def test_deterministic_question_targets_one_fact_instead_of_several_true_stateme
         pattern = re.escape(quotation).replace("____", r"[\w-]+")
         matching = [option for option in options if re.fullmatch(pattern, option)]
         assert matching == [correct]
+
+
+def test_shuffle_options_moves_answer_and_keeps_it_correct():
+    import random
+
+    from app.assessment.mcq import GeneratedMCQ
+    from app.services.assessment import shuffle_options
+
+    rng = random.Random(7)
+    text = GeneratedMCQ("Q?", ["right", "w1", "w2", "w3"], "right", None)
+    letter = GeneratedMCQ("Q?", ["right", "w1", "w2", "w3"], "A", None)
+    positions = set()
+    for _ in range(40):
+        t = shuffle_options(text, rng)
+        assert t.correct_option == "right" and sorted(t.options) == sorted(text.options)
+        positions.add(t.options.index("right"))
+        lt = shuffle_options(letter, rng)
+        assert lt.options["ABCD".index(lt.correct_option)] == "right"
+    assert len(positions) > 1  # the answer no longer always sits first
+    tf = GeneratedMCQ("Q?", ["True", "False"], "True", None, kind="true_false")
+    assert shuffle_options(tf, rng) is tf

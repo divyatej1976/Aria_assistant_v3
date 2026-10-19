@@ -7,6 +7,7 @@ import { AuthShell } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
 import { toast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
+import { deviceName } from "@/lib/device-name";
 import { useAuth, type AuthUser } from "@/components/auth-provider";
 import { useHydrated } from "@/lib/use-hydrated";
 type SessionResponse = { learner_id: string; access_token?: string | null };
@@ -37,7 +38,7 @@ export default function SignInPage() {
       // never enter browser JS memory where XSS could steal it.
       await api<SessionResponse>("/api/v1/auth/login?bearer=false", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, device_label: deviceName() }),
       });
       // cookies are set by the backend; fetch current learner
       const me = await api<AuthUser & { display_name?: string | null }>("/api/v1/auth/me");

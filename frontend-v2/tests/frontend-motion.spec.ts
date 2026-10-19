@@ -40,7 +40,7 @@ test("dashboard retains navigation, real progress, and accessible surfaces acros
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/app");
   await expect(page.getByRole("heading", { name: "Continue learning", exact: true })).toBeVisible();
-  await expect(page.getByRole("img", { name: "50% of concepts supported" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "50% of concepts strong" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Workspace", exact: true })).toBeVisible();
   for (const palette of ["aurora", "noir", "gold"]) {
     await page.evaluate(p => {
@@ -48,7 +48,7 @@ test("dashboard retains navigation, real progress, and accessible surfaces acros
       localStorage.setItem("aria.gold", p === "gold" ? "1" : "0");
     }, palette);
     await page.reload();
-    await expect(page.getByRole("img", { name: "50% of concepts supported" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "50% of concepts strong" })).toBeVisible();
     await settleUI(page);
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations.filter(v => v.impact === "serious" || v.impact === "critical"), palette).toEqual([]);
@@ -106,7 +106,7 @@ test("map uses confirmed edges, keeps filtered positions stable, and supports ke
   await fixture(page);
   await page.goto("/app/map");
   await expect(page.getByText("2 concepts · 1 visible prerequisite connections")).toBeVisible();
-  const normalization = page.getByRole("button", { name: "Normalization, Supported", exact: true });
+  const normalization = page.getByRole("button", { name: "Normalization, Strong", exact: true });
   const before = await normalization.getAttribute("style");
   await normalization.focus();
   await page.keyboard.press("Enter");
@@ -114,7 +114,7 @@ test("map uses confirmed edges, keeps filtered positions stable, and supports ke
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect(page.getByRole("button", { name: "Reset zoom" })).toHaveText("125%");
   await page.getByRole("button", { name: "Reset zoom" }).click();
-  await page.getByRole("button", { name: "Supported", exact: true }).click();
+  await page.getByRole("button", { name: "Strong", exact: true }).click();
   expect(await normalization.getAttribute("style")).toBe(before);
   await expect(page.locator(".concept-edge")).toHaveCount(0);
   await page.getByRole("button", { name: "All", exact: true }).click();
@@ -353,7 +353,7 @@ test("large concept maps expose every group and search beyond the first sixty", 
   releaseConnections();
   await page.getByRole("button", { name: "Next group", exact: true }).click();
   await expect(page.locator(".concept-node")).toHaveCount(12);
-  const target = page.getByRole("button", { name: "Concept 71, Supported", exact: true });
+  const target = page.getByRole("button", { name: "Concept 71, Strong", exact: true });
   const position = await target.getAttribute("style");
   await target.click();
   await expect(page.getByRole("heading", { name: "Concept 71", exact: true })).toBeVisible();
@@ -372,10 +372,10 @@ test("failed progress is retryable rather than implying zero mastery", async ({ 
   await page.route("**/contexts/*/adaptation", route => route.fulfill({ status: 500, contentType: "application/json", body: '{"detail":"unavailable"}' }));
   await page.goto("/app");
   await expect(page.getByText("Progress is unavailable.")).toBeVisible();
-  await expect(page.getByRole("img", { name: /concepts supported/ })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: /concepts strong/ })).toHaveCount(0);
   await page.unroute("**/contexts/*/adaptation");
   await page.getByRole("button", { name: "Retry progress" }).click();
-  await expect(page.getByRole("img", { name: "50% of concepts supported" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "50% of concepts strong" })).toBeVisible();
 });
 
 test("dashboard stays interactive under CPU throttling and repeated workspace navigation", async ({ page }, testInfo) => {
@@ -384,7 +384,7 @@ test("dashboard stays interactive under CPU throttling and repeated workspace na
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   const start = Date.now();
   await page.goto("/app");
-  await expect(page.getByRole("img", { name: "50% of concepts supported" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("img", { name: "50% of concepts strong" })).toBeVisible({ timeout: 20_000 });
   const elapsed = Date.now() - start;
   expect(elapsed).toBeLessThan(20_000);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });

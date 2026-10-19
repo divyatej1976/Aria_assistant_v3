@@ -1,4 +1,5 @@
 import logging
+import random
 from dataclasses import replace
 from uuid import UUID, uuid4
 
@@ -170,9 +171,13 @@ async def create_assessment(
     if not questions:
         raise ValidationError("Add ready study material before creating an assessment")
     questions = shape_questions(questions, definition.name, seed=str(uuid4()))
+    # Quizzes the learner chose (their chats, a topic) file answers under the AI's topic labels,
+    # so chat-only learners build up Progress; the automatic daily review stays as it was.
+    learner_chosen = source in ("chats", "topic")
     questions = _assign_question_concepts(
         db, owner_id=owner_id, context_id=context_id, questions=questions,
-        allowed_ids=selected_ids if study_transcript is not None else None,
+        allowed_ids=selected_ids if study_transcript is not None and not learner_chosen else None,
+        create_named=learner_chosen,
     )
     assessment = Assessment(
         owner_id=owner_id,
@@ -211,6 +216,23 @@ async def create_assessment(
     return assessment
 
 
+def _concepts_from_labels(
+    db: Session, *, owner_id: UUID, context_id: UUID, questions: list[GeneratedMCQ]
+) -> list[GeneratedMCQ]:
+    """Link each labelled question to the subject's concept of that name, creating it if new."""
+    labels = {q.concept_name.casefold(): q.concept_name for q in questions if q.concept_name and q.concept_id is None}
+    if not labels:
+        return questions
+    by_name = {c.name.casefold(): c for c in list_concepts(db, owner_id=owner_id, context_id=context_id)}
+    for key, name in labels.items():
+        if key not in by_name:
+            by_name[key] = Concept(owner_id=owner_id, context_id=context_id, name=name)
+            db.add(by_name[key])
+    db.flush()
+    return [replace(q, concept_id=by_name[q.concept_name.casefold()].id)
+            if q.concept_name and q.concept_id is None else q for q in questions]
+
+
 def _assign_question_concepts(
     db: Session,
     *,
@@ -218,7 +240,10 @@ def _assign_question_concepts(
     context_id: UUID,
     questions: list[GeneratedMCQ],
     allowed_ids: set[UUID] | None = None,
+    create_named: bool = False,
 ) -> list[GeneratedMCQ]:
+    if create_named:
+        questions = _concepts_from_labels(db, owner_id=owner_id, context_id=context_id, questions=questions)
     concepts = list_concepts(db, owner_id=owner_id, context_id=context_id)
     if allowed_ids is not None:
         concepts = [concept for concept in concepts if concept.id in allowed_ids]
@@ -252,9 +277,25 @@ def _assign_question_concepts(
     return assigned
 
 
+def shuffle_options(question: GeneratedMCQ, rng: random.Random | None = None) -> GeneratedMCQ:
+    """Shuffle a multiple-choice question so the answer isn't usually first (LLMs favour option A)."""
+    options, correct = list(question.options or []), question.correct_option
+    if question.kind != "mcq" or len(options) < 2:
+        return question
+    letters = "ABCDEFGH"[: len(options)]
+    is_letter = len(correct) == 1 and correct in letters
+    answer = options[letters.index(correct)] if is_letter else correct
+    if answer not in options:
+        return question
+    (rng or random).shuffle(options)
+    return replace(question, options=options, correct_option=letters[options.index(answer)] if is_letter else answer)
+
+
 def _persist_questions(
     db: Session, *, owner_id: UUID, assessment_id: UUID, questions: list[GeneratedMCQ]
 ) -> None:
+    # Seeded by the prompt: answer positions vary across questions but are reproducible.
+    questions = [shuffle_options(question, random.Random(question.prompt)) for question in questions]
     for position, question in enumerate(questions, start=1):
         db.add(
             AssessmentQuestion(

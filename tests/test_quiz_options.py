@@ -137,6 +137,9 @@ def test_quiz_from_chosen_chats_uses_only_those_chats(client: TestClient, sessio
     assert "stack" in text.lower() or "pop" in text.lower()
     assert quiz.json()["settings"]["source"] == "chats"
     assert _create(client, h, cid, source="chats", session_ids=[]).status_code == 422
+    # The list names the quiz after the chat it came from, not just "Multiple choice".
+    listed = client.get(f"/api/v1/assessments?context_id={cid}", headers=h).json()
+    assert next(a for a in listed if a["id"] == quiz.json()["id"])["topic"] == "Explain stacks"
 
 
 def test_weak_spots_need_some_history_first(client: TestClient) -> None:
@@ -191,3 +194,29 @@ def test_summary_without_ai_still_points_to_a_next_step(client: TestClient) -> N
     quiz_id, attempt_id = _take_quiz(client, h, cid)
     summary = client.post(f"/api/v1/assessments/{quiz_id}/attempts/{attempt_id}/summary", headers=h).json()["summary"]
     assert "Explain this in chat" in summary
+
+
+def test_topic_quiz_files_answers_under_ai_topic_labels(client: TestClient, monkeypatch) -> None:
+    """Chat/topic quizzes create concepts from the AI's labels so chat-only learners see Progress."""
+    import app.assessment.mcq as mcq
+    import app.services.assessment as assessment_service
+    from app.assessment.schema import MCQSet
+
+    class _LabelledProvider:
+        async def generate_structured(self, *, prompt: str, schema: type, prompt_version=None):
+            item = {"prompt": "Which clause filters groups after GROUP BY?", "options": ["HAVING", "WHERE", "FROM", "LIMIT"],
+                    "correct_option": "A", "concept": "  HAVING   clause "}
+            return MCQSet.model_validate({"questions": [item, {**item, "prompt": "Which clause filters rows first?",
+                                                                "options": ["WHERE", "HAVING", "ORDER BY", "LIMIT"]}]})
+
+    provider = _LabelledProvider()
+    monkeypatch.setattr(mcq, "get_llm_provider_for_owner", lambda db, owner_id: provider)
+    monkeypatch.setattr(assessment_service, "get_llm_provider_for_owner", lambda db, owner_id: provider)
+    h, cid = _learner(client)
+    quiz = _create(client, h, cid, source="topic", topic="SQL filtering", question_count=2)
+    assert quiz.status_code == 201, quiz.text
+    concepts = client.get(f"/api/v1/contexts/{cid}/concepts", headers=h).json()
+    having = [c for c in concepts if c["name"] == "HAVING clause"]
+    assert len(having) == 1  # one concept for both questions, label tidied
+    listed = client.get(f"/api/v1/assessments?context_id={cid}", headers=h).json()
+    assert next(a for a in listed if a["id"] == quiz.json()["id"])["topic"] == "HAVING clause"
