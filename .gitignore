@@ -61,3 +61,8 @@ design/*
 
 # Private AI keys (see keys.env.example)
 keys.env
+hf-space-upload/
+hf-space-settings.txt
+
+.vercel
+.env*

@@ -1,0 +1,12 @@
+# Upload only what the build needs: no local builds, test output or secrets.
+.next*
+node_modules
+test-results*
+playwright-report
+tests
+test-assets
+.env*
+!.env.example
+*.log
+playwright*
+*.spec.ts
