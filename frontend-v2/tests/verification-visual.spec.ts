@@ -1,3 +1,4 @@
+import { fulfillReply } from "./helpers";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -33,7 +34,7 @@ async function fixture(page: Page, state: State) {
     else if (path === "/api/v1/roadmaps") body = [roadmap];
     else if (path === "/api/v1/roadmaps/visual-roadmap") body = roadmap;
     else if (path === "/api/v1/study/sessions") body = method === "POST" ? session : state.activity ? [session] : [];
-    else if (path.endsWith("/messages")) {
+    else if (path.endsWith("/messages") || path.endsWith("/messages/stream")) {
       if (method === "POST") {
         if (state.reply === "held") await state.release;
         if (state.reply === "error") { status = 503; body = { detail: "The tutor is temporarily unavailable. Please retry." }; }
@@ -48,6 +49,7 @@ async function fixture(page: Page, state: State) {
     else if (path === "/api/v1/notes") body = state.activity ? [{ id: "visual-note", context_id: subject.id, title: "Primary keys: study notes", body: "Primary keys uniquely identify rows. A student ID is one example.", concept_id: null, study_session_id: session.id, created_at: "2026-10-14T10:00:00Z", state: "new", interval_days: 1, next_review_at: null, last_outcome: null }] : [];
     else if (path === "/api/v1/audio") body = [{ id: "visual-audio", source_type: "NOTE", source_id: "visual-note", title: "Primary keys: audio review", status: "READY", content_type: "audio/wav", duration_seconds: 180, position_seconds: 30, completed: false, created_at: "2026-10-14T10:00:00Z" }];
     else if (path === "/api/v1/settings/capabilities") body = { cloud_speech_configured: false, personal_keys_enabled: false };
+    if (path.endsWith("/messages/stream")) return fulfillReply(route, body, status);
     await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   });
 }
@@ -75,8 +77,8 @@ for (const palette of ["aurora", "noir"] as const) for (const width of [375, 144
       await page.screenshot({ path: resolve(directory, `${palette}-${width}-${name}.png`), fullPage: true, animations: "disabled" });
     };
     await page.goto("/app");
-    await expect(page.locator(".first-chapter")).toBeVisible();
-    const guideWidth = await page.locator(".first-chapter").evaluate(element => element.getBoundingClientRect().width);
+    await expect(page.locator(".home-stats")).toBeVisible();
+    const guideWidth = await page.locator(".home-stats").evaluate(element => element.getBoundingClientRect().width);
     const panelWidth = await page.locator(".learning-progress").evaluate(element => element.getBoundingClientRect().width);
     expect(guideWidth).toBeGreaterThan(panelWidth - 80);
     await snap("dashboard-new");

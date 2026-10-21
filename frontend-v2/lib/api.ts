@@ -80,6 +80,41 @@ function isTimeoutError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "TimeoutError";
 }
 
+/** POST and read a reply that streams back as one JSON object per line (NDJSON).
+ * Each object goes to onEvent as it arrives; errors before the stream starts throw like api(). */
+export async function apiStream(path: string, body: unknown, onEvent: (event: Record<string, unknown>) => void,
+  signal?: AbortSignal): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal,
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...csrfHeaders("POST") },
+    });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    throw new ApiError(0, "Couldn’t reach ARIA’s server. Check your connection, then retry.");
+  }
+  if (!response.ok || !response.body) {
+    const payload = await response.json().catch(() => ({}));
+    await handleAuthFailure(response.status);
+    throw new ApiError(response.status, (payload as { detail?: string }).detail ?? "ARIA request failed");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffered = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    buffered += decoder.decode(value, { stream: !done });
+    const lines = buffered.split("\n");
+    buffered = done ? "" : lines.pop() ?? "";
+    for (const line of lines) if (line.trim()) onEvent(JSON.parse(line));
+    if (done) return;
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = init.method ?? "GET";
   let response: Response;

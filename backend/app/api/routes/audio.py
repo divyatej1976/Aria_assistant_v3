@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
@@ -23,7 +23,6 @@ from app.services.audio import (
     RESOURCE,
     AudioSourceNotFound,
     delete_audio,
-    generate_audio,
     generate_session_audio,
     generate_text_audio,
     get_owned_artifact,
@@ -32,8 +31,11 @@ from app.services.audio import (
     load_audio_bytes,
     mark_reviewed,
     save_progress,
+    start_audio,
     transcribe_audio,
 )
+
+AudioStyle = Literal["explainer", "conversation"]
 
 router = APIRouter(prefix="/api/v1/audio", tags=["audio"])
 Db = Annotated[Session, Depends(get_db)]
@@ -76,10 +78,12 @@ def list_artifacts(
     status_code=201,
     dependencies=[Depends(_ai_rate_limit())],
 )
-def generate_note_audio(note_id: UUID, learner: CurrentLearner, db: Db) -> AudioResponse:
+def generate_note_audio(
+    note_id: UUID, learner: CurrentLearner, db: Db, style: AudioStyle = "explainer"
+) -> AudioResponse:
     try:
-        artifact = generate_audio(
-            db, owner_id=learner.id, source_type=NOTE, source_id=note_id
+        artifact = start_audio(
+            db, owner_id=learner.id, source_type=NOTE, source_id=note_id, style=style
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -93,11 +97,11 @@ def generate_note_audio(note_id: UUID, learner: CurrentLearner, db: Db) -> Audio
     dependencies=[Depends(_ai_rate_limit())],
 )
 def generate_resource_audio(
-    resource_id: UUID, learner: CurrentLearner, db: Db
+    resource_id: UUID, learner: CurrentLearner, db: Db, style: AudioStyle = "explainer"
 ) -> AudioResponse:
     try:
-        artifact = generate_audio(
-            db, owner_id=learner.id, source_type=RESOURCE, source_id=resource_id
+        artifact = start_audio(
+            db, owner_id=learner.id, source_type=RESOURCE, source_id=resource_id, style=style
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -109,7 +113,7 @@ def generate_resource_audio(
 async def generate_text(request: TextAudioRequest, learner: CurrentLearner, db: Db) -> AudioResponse:
     try:
         artifact = await generate_text_audio(db, owner_id=learner.id, context_id=request.context_id,
-                                             title=request.title, text=request.text)
+                                             title=request.title, text=request.text, style=request.style)
     except AudioSourceNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -119,9 +123,10 @@ async def generate_text(request: TextAudioRequest, learner: CurrentLearner, db: 
 
 @router.post("/sessions/{session_id}/generate", response_model=AudioResponse, status_code=201,
              dependencies=[Depends(_ai_rate_limit())])
-async def generate_session(session_id: UUID, learner: CurrentLearner, db: Db) -> AudioResponse:
+async def generate_session(session_id: UUID, learner: CurrentLearner, db: Db,
+                           style: AudioStyle = "explainer") -> AudioResponse:
     try:
-        artifact = await generate_session_audio(db, owner_id=learner.id, session_id=session_id)
+        artifact = await generate_session_audio(db, owner_id=learner.id, session_id=session_id, style=style)
     except AudioSourceNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValidationError as exc:

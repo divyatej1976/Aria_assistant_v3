@@ -60,15 +60,12 @@ export function toast(msg: string, kind: "success" | "error" | "info" = "info") 
   dismiss.addEventListener("click", remove);
   el.appendChild(dismiss);
   wrap.appendChild(el);
-  let timer = window.setTimeout(remove, kind === "error" ? 8000 : 3000);
+  // Pop-ups leave on their own; hovering pauses them so a message can be finished.
+  const lifetime = kind === "error" ? 4500 : 3000;
+  let timer = window.setTimeout(remove, lifetime);
   el.addEventListener("mouseenter", () => window.clearTimeout(timer));
-  el.addEventListener("focusin", () => window.clearTimeout(timer));
-  const resume = () => {
-    if (!el.matches(":hover, :focus-within")) {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(remove, kind === "error" ? 8000 : 3000);
-    }
-  };
-  el.addEventListener("mouseleave", resume);
-  el.addEventListener("focusout", resume);
+  el.addEventListener("mouseleave", () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(remove, lifetime);
+  });
 }

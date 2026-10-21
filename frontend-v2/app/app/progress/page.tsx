@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PageGuide } from "@/components/page-guide";
 import { Icon, type IconName } from "@/components/icons";
 import { api } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { ErrorState, Loading } from "@/components/states";
-import { ProgressRing, Reveal } from "@/components/motion-system";
+import { Reveal } from "@/components/motion-system";
 
 type Consistency = {
   current_streak: number;
@@ -18,6 +19,18 @@ type Consistency = {
 type Badge = { code: string; label: string; earned: boolean; earned_at: string | null };
 type Activity = { id: string; activity_type: string; occurred_on: string };
 type ConceptState = { state: string };
+
+/** Topic states in teaching order, with the colour each one gets in the bar. */
+const STATE_META: { state: string; label: string; tone: string }[] = [
+  { state: "SUPPORTED", label: "Strong", tone: "strong" },
+  { state: "DEVELOPING", label: "Developing", tone: "developing" },
+  { state: "NEEDS_REVIEW", label: "Needs review", tone: "review" },
+  { state: "NOT_STARTED", label: "Not started", tone: "new" },
+];
+
+function isoDay(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
 const BADGE_META: Record<string, { icon: IconName; gradient: string }> = {
   first_assessment: { icon: "clipboard", gradient: "var(--badge-grad-milestone)" },
@@ -59,7 +72,7 @@ export default function ProgressPage() {
   const [consistency, setConsistency] = useState<Consistency | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
-  const [supportedPct, setSupportedPct] = useState<number | null>(null);
+  const [stateCounts, setStateCounts] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,8 +92,12 @@ export default function ProgressPage() {
         jobs.push(
           api<{ states: ConceptState[] }>(`/api/v1/contexts/${context.id}/adaptation`).then((s) => {
             if (cancelled) return;
-            const supported = s.states.filter((x) => x.state === "SUPPORTED").length;
-            setSupportedPct(s.states.length ? Math.round((supported / s.states.length) * 100) : 0);
+            const counts: Record<string, number> = {};
+            for (const item of s.states) {
+              const key = STATE_META.some((meta) => meta.state === item.state) ? item.state : "NOT_STARTED";
+              counts[key] = (counts[key] ?? 0) + 1;
+            }
+            setStateCounts(counts);
           }),
         );
       }
@@ -107,11 +124,26 @@ export default function ProgressPage() {
       ? `${dayLabel(consistency.heatmap[0].date)} – ${dayLabel(consistency.heatmap[consistency.heatmap.length - 1].date)}`
       : "Last 26 weeks";
 
-  const rings = [
-    { label: "Overall", caption: "of topics strong", v: supportedPct ?? 0, text: undefined },
-    { label: "Weekly", caption: "days this week", v: consistency ? Math.round((consistency.active_this_week / 7) * 100) : 0, text: `${consistency?.active_this_week ?? 0}/7` },
-    { label: "Monthly", caption: "days this month", v: consistency ? Math.round((consistency.active_this_month / 30) * 100) : 0, text: `${consistency?.active_this_month ?? 0}/30` },
-  ];
+  const totalTopics = stateCounts ? Object.values(stateCounts).reduce((sum, n) => sum + n, 0) : 0;
+  const strongTopics = stateCounts?.SUPPORTED ?? 0;
+  // Days studied, by date, from the activity heatmap.
+  const studied = new Map((consistency?.heatmap ?? []).map((d) => [d.date.slice(0, 10), d.count]));
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    return { key: isoDay(day), letter: day.toLocaleDateString(undefined, { weekday: "narrow" }), name: day.toLocaleDateString(undefined, { weekday: "long" }),
+      count: studied.get(isoDay(day)) ?? 0, isToday: isoDay(day) === isoDay(today), future: day > today };
+  });
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const month = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = new Date(today.getFullYear(), today.getMonth(), i + 1);
+    return { key: isoDay(day), n: i + 1, count: studied.get(isoDay(day)) ?? 0, isToday: i + 1 === today.getDate(), future: day > today };
+  });
+  const monthName = today.toLocaleDateString(undefined, { month: "long" });
 
   // Month labels for the heatmap: the column where each new month first appears.
   const monthMarks: { col: number; label: string }[] = [];
@@ -140,15 +172,46 @@ export default function ProgressPage() {
           <p className="pg-sub">See how far you&apos;ve come.</p>
         </div>
       </div>
+      <PageGuide page="progress" />
 
       <Reveal>
-        <div className="pg-rings">
-          {rings.map((m) => (
-            <div key={m.label} className="pg-ring-col">
-              <ProgressRing value={m.v} label={`${m.label} progress`} caption={m.caption} text={m.text} size={132} />
-              <div className="pg-ring-label">{m.label} Progress</div>
+        <div className="pg-overview">
+          <section className="pg-card" aria-labelledby="pg-topics">
+            <p className="pg-card-eyebrow" id="pg-topics">Topics</p>
+            <p className="pg-big">{totalTopics ? <>{strongTopics}<span> of {totalTopics} strong</span></> : <span className="pg-none">No topics yet</span>}</p>
+            {totalTopics > 0 ? <>
+              <div className="pg-stack" role="img" aria-label={STATE_META.map((m) => `${stateCounts?.[m.state] ?? 0} ${m.label.toLowerCase()}`).join(", ")}>
+                {STATE_META.map((m) => (stateCounts?.[m.state] ?? 0) > 0 && <span key={m.state} className={`pg-seg ${m.tone}`} style={{ flexGrow: stateCounts?.[m.state] ?? 0 }} />)}
+              </div>
+              <ul className="pg-legend">
+                {STATE_META.map((m) => <li key={m.state}><i className={`pg-dot ${m.tone}`} />{m.label}<b>{stateCounts?.[m.state] ?? 0}</b></li>)}
+              </ul>
+            </> : <p className="pg-hint">Chat with ARIA and take a quiz; topics appear here and turn Strong as your answers show it.</p>}
+          </section>
+
+          <section className="pg-card pg-week" aria-labelledby="pg-week-title">
+            <p className="pg-card-eyebrow" id="pg-week-title">This week</p>
+            <p className="pg-big">{consistency?.active_this_week ?? 0}<span> of 7 days</span></p>
+            <ol className="pg-days">
+              {week.map((d) => (
+                <li key={d.key} className={`${d.count ? "on" : ""}${d.isToday ? " today" : ""}${d.future ? " future" : ""}`} title={`${d.name}: ${d.count ? `${d.count} ${d.count === 1 ? "session" : "sessions"}` : "no study"}`}>
+                  <span className="pg-day-dot">{d.count ? <Icon name="check" size={14} /> : null}</span>
+                  <small>{d.letter}</small>
+                </li>
+              ))}
+            </ol>
+            <p className="pg-streak"><Icon name="flame" size={16} /> {consistency?.current_streak ?? 0}-day streak<span> · best {consistency?.longest_streak ?? 0}</span></p>
+          </section>
+
+          <section className="pg-card" aria-labelledby="pg-month-title">
+            <p className="pg-card-eyebrow" id="pg-month-title">{monthName}</p>
+            <p className="pg-big">{consistency?.active_this_month ?? 0}<span> {consistency?.active_this_month === 1 ? "day" : "days"} studied</span></p>
+            <div className="pg-month" style={{ "--first": (monthStart.getDay() + 6) % 7 } as React.CSSProperties}>
+              {month.map((d) => (
+                <span key={d.key} className={`l${d.future ? "x" : heatLevel(d.count)}${d.isToday ? " today" : ""}`} title={`${monthName} ${d.n}: ${d.count} ${d.count === 1 ? "session" : "sessions"}`}>{d.n}</span>
+              ))}
             </div>
-          ))}
+          </section>
         </div>
       </Reveal>
 

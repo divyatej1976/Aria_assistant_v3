@@ -23,7 +23,7 @@ test("dashboard text retains contrast during entrance motion", async ({ page }) 
   await fixture(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/app");
-  await expect(page.locator(".home .learning-hero").first()).toBeVisible();
+  await expect(page.locator(".home .home-hero").first()).toBeVisible();
   await page.addStyleTag({ content: ".motion-reveal, .route-arrival { animation-duration: 10000ms !important; animation-delay: 0ms !important; }" });
   for (const fraction of [0, 0.5]) {
     const count = await page.evaluate(progress => {

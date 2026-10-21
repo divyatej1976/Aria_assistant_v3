@@ -54,6 +54,30 @@ SMALL_TALK_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "Summarize this", "key points of the PDF": the learner wants the whole document,
+# which shares no words with it, so keyword ranking would find nothing.
+WHOLE_DOC_RE = re.compile(
+    r"\b(summar(?:y|ise|ize|ising|izing)|overview|key points|main (?:points|ideas)|tl;?dr|"
+    r"(?:this|the|my|attached|uploaded) (?:doc(?:ument)?|file|pdf|paper|notes|attachment|slides))\b",
+    re.IGNORECASE,
+)
+# shortcut: a whole-document answer sees about 12k characters (~3 pages); longer
+# files need map-reduce summarising.
+WHOLE_DOC_CHARS = 12_000  # Groq's free tier allows ~8k tokens a minute, so a whole file must be small
+LARGE_CONTEXT_CHARS = 60_000  # OpenAI and Gemini read a whole chapter-sized file at once
+
+
+def whole_doc_chars() -> int:
+    """How much of a file a "summarize this" request may send, by the deployment's AI provider.
+
+    shortcut: follows ARIA_LLM_PROVIDER, not a learner's own Groq key; such a learner on an
+    OpenAI/Gemini deployment gets the larger budget and may hit Groq's per-minute limit.
+    """
+    from app.core.config import get_settings
+
+    provider = (getattr(get_settings(), "aria_llm_provider", None) or "groq").strip().lower()
+    return WHOLE_DOC_CHARS if provider == "groq" else LARGE_CONTEXT_CHARS
+
 DETERMINISTIC_GREETING = (
     "Hi there! I'm ARIA, your learning companion. "
     "Ask me anything about your study material and I'll do my best to help."
@@ -104,6 +128,46 @@ def _plain_snippet(text: str, limit: int) -> str:
         return flat
     cut = flat[:limit].rsplit(" ", 1)[0].rstrip(",.;:-")
     return cut + "…"
+
+
+_FILLER_RE = re.compile(
+    r"^(?:(?:hi|hey|hello|ok(?:ay)?|so|please|pls|aria)\b[\s,!.]*"
+    r"|(?:can|could|would|will) you\s+"
+    r"|(?:explain|tell|teach|describe|define|show|give)(?: me| us)?(?: (?:a|an|the|some))?"
+    r"(?: (?:more|details|overview|summary|basics))?(?: (?:about|on|of|what|how))?\s+"
+    r"|(?:what|who|how|why|when) (?:is|are|does|do|was|were|to)(?: (?:a|an|the))?\s+"
+    r"|i (?:want|wanna|need) to (?:learn|understand|know)(?: about)?\s+|help me (?:learn|understand)(?: about)?\s+"
+    r"|(?:the )?basics of\s+)",
+    re.I,
+)
+
+
+_QUESTION_VERBS = {
+    "work", "works", "release", "releases", "happen", "happens", "mean", "means", "use", "uses",
+    "handle", "handles", "differ", "differs", "help", "helps", "affect", "affects", "cause", "causes",
+    "store", "stores", "run", "runs", "prevent", "prevents", "improve", "improves", "change", "changes",
+    "matter", "matters", "fail", "fails", "scale", "scales", "relate", "relates", "compare",
+}
+
+
+def topic_title(question: str) -> str:
+    """'hi explain me about agent harness' -> 'Agent Harness': the topic, not the wording.
+
+    Used when the AI could not name the chat (no key, or the provider's limit is reached).
+    """
+    text = " ".join(_MARKDOWN_RE.sub("", question).split())
+    while (stripped := _FILLER_RE.sub("", text, count=1)) != text:
+        text = stripped
+    text = re.split(r"[?.!\n]| in detail| with examples", text, maxsplit=1)[0].strip(" ,;:-")
+    words = text.split()
+    # "when does strict two-phase locking release its locks" -> stop at the verb after the subject.
+    verb = next((i for i, word in enumerate(words) if i >= 1 and word.lower() in _QUESTION_VERBS), None)
+    words = words[:verb][:6] if verb else words[:6]
+    if not words:
+        return _plain_snippet(question, 60)
+    small = {"a", "an", "and", "as", "between", "for", "in", "of", "on", "or", "the", "to", "vs", "with"}
+    return " ".join(word if word[:1].isupper() or (index and word in small) else word[:1].upper() + word[1:]
+                    for index, word in enumerate(words))
 
 
 def _first_sentence(text: str) -> str:
@@ -157,13 +221,16 @@ def session_summaries(
 
     first_questions = edge_messages("user", func.min)
     latest_replies = edge_messages("assistant", func.max)
+    named = dict(db.execute(select(StudySession.id, StudySession.title).where(
+        StudySession.id.in_(session_ids), StudySession.owner_id == owner_id, StudySession.title.is_not(None),
+    )).all())
     summaries: dict[UUID, SessionSummary] = {}
     for sid in session_ids:
         count, last_at = stats.get(sid, (0, None))
         question = first_questions.get(sid)
         reply = latest_replies.get(sid)
         summaries[sid] = SessionSummary(
-            title=_plain_snippet(question, 60) if question else None,
+            title=named.get(sid) or (topic_title(question) if question else None),
             preview=_plain_snippet(_first_sentence(reply), 110) if reply else None,
             message_count=count,
             last_message_at=last_at,
@@ -477,7 +544,62 @@ async def retrieve_chunks(
                 score=score,
             )
         )
-    return _dedupe_chunks(scored)[:5]
+    ranked = _dedupe_chunks(scored)
+    attached = [(c, r) for c, r in rows if session_id is not None and r.study_session_id == session_id]
+    whole_doc = bool(WHOLE_DOC_RE.search(query))
+    if whole_doc:
+        from app.services.digest import wait_for_digest
+
+        pending = [r.id for r in {resource.id: resource for _, resource in rows}.values()
+                   if not r.digest and len(r.source_text or "") > whole_doc_chars()]
+        if pending:
+            release_connection(db)
+            await wait_for_digest(pending)
+            for _, resource in rows:
+                if resource.id in pending:
+                    db.refresh(resource, attribute_names=["digest"])
+    if attached and (whole_doc or not any(item.score > 0 for item in ranked)):
+        return _in_reading_order(attached)
+    if whole_doc and rows:
+        # A file named in the question ("explain "notes.pdf""), else the newest one.
+        resources = {resource.id: resource for _, resource in rows}
+        lowered = query.casefold()
+        named = [r for r in resources.values() if r.title and r.title.casefold() in lowered]
+        chosen = max(named or list(resources.values()), key=lambda resource: resource.created_at)
+        return _in_reading_order([(c, r) for c, r in rows if r.id == chosen.id])
+    return ranked[:5]
+
+
+LONG_FILE_NOTE = ("[Only the beginning of this long file fits here; a condensed version of the whole file is "
+                  "still being prepared. If you summarise, say it covers the first part and to ask again shortly.]\n\n")
+
+
+def _in_reading_order(rows: list) -> list[RetrievedChunk]:
+    """Each file whole: its full text when it fits, its condensed digest when ready, else its chunks."""
+    budget = whole_doc_chars()
+    ordered = sorted(rows, key=lambda row: (row[1].created_at, row[0].chunk_index))
+    out: list[RetrievedChunk] = []
+    seen: set = set()
+    for chunk, resource in ordered:
+        if resource.id in seen:
+            continue
+        if resource.source_text and len(resource.source_text) <= budget:
+            seen.add(resource.id)
+            out.append(RetrievedChunk(chunk_id=str(chunk.id), resource_id=str(resource.id),
+                                      content=resource.source_text, source_title=resource.title, score=0.01))
+            continue
+        if resource.digest:
+            seen.add(resource.id)
+            out.append(RetrievedChunk(chunk_id=str(chunk.id), resource_id=str(resource.id),
+                                      content="Condensed notes covering the whole file:\n" + resource.digest,
+                                      source_title=resource.title, score=0.01))
+            continue
+        long_file = len(resource.source_text or "") > budget
+        first = not any(item.resource_id == str(resource.id) for item in out)
+        content = (LONG_FILE_NOTE if long_file and first else "") + chunk.content
+        out.append(RetrievedChunk(chunk_id=str(chunk.id), resource_id=str(resource.id), content=content,
+                                  source_title=resource.title, score=0.01))
+    return out[:40]
 
 
 async def _answer_small_talk(
@@ -524,6 +646,7 @@ async def answer_question(
     question: str,
     session_id: UUID | None = None,
     style: ResponseStyle | None = None,
+    on_delta=None,
 ) -> StudyResult:
     try:
         sources = await retrieve_chunks(
@@ -541,9 +664,15 @@ async def answer_question(
             fallback_used=True,
         )
     provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    whole_doc = bool(WHOLE_DOC_RE.search(question))
+    # A whole-file request may carry one long digest; only the overall budget applies then.
     context_text, sources = pack_study_context(
-        sources, per_chunk=1200 if provider is not None else None
+        sources, per_chunk=1200 if provider is not None and not whole_doc else None,
+        **({"max_chars": whole_doc_chars()} if whole_doc else {}),
     )
+    if WHOLE_DOC_RE.search(question):
+        # The tutor reads the whole file; cite each file once rather than every chunk.
+        sources = list({source.resource_id: source for source in reversed(sources)}.values())[::-1]
 
     # When no LLM provider is configured (offline mode / missing key):
     if provider is None:
@@ -586,13 +715,15 @@ async def answer_question(
             session_id=session_id,
             sources=sources,
         )
-        system, user = build_prompt(question, package, style=style)
+        system, user = build_prompt(question, package, style=style, **(
+            {"max_chars": whole_doc_chars(), "per_chunk": None} if whole_doc else {}))
         try:
             answer = await provider.generate_text(
                 system=system,
                 user=user,
                 prompt_version=get_prompt("study_answer").label(),
                 temperature=0.0,
+                **({"on_delta": on_delta} if on_delta else {}),
             )
         except TypeError:
             answer = await provider.generate_text(

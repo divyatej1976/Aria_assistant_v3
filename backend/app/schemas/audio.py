@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -7,7 +8,9 @@ from pydantic import BaseModel, Field
 class TextAudioRequest(BaseModel):
     context_id: UUID
     title: str = Field(default="Audio from text", min_length=1, max_length=200)
-    text: str = Field(min_length=1, max_length=20_000)
+    text: str = Field(min_length=1, max_length=200_000)
+    # "explainer": one tutor voice; "conversation": a tutor and a learner.
+    style: Literal["explainer", "conversation"] = "explainer"
 
 
 class AudioResponse(BaseModel):
@@ -32,6 +35,8 @@ class AudioListItem(BaseModel):
     status: str
     content_type: str | None
     duration_seconds: int | None
+    # Where each part of a long episode starts; empty for single-part episodes.
+    parts: list[dict] = []
     position_seconds: int
     completed: bool
     created_at: datetime

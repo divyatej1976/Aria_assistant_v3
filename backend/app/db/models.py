@@ -284,6 +284,8 @@ class AudioArtifact(OwnedModel, Base):
     generation_token: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     generation_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # "explainer" or "conversation", kept so a recovered job uses the learner's choice.
+    style: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class AudioProgress(OwnedModel, Base):
@@ -354,6 +356,8 @@ class Resource(OwnedModel, Base):
     error_detail: Mapped[str | None] = mapped_column(Text)
     storage_key: Mapped[str | None] = mapped_column(String(500))
     source_text: Mapped[str | None] = mapped_column(Text)
+    # Notes condensed from the whole file, built in the background for long files.
+    digest: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_bytes: Mapped[bytes | None] = mapped_column(LargeBinary)
     # Set when the file was attached inside one chat: only that chat may use it.
     # NULL means it is in the subject's library and every chat can use it.
@@ -398,6 +402,8 @@ class StudySession(OwnedModel, Base):
     context_id: Mapped[UUID] = mapped_column(ForeignKey("learning_contexts.id"), index=True)
     mode: Mapped[str] = mapped_column(String(32), default="BASELINE", nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False)
+    # A short name like "Array Patterns Learning Plan", written after the first reply.
+    title: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class ConversationMessage(OwnedModel, Base):

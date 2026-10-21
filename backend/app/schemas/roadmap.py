@@ -104,6 +104,8 @@ class RoadmapMilestoneResponse(BaseModel):
     title: str
     description: str | None = None
     key_skills: list[str] = Field(default_factory=list)
+    # Sub-topics (key_skills) the learner has ticked off themself.
+    done_skills: list[str] = Field(default_factory=list)
     prerequisites: list[str] = Field(default_factory=list)
     state: str
     confidence: int
@@ -152,3 +154,8 @@ class RoadmapSummaryResponse(BaseModel):
     created_at: str
     total: int
     done: int
+
+
+class SkillTickRequest(BaseModel):
+    skill: RoadmapSkill
+    done: bool

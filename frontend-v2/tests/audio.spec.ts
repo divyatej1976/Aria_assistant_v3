@@ -76,7 +76,7 @@ test("convert a note to audio, save progress, and restore it after reload", asyn
 
   // artifact card with real READY status appears
   await expect(page.getByText("Python Functions Audio Notes").first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/READY/).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/Ready/).first()).toBeVisible({ timeout: 20_000 });
 
   // play: an <audio> element is inserted
   await page.getByRole("button", { name: /Play NOTE audio/i }).click();

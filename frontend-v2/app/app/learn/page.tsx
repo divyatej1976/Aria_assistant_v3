@@ -3,8 +3,12 @@
 /* eslint-disable react-hooks/set-state-in-effect -- LearnPage must clear stale session state synchronously on context switch to prevent cross-context sends */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MicWaveform } from "@/components/mic-waveform";
+import { CameraCapture } from "@/components/camera-capture";
+import { PageGuide } from "@/components/page-guide";
+import { useAuth } from "@/components/auth-provider";
 import { Icon } from "@/components/icons";
-import { api, apiFormData, apiUpload, ApiError } from "@/lib/api";
+import { api, apiFormData, apiStream, apiUpload, ApiError } from "@/lib/api";
 import { useActiveContext } from "@/components/use-active-context";
 import { toast } from "@/lib/toast";
 import { TutorReply, DEPTH_LABEL, type Depth, type RequestedDepth, type Source } from "@/components/tutor-reply";
@@ -25,7 +29,9 @@ type Session = {
   message_count?: number;
   last_message_at?: string | null;
 };
-type Msg = { id?: string; action?: ChatAction | null; role: "user" | "aria"; content: string; sources?: Source[]; fallback_used?: boolean; depth?: Depth | null; fresh?: boolean; streaming?: boolean; fullContent?: string };
+type Msg = { id?: string; action?: ChatAction | null; role: "user" | "aria"; content: string; sources?: Source[]; fallback_used?: boolean; depth?: Depth | null; fresh?: boolean; streaming?: boolean; fullContent?: string; files?: SentFile[]; stopped?: boolean; live?: boolean };
+/** A file sent with a message: shown inside the learner's bubble. */
+type SentFile = { name: string; id?: string; failed?: boolean };
 type RetryRequest = { content: string; requestId: string; sessionId?: string; depth: RequestedDepth };
 
 type ChatFile = { id: string; title: string; processing_status: string; error_detail?: string | null };
@@ -48,7 +54,8 @@ function savedDepth(): RequestedDepth {
   }
 }
 
-function useTypewriter(fullText: string, active: boolean, wordsPerTick = 3, intervalMs = 30): string {
+/** Reveal a reply as if typed; long replies type faster so none takes more than ~4 seconds. */
+function useTypewriter(fullText: string, active: boolean, intervalMs = 40, maxMs = 4000): string {
   const [revealed, setRevealed] = useState(active ? "" : fullText);
   const words = useRef<string[]>([]);
   const idx = useRef(0);
@@ -58,42 +65,33 @@ function useTypewriter(fullText: string, active: boolean, wordsPerTick = 3, inte
     words.current = fullText.split(/(\s+)/);
     idx.current = 0;
     setRevealed("");
+    const wordsPerTick = Math.max(3, Math.ceil(words.current.length / (maxMs / intervalMs)));
     const timer = setInterval(() => {
       idx.current = Math.min(idx.current + wordsPerTick, words.current.length);
       setRevealed(words.current.slice(0, idx.current).join(""));
       if (idx.current >= words.current.length) clearInterval(timer);
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [fullText, active, wordsPerTick, intervalMs]);
+  }, [fullText, active, intervalMs, maxMs]);
 
   return revealed;
 }
 
-function StreamingMessage({ msg, onDone, onProgress }: { msg: Msg; onDone: () => void; onProgress: () => void }) {
+function StreamingMessage({ msg, onDone, onProgress }: { msg: Msg; onDone: () => void; onProgress: (shown: string) => void }) {
   const reduced = useMotionPreference();
   const revealed = useTypewriter(msg.fullContent ?? msg.content, !reduced);
   const text = reduced ? msg.fullContent ?? msg.content : revealed;
   const done = text === (msg.fullContent ?? msg.content);
 
   useEffect(() => { if (done) onDone(); }, [done, onDone]);
-  useEffect(() => { onProgress(); }, [text, onProgress]);
+  useEffect(() => { onProgress(text); }, [text, onProgress]);
 
   return <TutorReply content={text} depth={msg.depth} sources={msg.sources} fallback={msg.fallback_used} done={done} fresh />;
 }
 
 /** Server timestamps are UTC; SQLite drops the offset, so treat a bare ISO
  * string as UTC rather than letting the browser read it as local time. */
-function serverDate(iso: string): Date {
-  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
-}
 
-function fmtDate(iso: string): string {
-  try {
-    return serverDate(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  } catch {
-    return "";
-  }
-}
 
 const SESSION_PARAM = "session";
 
@@ -112,28 +110,6 @@ function syncSessionUrl(sid: string | null): void {
   window.history.replaceState(window.history.state, "", url);
 }
 
-function lastActivity(s: Session): number {
-  return serverDate(s.last_message_at ?? s.created_at).getTime();
-}
-
-function recencyGroup(s: Session, now: Date): string {
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const at = lastActivity(s);
-  if (at >= startOfToday) return "Today";
-  if (at >= startOfToday - 86_400_000) return "Yesterday";
-  if (at >= startOfToday - 6 * 86_400_000) return "Previous 7 days";
-  return "Older";
-}
-
-function groupSessions(sessions: Session[]): Array<[string, Session[]]> {
-  const now = new Date();
-  const groups = new Map<string, Session[]>();
-  for (const s of [...sessions].sort((a, b) => lastActivity(b) - lastActivity(a))) {
-    const label = recencyGroup(s, now);
-    groups.set(label, [...(groups.get(label) ?? []), s]);
-  }
-  return [...groups.entries()];
-}
 
 export default function LearnPage() {
   const { context } = useActiveContext();
@@ -143,6 +119,10 @@ export default function LearnPage() {
 function ContextLearn() {
   const { context, loading: ctxLoading } = useActiveContext();
   const [sessions, setSessions] = useState<Session[]>([]);
+  // Chats with a reply on the way; nothing is saved until it lands, so keep them listed meanwhile.
+  const [waitingIds, setWaitingIds] = useState<string[]>([]);
+  const { user } = useAuth();
+  const firstName = (user?.display_name || user?.email?.split("@")[0] || "there").trim().split(/\s+/)[0];
   const [activeId, setActiveId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
@@ -159,6 +139,15 @@ function ContextLearn() {
   const [loading, setLoading] = useState(true);
   const [depth, setDepthState] = useState<RequestedDepth>("auto");
   const [attaching, setAttaching] = useState(false);
+  const [attachingName, setAttachingName] = useState("");
+  const [attachMenu, setAttachMenu] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  // Files wait in the input bar (like ChatGPT/Claude) and go with the next message.
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // The reply being prepared, so Stop can abort it and tell the server to discard it.
+  const inflight = useRef<{ controller: AbortController; sessionId?: string; requestId: string } | null>(null);
+  const shownSoFar = useRef("");
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([]);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -169,7 +158,8 @@ function ContextLearn() {
   const conversationVersion = useRef(0);
   const topicPrefilled = useRef(false);
   const pendingAsk = useRef<string | null>(null);
-  const followStreamingReply = useCallback(() => {
+  const followStreamingReply = useCallback((shown?: string) => {
+    if (shown !== undefined) shownSoFar.current = shown;
     if (followLatest.current) bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "instant" });
   }, []);
 
@@ -301,22 +291,50 @@ function ContextLearn() {
     return () => window.clearTimeout(timer);
   }, [responding]);
 
+  /** Upload one staged file into this chat; null when the upload itself failed. */
+  const uploadToChat = async (file: File, sid: string): Promise<ChatFile | null> => {
+    if (!context) return null;
+    const version = conversationVersion.current;
+    setAttachingName(file.name);
+    const title = file.name.replace(/\.[^/.]+$/, "") || "Photo";
+    try {
+      const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+      const query = `context_id=${context.id}&session_id=${sid}&title=${encodeURIComponent(title)}`;
+      const endpoint = isPdf ? `/api/v1/resources/pdf?${query}` : `/api/v1/resources/image?${query}`;
+      const mime = isPdf ? "application/pdf" : (file.type || "image/png");
+      const saved = await apiUpload<ChatFile>(endpoint, file, mime);
+      if (version !== conversationVersion.current) return saved;
+      filesVersion.current += 1;
+      setChatFiles((files) => [...files.filter((f) => f.id !== saved.id), saved]);
+      if (saved.processing_status !== "READY") toast(saved.error_detail ?? `"${file.name}" could not be read. Try a clearer PDF or image.`, "error");
+      return saved;
+    } catch (err) {
+      if (version === conversationVersion.current) toast(err instanceof ApiError ? err.message : `"${file.name}" could not be uploaded.`, "error");
+      return null;
+    }
+  };
+
   const send = async (text: string, retry?: RetryRequest, depthOverride?: RequestedDepth) => {
-    if (loading || typing || requestLock.current || ctxLoading || !context || !text.trim()) return;
+    const files = retry ? [] : pendingFiles;
+    if (loading || typing || requestLock.current || ctxLoading || !context || !(text.trim() || files.length)) return;
     const version = conversationVersion.current;
     // guard against stale session from previous context
     if (activeId && !sessions.some((s) => s.id === activeId && s.context_id === context.id)) return;
-    const content = text.trim();
+    const content = text.trim() || (files.length > 1 ? "Summarize these files" : "Summarize this file");
     requestLock.current = true;
     const pending: RetryRequest = retry ?? { content, requestId: crypto.randomUUID(), depth: depthOverride ?? depth };
     setRetryRequest(pending);
     setReplyError(false);
     setReplyErrorText("");
     if (!retry) {
-      setMsgs((m) => [...m, { role: "user", content, fresh: true }]);
+      setMsgs((m) => [...m, { role: "user", content, fresh: true, files: files.map((file) => ({ name: file.name })) }]);
       setInput("");
+      setPendingFiles([]);
     }
+    const controller = new AbortController();
+    inflight.current = { controller, requestId: pending.requestId };
     setTyping(true);
+    let waitingOn: string | null = null;
     try {
       let sid = pending.sessionId ?? activeId;
       if (!sid) {
@@ -331,30 +349,93 @@ function ContextLearn() {
         syncSessionUrl(sid);
       }
       setRetryRequest({ ...pending, sessionId: sid });
-      const res = await api<Msg>("/api/v1/study/sessions/" + sid + "/messages", {
-        method: "POST",
-        body: JSON.stringify({ content, request_id: pending.requestId, depth: pending.depth, screen: screenSize() }),
+      inflight.current = { controller, sessionId: sid, requestId: pending.requestId };
+      if (files.length) {
+        setAttaching(true);
+        const sent: SentFile[] = [];
+        for (const file of files) {
+          const saved = await uploadToChat(file, sid);
+          sent.push({ name: file.name, id: saved?.id, failed: !saved || saved.processing_status !== "READY" });
+        }
+        setAttaching(false);
+        if (version !== conversationVersion.current || controller.signal.aborted) return;
+        setMsgs((m) => m.map((msg) => msg.role === "user" && msg.files && msg.content === content && !msg.files.some((f) => f.id)
+          ? { ...msg, files: sent } : msg));
+      }
+      waitingOn = sid;
+      setWaitingIds((ids) => [...ids, sid]);
+      // The reply streams in as ARIA writes it, like ChatGPT or Claude.
+      let res: Msg | null = null;
+      let streamed = false;
+      await apiStream("/api/v1/study/sessions/" + sid + "/messages/stream",
+        { content, request_id: pending.requestId, depth: pending.depth, screen: screenSize() },
+        (event) => {
+          if (version !== conversationVersion.current) return;
+          if (event.type === "delta") {
+            const piece = String(event.text ?? "");
+            const first = !streamed; // read now: React may run the update after `streamed` changes
+            setMsgs((m) => !first
+              ? m.map((msg, index) => index === m.length - 1 && msg.live ? { ...msg, content: msg.content + piece } : msg)
+              : [...m, { role: "aria", content: piece, fresh: true, live: true, depth: pending.depth === "auto" ? null : pending.depth }]);
+            streamed = true;
+            requestAnimationFrame(() => followStreamingReply());
+          } else if (event.type === "done") {
+            res = event.message as Msg;
+          } else if (event.type === "error") {
+            throw new ApiError(Number(event.status ?? 500), String(event.detail ?? "Your reply could not be loaded. Please try again."));
+          }
+        }, controller.signal);
+      // Refresh the sidebar even if the learner has moved to another chat, or this
+      // chat (still listed with no messages) would vanish from the list.
+      loadList(context.id).catch(() => {});
+      if (version !== conversationVersion.current || !res) return;
+      const reply: Msg = res;
+      setMsgs((m) => {
+        const kept = streamed && m[m.length - 1]?.live ? m.slice(0, -1) : m;
+        // Streamed text is already on screen; a reply that did not stream (a fallback or an action) types out.
+        const typed = !streamed && !reducedMotion && !reply.action;
+        return [...kept, { id: reply.id, action: reply.action, role: "aria", content: typed ? "" : reply.content, fullContent: reply.content,
+          sources: reply.sources, fallback_used: reply.fallback_used, depth: reply.depth, fresh: true, streaming: typed }];
       });
-      if (version !== conversationVersion.current) return;
-      setMsgs((m) => [
-        ...m,
-        { id: res.id, action: res.action, role: "aria", content: reducedMotion || res.action ? res.content : "", fullContent: res.content, sources: res.sources, fallback_used: res.fallback_used, depth: res.depth, fresh: true, streaming: !reducedMotion && !res.action },
-      ]);
       setRetryRequest(null);
       setResponding(true);
-      // Refresh titles/previews so the sidebar describes this conversation.
-      loadList(context.id).catch(() => {});
     } catch (error) {
-      if (version !== conversationVersion.current) return;
+      if (version !== conversationVersion.current || controller.signal.aborted) return;
       setReplyError(true);
       setReplyErrorText(error instanceof ApiError ? error.message : "Your reply could not be loaded. Please try again.");
     } finally {
+      if (waitingOn) setWaitingIds((ids) => ids.filter((id) => id !== waitingOn));
+      if (inflight.current?.controller === controller) inflight.current = null;
       if (version === conversationVersion.current) {
         requestLock.current = false;
         setTyping(false);
       }
     }
   };
+
+  const stop = () => {
+    const current = inflight.current;
+    if (current) {
+      current.controller.abort();
+      inflight.current = null;
+      if (current.sessionId) {
+        void api(`/api/v1/study/sessions/${current.sessionId}/messages/${current.requestId}/stop`, { method: "POST" }).catch(() => {});
+      }
+      requestLock.current = false;
+      setTyping(false);
+      setAttaching(false);
+      setRetryRequest(null);
+      setMsgs((m) => m[m.length - 1]?.live
+        ? m.map((msg, index) => index === m.length - 1 ? { ...msg, live: false, stopped: true } : msg)
+        : [...m, { role: "aria", content: "", stopped: true }]);
+      return;
+    }
+    setMsgs((m) => m.map((msg) => msg.streaming
+      ? { ...msg, streaming: false, content: shownSoFar.current, stopped: true } : msg));
+  };
+  const replying = typing || msgs.some((m) => m.streaming || m.live);
+  const writing = msgs[msgs.length - 1]?.live === true;
+  const sentIds = new Set(msgs.flatMap((m) => m.files?.flatMap((f) => (f.id ? [f.id] : [])) ?? []));
 
   useEffect(() => {
     if (!pendingAsk.current || loading || ctxLoading || !context) return;
@@ -365,42 +446,30 @@ function ContextLearn() {
     void send(question);
   }); // Runs after each render until the page is ready; the ref ensures it sends once.
 
-  const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !context) return;
-    const version = conversationVersion.current;
-    setAttaching(true);
-    const title = file.name.replace(/\.[^/.]+$/, "");
-    try {
-      let sid = activeId;
-      if (!sid) {
-        const created = await api<Session>("/api/v1/study/sessions", {
-          method: "POST",
-          body: JSON.stringify({ context_id: context.id, mode: "BASELINE" }),
-        });
-        if (version !== conversationVersion.current) return;
-        sid = created.id;
-        setSessions((p) => [created, ...p]);
-        setActiveId(sid);
-        syncSessionUrl(sid);
-      }
-      const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
-      const query = `context_id=${context.id}&session_id=${sid}&title=${encodeURIComponent(title)}`;
-      const endpoint = isPdf ? `/api/v1/resources/pdf?${query}` : `/api/v1/resources/image?${query}`;
-      const mime = isPdf ? "application/pdf" : (file.type || "image/png");
-      const saved = await apiUpload<ChatFile>(endpoint, file, mime);
-      if (version !== conversationVersion.current) return;
-      filesVersion.current += 1;
-      setChatFiles((files) => [...files.filter((f) => f.id !== saved.id), saved]);
-      if (saved.processing_status === "READY") toast(`Attached "${file.name}" to this chat.`, "success");
-      else toast(saved.error_detail ?? `"${file.name}" could not be read. Try a clearer PDF or image.`, "error");
-    } catch (err) {
-      if (version === conversationVersion.current) toast(err instanceof ApiError ? err.message : "Failed to upload and process file.", "error");
-    } finally {
-      if (version === conversationVersion.current) setAttaching(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+  /** The + menu: one hidden input for documents and photos; the camera gets a live preview. */
+  const pickAttachment = (kind: "file" | "photo" | "camera") => {
+    const input = fileInputRef.current;
+    setAttachMenu(false);
+    if (kind === "camera") { setCameraOpen(true); return; }
+    if (!input) return;
+    input.accept = kind === "file" ? ".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" : "image/*";
+    input.click();
   };
+
+  const stageFile = (file: File) => {
+    const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    if (file.size > (isPdf ? 50 : 25) * 1024 * 1024) {
+      toast(isPdf ? "This PDF is over 50 MB." : "This photo is over 25 MB.", "error");
+      return;
+    }
+    setPendingFiles((files) => [...files, file]);
+  };
+
+  const handleAttachFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    Array.from(e.target.files ?? []).forEach(stageFile);
+    e.target.value = "";
+  };
+
 
   useEffect(() => {
     return () => {
@@ -457,6 +526,7 @@ function ContextLearn() {
 
       recorder.onstop = async () => {
         recordingStream.getTracks().forEach((track) => track.stop());
+        setMicStream(null);
         if (version !== conversationVersion.current) return;
         const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (blob.size === 0) return;
@@ -482,8 +552,8 @@ function ContextLearn() {
 
       recorder.start();
       mediaRecorderRef.current = recorder;
+      setMicStream(stream);
       setRecording(true);
-      toast("Listening... Click microphone again when finished.");
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       if (version !== conversationVersion.current) return;
@@ -542,7 +612,7 @@ function ContextLearn() {
   // Empty sessions (legacy rows, or a chat abandoned before its first reply)
   // stay hidden unless they are the one currently open.
   const lastReply = msgs.reduce((last, m, i) => (m.role === "aria" && !m.action ? i : last), -1);
-  const visibleSessions = sessions.filter((s) => (s.message_count ?? 0) > 0 || s.id === activeId);
+  const visibleSessions = sessions.filter((s) => (s.message_count ?? 0) > 0 || s.id === activeId || waitingIds.includes(s.id));
 
   if (loading || ctxLoading) {
     return <div className="chat-shell"><Loading label="your tutor" /></div>;
@@ -556,34 +626,26 @@ function ContextLearn() {
         </button>
         {visibleSessions.length === 0 ? (
           <>
-            <div className="nav-sec">History</div>
+            <div className="nav-sec">Recents</div>
             <div className="session-empty">Your conversations will appear here, titled by what you explored.</div>
           </>
         ) : (
-          groupSessions(visibleSessions).map(([label, group]) => (
-            <div key={label} className="session-group">
-              <div className="nav-sec">{label}</div>
-              {group.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`session-item${activeId === s.id ? " active" : ""}`}
-                  onClick={() => selectSession(s.id)}
-                  aria-current={activeId === s.id ? "page" : undefined}
-                  title={`${s.title ?? "New conversation"}${s.preview ? "\n" + s.preview : ""}`}
-                >
-                  <span className="session-title">{(s.title ?? "New conversation").replace(new RegExp("^[\\p{Extended_Pictographic}\\p{Emoji_Presentation}\\uFE0F\\u200D\\s]+", "u"), "") || s.title}</span>
-                  <span className="session-preview">
-                    {s.preview ?? "Waiting for ARIA's reply…"}
-                  </span>
-                  <span className="session-meta">
-                    {fmtDate(s.last_message_at ?? s.created_at)}
-                    {s.message_count ? ` · ${Math.ceil(s.message_count / 2)} exchange${s.message_count > 2 ? "s" : ""}` : ""}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ))
+          <div className="session-group">
+            <div className="nav-sec">Recents</div>
+            {visibleSessions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`session-item${activeId === s.id ? " active" : ""}`}
+                onClick={() => selectSession(s.id)}
+                aria-current={activeId === s.id ? "page" : undefined}
+                title={s.title ?? "New conversation"}
+              >
+                <span className="session-title">{(s.title ?? "New conversation").replace(new RegExp("^[\\p{Extended_Pictographic}\\p{Emoji_Presentation}\\uFE0F\\u200D\\s]+", "u"), "") || s.title}</span>
+                {waitingIds.includes(s.id) && <span className="session-meta">ARIA is replying…</span>}
+              </button>
+            ))}
+          </div>
         )}
       </aside>
 
@@ -597,17 +659,6 @@ function ContextLearn() {
           <button className="icon-btn focus-toggle" aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Show the chat list and navigation again" : "Hide the chat list and navigation"} aria-pressed={focusMode} onClick={() => setFocusMode(value => !value)}><Icon name="target" size={17} /></button>
         </div>
 
-        {chatFiles.length > 0 && <div className="chat-files" aria-label="Files in this chat">
-          <span className="chat-files-label">In this chat</span>
-          {chatFiles.map((file) => (
-            <span key={file.id} className={`chat-file${file.processing_status === "READY" ? "" : " failed"}`} title={file.error_detail ?? "Only this chat uses this file"}>
-              <Icon name="file" size={12} /> {file.title}
-              {file.processing_status === "READY"
-                ? <button type="button" onClick={() => void addToLibrary(file)} aria-label={`Add ${file.title} to library`}>Add to library</button>
-                : <em>could not read</em>}
-            </span>
-          ))}
-        </div>}
 
         <div className="chat-body" ref={bodyRef} role="region" aria-label="Conversation" tabIndex={0} onScroll={() => {
           const body = bodyRef.current;
@@ -616,23 +667,35 @@ function ContextLearn() {
           followLatest.current = !away;
           setAwayFromLatest(away);
         }}>
+          {chatFiles.some((file) => !sentIds.has(file.id)) && <div className="chat-files" aria-label="Files in this chat">
+            {chatFiles.filter((file) => !sentIds.has(file.id)).map((file) => (
+              <div key={file.id} className={`chat-file${file.processing_status === "READY" ? "" : " failed"}`}>
+                <span className="chat-file-icon"><Icon name="file" size={18} /></span>
+                <span className="chat-file-text">
+                  <b>{file.title}</b>
+                  <small>{file.processing_status === "READY" ? "Attached · ARIA can read it in this chat" : file.error_detail ?? "Could not read this file"}</small>
+                </span>
+                {file.processing_status === "READY"
+                  ? <button type="button" onClick={() => void addToLibrary(file)} aria-label={`Add ${file.title} to library`}>Add to library</button>
+                  : <em>could not read</em>}
+              </div>
+            ))}
+          </div>}
+          {msgs.length === 0 && <PageGuide page="learn" />}
           {msgs.length === 0 && (
             <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--text-2)", maxWidth: 580, margin: "0 auto" }}>
               <div style={{ display: "inline-flex", padding: 12, borderRadius: "50%", background: "var(--bg-2)", marginBottom: 12, color: "var(--primary)" }}>
                 <Icon name="sparkles" size={32} />
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: "0 0 6px" }}>
-                What do you want to learn?
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-1)", margin: "0 0 20px" }}>
+                Hey {firstName}, what do you want to learn?
               </h3>
-              <p style={{ fontSize: 13, color: "var(--text-3)", margin: "0 0 24px" }}>
-                Ask anything about <b>{context?.title ?? "your topic"}</b>. Short questions get short answers; pick a depth below for more or less detail.
-              </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
                 {[
-                  `Explain the core concepts of ${context?.title ?? "this topic"}`,
-                  "Give me a practical, real-world example",
-                  "Quiz me on key concepts with 3 questions",
-                  "What are common pitfalls to watch out for?",
+                  "Explain a hard idea to me simply",
+                  "Quiz me with 3 questions",
+                  "Help me plan my study for this week",
+                  "Teach me something new in 5 minutes",
                 ].map((prompt, idx) => (
                   <button
                     key={idx}
@@ -670,22 +733,38 @@ function ContextLearn() {
             </div>
           )}
           {msgs.map((m, i) =>
-            m.role === "aria" ? (
-              m.action ? <ActionCard key={m.action.id} initial={m.action} /> : m.streaming ? (
+            m.role === "aria" && m.stopped && !m.content ? <p key={i} className="msg-stopped">You stopped this reply.</p> : m.role === "aria" ? (
+              m.action ? <ActionCard key={m.action.id} initial={m.action} /> : m.live ? (
+                <TutorReply key={i} content={m.content} depth={m.depth} done={false} fresh />
+              ) : m.streaming ? (
                 <StreamingMessage key={i} msg={m} onProgress={followStreamingReply} onDone={() => setMsgs(prev => prev.map((pm, pi) => pi === i ? { ...pm, streaming: false, content: pm.fullContent ?? pm.content } : pm))} />
               ) : (
-                <TutorReply key={i} content={m.content} depth={m.depth} sources={m.sources} fallback={m.fallback_used} fresh={m.fresh}
+                m.stopped ? (
+                  // A stopped reply is not saved, so nothing can build on it.
+                  <div key={i}>
+                    <TutorReply content={m.content} depth={m.depth} done={false} fresh={m.fresh} />
+                    <p className="msg-stopped">You stopped this reply.</p>
+                  </div>
+                ) : <TutorReply key={i} content={m.content} depth={m.depth} sources={m.sources} fallback={m.fallback_used} fresh={m.fresh}
                   onDeeper={i === lastReply && !typing ? () => void send("Explain that in more depth, with an example.", undefined, "deep") : undefined}
                   onShorter={i === lastReply && !typing ? () => void send("Give me a shorter version of that.", undefined, "quick") : undefined}
                   quickCheckHref={i === lastReply && !typing && activeId ? `/app/assess?${new URLSearchParams({ quiz_chat: activeId })}` : undefined} />
               )
             ) : (
-              <div className={`msg msg-user${m.fresh ? " message-arrival" : ""}`} key={i}>{m.content}</div>
+              <div className={`msg-user-wrap${m.fresh ? " message-arrival" : ""}`} key={i}>
+                {m.files && m.files.length > 0 && <div className="msg-files">
+                  {m.files.map((file, fi) => <span key={fi} className={`msg-file${file.failed ? " failed" : ""}`}>
+                    <Icon name={/\.pdf$/i.test(file.name) ? "file" : "image"} size={15} />{file.name}
+                    {file.failed && <small> · could not read</small>}
+                  </span>)}
+                </div>}
+                <div className="msg msg-user">{m.content}</div>
+              </div>
             ),
           )}
           {replyError && retryRequest && <ErrorState inline title="Reply unavailable" message={replyErrorText}
             retryLabel="Retry reply" retryDisabled={typing} onRetry={() => void send(retryRequest.content, retryRequest)} />}
-          {typing && <RequestStatus label="ARIA is thinking…" />}
+          {typing && !writing && <RequestStatus label={attaching ? `Reading ${attachingName || "your file"}…` : "ARIA is thinking…"} />}
         </div>
 
         {awayFromLatest && <button type="button" className="jump-latest" aria-label="Scroll to the latest message" title="Latest message" onClick={() => {
@@ -706,24 +785,46 @@ function ContextLearn() {
               </button>
             ))}
           </div>
+          {pendingFiles.length > 0 && <div className="pending-files" aria-label="Files to send">
+            {pendingFiles.map((file, fi) => (
+              <span key={`${file.name}-${fi}`} className="pending-file">
+                <Icon name={/\.pdf$/i.test(file.name) ? "file" : "image"} size={15} />
+                <span>{file.name}</span>
+                <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setPendingFiles((files) => files.filter((_, index) => index !== fi))}><Icon name="x" size={13} /></button>
+              </span>
+            ))}
+          </div>}
           <div className="bar">
-            <button
-              className="btn btn-secondary"
-              style={{ width: 44, height: 44, padding: 0, borderRadius: 12, flexShrink: 0 }}
-              aria-label="Attach document or image"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!context || attaching}
-              title="Attach a PDF or image (PNG, JPG, WEBP)"
-            >
-              <Icon name="plus" size={20} />
-            </button>
-            <input
+            <div className="attach-wrap">
+              <button
+                className="btn btn-secondary"
+                style={{ width: 44, height: 44, padding: 0, borderRadius: 12, flexShrink: 0 }}
+                aria-label="Attach document or image"
+                aria-haspopup="menu"
+                aria-expanded={attachMenu}
+                onClick={() => setAttachMenu((open) => !open)}
+                onKeyDown={(e) => { if (e.key === "Escape") setAttachMenu(false); }}
+                disabled={!context || attaching}
+                title="Add files, photos or a camera picture"
+              >
+                <Icon name="plus" size={20} />
+              </button>
+              {attachMenu && <>
+                <div className="attach-backdrop" onClick={() => setAttachMenu(false)} />
+                <div className="attach-menu" role="menu" aria-label="Add to this chat">
+                  <button type="button" role="menuitem" onClick={() => pickAttachment("file")}><Icon name="file" size={17} /><span><b>Upload a file</b><small>PDFs up to 50 MB · photos up to 25 MB</small></span></button>
+                  <button type="button" role="menuitem" onClick={() => pickAttachment("photo")}><Icon name="image" size={17} /><span><b>Photos</b><small>Notes, slides, a whiteboard</small></span></button>
+                  <button type="button" role="menuitem" onClick={() => pickAttachment("camera")}><Icon name="camera" size={17} /><span><b>Take a photo</b><small>Use your camera</small></span></button>
+                </div>
+              </>}
+            </div>
+            {recording && micStream ? <MicWaveform stream={micStream} /> : <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask ARIA anything…"
-              onKeyDown={(e) => e.key === "Enter" && send(input)}
+              placeholder={transcribing ? "Turning your voice into text…" : "Ask ARIA anything…"}
+              onKeyDown={(e) => { if (e.key === "Enter" && !replying) void send(input); }}
               disabled={ctxLoading || loading}
-            />
+            />}
             <button
               type="button"
               className={`btn ${recording ? "btn-primary" : "btn-secondary"}`}
@@ -749,9 +850,13 @@ function ContextLearn() {
             >
               <Icon name={transcribing ? "sparkles" : "mic"} size={18} />
             </button>
-            <button className="btn btn-primary" style={{ width: 42, height: 42, padding: 0, borderRadius: "50%", flexShrink: 0 }} aria-label="Send" onClick={() => send(input)} disabled={ctxLoading || loading || typing}>
-              <Icon name="send" size={18} />
-            </button>
+            {replying
+              ? <button className="btn btn-primary" style={{ width: 42, height: 42, padding: 0, borderRadius: "50%", flexShrink: 0 }} aria-label="Stop" title="Stop the reply" onClick={stop}>
+                  <Icon name="stop" size={16} />
+                </button>
+              : <button className="btn btn-primary" style={{ width: 42, height: 42, padding: 0, borderRadius: "50%", flexShrink: 0 }} aria-label="Send" onClick={() => send(input)} disabled={ctxLoading || loading || !(input.trim() || pendingFiles.length)}>
+                  <Icon name="send" size={18} />
+                </button>}
           </div>
         </div>
       </div>
@@ -759,9 +864,11 @@ function ContextLearn() {
         ref={fileInputRef}
         type="file"
         accept=".pdf,.png,.jpg,.jpeg,.webp"
+        multiple
         style={{ display: "none" }}
         onChange={handleAttachFile}
       />
+      {cameraOpen && <CameraCapture onClose={() => setCameraOpen(false)} onCapture={stageFile} />}
     </div>
   );
 }

@@ -14,6 +14,7 @@ from app.schemas.resources import (
     TextResourceUpdate,
 )
 from app.security.dependencies import CurrentLearner
+from app.services.digest import schedule_digest
 from app.services.resource_ingestion import (
     create_image_resource,
     create_pdf_resource,
@@ -28,7 +29,7 @@ from app.services.resource_ingestion import (
 router = APIRouter(prefix="/api/v1/resources", tags=["resources"])
 Db = Annotated[Session, Depends(get_db)]
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB PDF cap
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB: textbooks and lecture packs fit
 
 
 async def read_upload_body(request: Request) -> bytes:
@@ -40,7 +41,7 @@ async def read_upload_body(request: Request) -> bytes:
         if total > MAX_UPLOAD_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=f"PDF upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+                detail=f"This file is over {MAX_UPLOAD_BYTES // (1024 * 1024)} MB. Try a smaller file or split it.",
             )
         chunks.append(chunk)
     return b"".join(chunks)
@@ -110,6 +111,7 @@ async def add_text_resource(
     resource = await create_text_resource(
         db, owner_id=learner.id, context_id=request.context_id, title=request.title, text=request.text
     )
+    schedule_digest(owner_id=learner.id, resource_id=resource.id)
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
@@ -135,6 +137,7 @@ async def add_pdf_resource(
         content=content,
         study_session_id=chat_id,
     )
+    schedule_digest(owner_id=learner.id, resource_id=resource.id)
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
@@ -165,6 +168,7 @@ async def add_image_resource(
         mime_type=content_type,
         study_session_id=chat_id,
     )
+    schedule_digest(owner_id=learner.id, resource_id=resource.id)
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
@@ -250,6 +254,9 @@ async def retry_processing(
 ) -> ResourceResponse:
     resource = get_resource(db, resource_id=resource_id, owner_id=learner.id)
     processed = await reprocess_resource(db, resource=resource)
+    processed.digest = None  # the file changed; condense it again
+    db.commit()
+    schedule_digest(owner_id=learner.id, resource_id=processed.id)
     return resource_response(processed, chunk_count=chunk_count_for(db, resource_id=processed.id))
 
 
@@ -264,6 +271,9 @@ async def replace_text(
     replaced = await replace_text_resource(
         db, resource=resource, title=request.title, text=request.text
     )
+    replaced.digest = None  # the file changed; condense it again
+    db.commit()
+    schedule_digest(owner_id=learner.id, resource_id=replaced.id)
     return resource_response(replaced, chunk_count=chunk_count_for(db, resource_id=replaced.id))
 
 
@@ -282,4 +292,7 @@ async def replace_pdf(
     replaced = await replace_pdf_resource(
         db, resource=resource, title=title, content=content
     )
+    replaced.digest = None  # the file changed; condense it again
+    db.commit()
+    schedule_digest(owner_id=learner.id, resource_id=replaced.id)
     return resource_response(replaced, chunk_count=chunk_count_for(db, resource_id=replaced.id))

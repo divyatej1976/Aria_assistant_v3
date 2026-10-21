@@ -113,6 +113,16 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 The compose file lists every required variable; the backend refuses to start in production without a PostgreSQL database and a strong `ARIA_SESSION_SECRET`.
 
+Both production configurations enable `ARIA_BRAIN_ROUTING`: in Learn, ask
+"Make audio from this chat" to create an audio action. LangGraph saves only
+identifiers and execution status in PostgreSQL checkpoints, initialized before
+the backend accepts requests. Startup serializes checkpoint schema setup across
+workers. Set `ARIA_BRAIN_ROUTING=false` to disable chat actions; normal tutoring
+and the Audio page remain available. Local SQLite development is opt-in via the
+same flag and uses `ARIA_BRAIN_CHECKPOINT_PATH` for checkpoints. This workflow
+creates audio from the current chat; general note-selection commands are not
+enabled by the deterministic router.
+
 ---
 
 ## Project status

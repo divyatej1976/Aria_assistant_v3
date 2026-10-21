@@ -217,7 +217,7 @@ def test_audio_from_text_saves_source_reuses_episode_and_isolates_owner(client, 
     assert len(resources) == 1
     assert client.post("/api/v1/audio/text/generate", json=payload, headers=headers(other)).status_code == 404
     assert client.get(f"/api/v1/audio/{artifact['id']}/play", headers=headers(other)).status_code == 404
-    for text in ["   ", "x" * 20001]:
+    for text in ["   ", "x" * 200_001]:
         assert client.post("/api/v1/audio/text/generate", json={**payload, "text": text}, headers=headers(token)).status_code == 422
 
 

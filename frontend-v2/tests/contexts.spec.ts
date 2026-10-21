@@ -79,7 +79,7 @@ test("switching context in the header updates mounted screens immediately (no re
 
   // The Continue learning card reflects the new context WITHOUT any reload.
   await expect(
-    page.locator(".learning-hero .hero-topic"),
+    page.locator(".home-subject"),
   ).toHaveText("Second Goal", { timeout: 15_000 });
   void firstContextId;
 });

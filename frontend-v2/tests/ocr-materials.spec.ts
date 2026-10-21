@@ -65,14 +65,15 @@ test.describe("OCR Document & Image Ingestion", () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(imagePath);
 
-    // The file appears in this chat's file strip
-    await expect(page.locator(".chat-files .chat-file").filter({ hasText: "sample_ocr_notes" })).toBeVisible({ timeout: 35_000 });
+    // The file waits in the input bar until the question is sent
+    await expect(page.locator(".pending-file").filter({ hasText: "sample_ocr_notes" })).toBeVisible();
 
     // Ask ARIA a question about the attached image notes
     await page.getByPlaceholder("Ask ARIA anything…").fill(
       "Based on my attached notes, what are the three properties in the CAP Theorem and what does each guarantee?"
     );
     await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.locator(".msg-file").filter({ hasText: "sample_ocr_notes" })).toBeVisible();
 
     // Wait for ARIA response with dual-source grounding
     await expect(page.locator(".msg-aria .mh-name").first()).toBeVisible({ timeout: 60_000 });

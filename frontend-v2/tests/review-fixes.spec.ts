@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { openRoadmap } from "./helpers";
 
 async function fixture(page: Page, options: { anonymous?: boolean; roadmapFailure?: boolean; logoutFailure?: boolean; roadmapMode?: "ai" | "starter" | "legacy"; keyUsable?: boolean; personalKeysEnabled?: boolean; assessment?: boolean; audio?: boolean } = {}) {
   await page.route("**/api/v1/**", async route => {
@@ -312,8 +313,10 @@ for (const [mode, label] of [["ai", "AI-generated curriculum"], ["starter", "Gen
   test(`saved roadmap displays ${mode} provenance after reload`, async ({ page }) => {
     await fixture(page, { roadmapMode: mode });
     await page.goto("/app/roadmaps");
+    await openRoadmap(page);
     await expect(page.getByText(label, { exact: true })).toBeVisible();
     await page.reload();
+    await openRoadmap(page);
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   });
 }

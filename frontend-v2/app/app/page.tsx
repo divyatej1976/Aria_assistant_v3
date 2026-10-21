@@ -30,6 +30,7 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
   const [progress, setProgress] = useState<{ contextId: string; pct: number } | null>(null);
   const [progressError, setProgressError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [counts, setCounts] = useState<{ chats: number | null; quizzes: number | null }>();
   const [firstSteps, setFirstSteps] = useState<{ learned: boolean | null; reviewCreated: boolean | null; reviewTaken: boolean | null; noteSaved: boolean | null; materialAdded: boolean | null }>();
 
   useEffect(() => {
@@ -47,6 +48,10 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
           .sort((a, b) => (b.last_message_at ?? b.created_at).localeCompare(a.last_message_at ?? a.created_at));
         setLastChat(chats[0] ? { id: chats[0].id, title: chats[0].title ?? "Your last chat" } : null);
       }
+      setCounts({
+        chats: sessions.status === "fulfilled" ? sessions.value.filter(item => (item.message_count ?? 0) > 0).length : null,
+        quizzes: assessments.status === "fulfilled" ? assessments.value.reduce((sum, item) => sum + (item.submitted_attempt_count ?? 0), 0) : null,
+      });
       setFirstSteps({
         learned: sessions.status === "fulfilled" ? sessions.value.some(item => (item.message_count ?? 0) > 0) : null,
         reviewCreated: assessments.status === "fulfilled" ? assessments.value.length > 0 : null,
@@ -131,7 +136,7 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
     focusDecision,
     nearestExamDaysLeft: examDays,
     nearestExamTitle: upcoming[0]?.title ?? null,
-    hasLastSession: Boolean(context),
+    hasLastSession: Boolean(lastChat),
   });
 
   const review = async (id: string, outcome: "again" | "good") => {
@@ -153,5 +158,5 @@ function ContextDashboard({ context }: { context: ActiveContext | null }) {
     pct={progress?.contextId === context?.id ? progress?.pct ?? null : null}
     nextAction={nextAction} streak={streak} week={week} lastChat={lastChat}
     dueNotes={dueNotes} onReview={review}
-    progressError={progressError} onRetry={() => setRetryNonce(n => n + 1)} firstSteps={firstSteps} />;
+    progressError={progressError} onRetry={() => setRetryNonce(n => n + 1)} firstSteps={firstSteps} counts={counts} />;
 }

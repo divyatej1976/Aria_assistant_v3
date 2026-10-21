@@ -79,6 +79,7 @@ services:
       # Shared fixed-window buckets so rate limits hold across replicas.
       ARIA_RATE_LIMIT_BACKEND: ${ARIA_RATE_LIMIT_BACKEND:-db}
       ARIA_SCHEDULER_ENABLED: "true"
+      ARIA_BRAIN_ROUTING: ${ARIA_BRAIN_ROUTING:-true}
       ARIA_REMINDER_CHECK_INTERVAL_MINUTES: ${ARIA_REMINDER_CHECK_INTERVAL_MINUTES:-60}
       ARIA_AUDIO_QUEUE_INTERVAL_SECONDS: ${ARIA_AUDIO_QUEUE_INTERVAL_SECONDS:-30}
       ARIA_IDEMPOTENCY_SWEEP_INTERVAL_SECONDS: ${ARIA_IDEMPOTENCY_SWEEP_INTERVAL_SECONDS:-600}
@@ -115,7 +116,8 @@ services:
       ARIA_TTS_API_KEY: ${ARIA_TTS_API_KEY:-}
       ARIA_STT_API_KEY: ${ARIA_STT_API_KEY:-}
       ARIA_TTS_MODEL: ${ARIA_TTS_MODEL:-canopylabs/orpheus-v1-english}
-      ARIA_TTS_VOICE: ${ARIA_TTS_VOICE:-tara}
+      ARIA_TTS_VOICE: ${ARIA_TTS_VOICE:-hannah}
+      ARIA_TTS_VOICE_2: ${ARIA_TTS_VOICE_2:-troy}
       ARIA_STT_MODEL: ${ARIA_STT_MODEL:-whisper-large-v3}
       # Generated audio bytes (object/file storage, never the database).
       ARIA_AUDIO_DIR: /audio

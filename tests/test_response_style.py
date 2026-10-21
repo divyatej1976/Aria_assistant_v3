@@ -81,7 +81,7 @@ def test_depth_reaches_the_prompt_and_is_saved(client: TestClient, monkeypatch) 
     assert res.status_code == 200
     assert res.json()["depth"] == "deep"
     assert "Response style:" in provider.user
-    assert "step-by-step" in provider.user
+    assert "in-depth explanation" in provider.user and "Key takeaways" in provider.user
     assert "small screen" in provider.user
 
     messages = client.get(f"/api/v1/study/sessions/{session['id']}/messages", headers=headers).json()
@@ -114,3 +114,15 @@ def test_answering_the_tutors_question_gets_a_verdict() -> None:
     assert not resolve_style("Why can't WHERE use COUNT?", last_tutor=asked).grading
     assert not resolve_style("ok thanks", last_tutor=asked).grading
     assert not resolve_style("I think HAVING because it filters", last_tutor="WHERE filters rows.").grading
+
+
+def test_short_summary_requests_get_a_full_answer() -> None:
+    assert resolve_style("Summarize this document").depth == "deep"
+    assert resolve_style("Summarize this", "quick").depth == "quick"  # an explicit choice still wins
+
+
+def test_summaries_ask_for_structured_notes_of_the_whole_material() -> None:
+    style = resolve_style("Summarize this document", "auto", "regular")
+    assert style.summary and style.depth == "deep"
+    assert "Cover every section" in style.instruction()
+    assert "Direct answer" not in style.instruction()

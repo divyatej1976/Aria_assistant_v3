@@ -151,7 +151,7 @@ test("dashboard performance sanity", async ({ page }) => {
   const started = Date.now();
   await page.goto("/app");
   await page.locator('[data-home-ready="true"]').waitFor({ state: "visible", timeout: 20_000 });
-  await expect(page.locator(".home .learning-hero").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".home .home-hero").first()).toBeVisible({ timeout: 20_000 });
   const elapsed = Date.now() - started;
   // generous ceiling: guards against pathological regressions, not micro-tuning
   expect(elapsed, `dashboard took ${elapsed}ms to become interactive`).toBeLessThan(20_000);

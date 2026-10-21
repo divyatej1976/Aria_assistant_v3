@@ -21,6 +21,10 @@ os.environ.setdefault("ARIA_SCHEDULER_ENABLED", "false")
 # ambient key would make them fire live LLM calls (flaky asserts, token
 # burn). Empty string also matches CI, which runs without any key.
 os.environ["GROQ_API_KEY"] = ""
+# The same for an OpenAI/Gemini key in keys.env.
+os.environ["ARIA_LLM_API_KEY"] = ""
+os.environ["ARIA_LLM_PROVIDER"] = "groq"
+os.environ["LLM_MODEL"] = "openai/gpt-oss-120b"
 # Point the app-level engine (used by /ready probes) at the test database.
 os.environ["DATABASE_URL"] = (
     os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or "sqlite://"

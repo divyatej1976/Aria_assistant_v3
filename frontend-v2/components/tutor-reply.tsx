@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { TutorMarkdown } from "@/components/tutor-markdown";
+import { StudyCards, splitSections } from "@/components/study-cards";
 
 export type Depth = "quick" | "balanced" | "deep";
 export type RequestedDepth = "auto" | Depth;
@@ -74,6 +75,9 @@ export function TutorReply({
   quickCheckHref?: string;
 }) {
   const { lead, blocks } = splitBlocks(content);
+  // A finished answer with several sections reads as a deck of study cards (never a Quick one).
+  const deck = done && depth !== "quick" ? splitSections(content) : null;
+  const asCards = deck !== null && deck.sections.length >= 3;
   const titles = [...new Set((sources ?? []).map((s) => s.title))];
   return (
     <article className={`msg msg-aria${fresh ? " message-arrival" : ""}`}>
@@ -87,8 +91,9 @@ export function TutorReply({
           ? <><Icon name="file" size={12} /> From your material {titles.map((title) => <span key={title} className="source-chip">{title}</span>)}</>
           : <span className="reply-note"><Icon name="sparkles" size={12} /> From ARIA&apos;s general knowledge{fallback ? " · add files in Library for answers from your documents" : ""}</span>}
       </p>
-      {lead && <div className="reply-lead"><TutorMarkdown content={lead} /></div>}
-      {blocks.map((block, index) => (
+      {asCards && <StudyCards lead={deck.lead} sections={deck.sections} />}
+      {!asCards && lead && <div className="reply-lead"><TutorMarkdown content={lead} /></div>}
+      {!asCards && blocks.map((block, index) => (
         <section className="reply-block" key={`${block.label}-${index}`}>
           <h4 className="reply-block-label">{block.label}</h4>
           <TutorMarkdown content={block.body} />

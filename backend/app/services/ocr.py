@@ -10,7 +10,8 @@ from app.core.errors import ValidationError
 
 logger = logging.getLogger(__name__)
 
-MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_IMAGE_BYTES = 25 * 1024 * 1024  # 25 MB: full-resolution phone photos
+MAX_OCR_PAGES = 50
 
 _CACHED_TESSDATA_DIR: str | None = None
 
@@ -100,12 +101,19 @@ def extract_text_from_pdf(content: bytes) -> str:
 
     pages_text: list[str] = []
     tess_dir: str | None = None
+    ocr_pages = 0
+    skipped = 0
 
     for i, page in enumerate(doc):
         # First attempt fast digital text extraction
         text = page.get_text().strip()
         # If the page has little or no text (e.g. scanned page or slide picture), run OCR
-        if len(text) < 25:
+        # shortcut: OCR is ~1-2 s a page, so only the first MAX_OCR_PAGES scanned pages
+        # are read in the request; long scans need a background OCR job.
+        if len(text) < 25 and ocr_pages >= MAX_OCR_PAGES:
+            skipped += 1
+        elif len(text) < 25:
+            ocr_pages += 1
             try:
                 if tess_dir is None:
                     tess_dir = ensure_tessdata_dir()
@@ -121,4 +129,8 @@ def extract_text_from_pdf(content: bytes) -> str:
     full_text = "\n\n".join(pages_text).strip()
     if not full_text:
         raise ValueError("The uploaded PDF could not be read or contains no readable text")
+    if skipped:
+        # Say so in the text itself, so the tutor never presents a partial scan as the whole file.
+        full_text += (f"\n\n[Note: {skipped} more scanned page(s) were not read; only the first "
+                      f"{MAX_OCR_PAGES} scanned pages are transcribed. Upload the rest as a separate file.]")
     return full_text

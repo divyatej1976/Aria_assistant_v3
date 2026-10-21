@@ -1,5 +1,6 @@
 """Retryable tutoring requests with one durable conversation turn per request."""
 
+import logging
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import select
@@ -10,6 +11,40 @@ from app.schemas.study import SourceReference, StudyMessageResponse
 from app.services import idempotency
 from app.services.response_style import RequestedDepth, Screen, resolve_style
 from app.services.study import answer_question, persist_conversation_turn
+
+logger = logging.getLogger(__name__)
+
+
+def clean_title(raw: str) -> str | None:
+    """First line, no quotes or trailing punctuation; None unless it reads like a 1-8 word title."""
+    line = (raw or "").strip().splitlines()[0] if (raw or "").strip() else ""
+    line = line.strip().strip("\"'*#`").strip().rstrip(".!?:;").removeprefix("Title:").strip()
+    words = line.split()
+    return line[:80] if 1 <= len(words) <= 8 else None
+
+
+async def name_chat(db: Session, *, owner_id: UUID, session: StudySession, question: str) -> None:
+    """Give a new chat a short name, as Claude and ChatGPT do; keeps the question snippet on failure."""
+    from app.ai.registry import get_llm_provider_for_owner
+
+    if session.title:
+        return
+    provider = get_llm_provider_for_owner(db, owner_id=owner_id)
+    if provider is None:
+        return
+    try:
+        title = clean_title(await provider.generate_text(
+            system="You name study chats. Reply with the title only.",
+            user=("Write a 2 to 5 word title in Title Case for a study chat that starts with this "
+                  f"question. No quotes, no punctuation at the end.\n\nQuestion: {question[:500]}"),
+            prompt_version="chat_title:1",
+        ))
+    except Exception:
+        logger.warning("chat naming failed; keeping the question as its title", exc_info=True)
+        return
+    if title:
+        session.title = title
+        db.commit()
 
 
 def last_tutor_message(db: Session, *, owner_id: UUID, session_id: UUID) -> str | None:
@@ -24,9 +59,22 @@ class ReplyPending(Exception):
     pass
 
 
+class ReplyStopped(Exception):
+    """The learner pressed Stop; the reply is discarded, not saved."""
+
+
+# Replies the learner stopped while they were being prepared, as "session:request".
+# shortcut: kept in this process only; with several API instances store it in the database.
+_stopped: set[str] = set()
+
+
+def stop_reply(*, session_id: UUID, request_id: UUID) -> None:
+    _stopped.add(f"{session_id}:{request_id}")
+
+
 async def answer_and_save(
     db: Session, *, owner_id: UUID, session: StudySession, content: str, request_id: UUID | None,
-    depth: RequestedDepth = "auto", screen: Screen = "regular",
+    depth: RequestedDepth = "auto", screen: Screen = "regular", on_delta=None,
 ) -> StudyMessageResponse:
     scope = "study:reply"
     key = f"{session.id}:{request_id}" if request_id is not None else None
@@ -79,12 +127,15 @@ async def answer_and_save(
                 except ValidationError as exc:
                     return StudyResult(str(exc), [], False), None
             return await answer_question(db, owner_id=owner_id, context_id=session.context_id,
-                question=content, session_id=session.id, style=style), None
+                question=content, session_id=session.id, style=style, on_delta=on_delta), None
         if key is not None:
             with idempotency.keep_claim_alive(db, owner_id=owner_id, scope=scope, key=key, claim_id=claim_id):
                 result, action = await respond()
         else:
             result, action = await respond()
+        if key is not None and key in _stopped:
+            _stopped.discard(key)
+            raise ReplyStopped("Stopped. Nothing was saved.")
         from app.services.brain.actions import audit, view
         response = StudyMessageResponse(
             id=str(assistant_id), action=view(action) if action else None,
@@ -108,6 +159,8 @@ async def answer_and_save(
             response_depth=response.depth,
             before_commit=checkpoint,
         )
+        if not session.title and not result.fallback_used:
+            await name_chat(db, owner_id=owner_id, session=session, question=content)
         return response
     except Exception:
         db.rollback()

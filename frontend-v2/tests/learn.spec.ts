@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { createUser, randomUser, signInAndOnboard, type TestUser } from "./helpers";
+import { createUser, fulfillReply, randomUser, signInAndOnboard, type TestUser } from "./helpers";
 
 async function noSeriousAxe(page: Page, name: string) {
   let results;
@@ -47,10 +47,11 @@ test("selecting a session whose messages fail does not leave the page stuck load
   await input.waitFor({ state: "visible", timeout: 20_000 });
 
   // Sessions are created on the first message, so hold two conversations.
-  for (const question of ["Explain Python functions", "What is a loop?"]) {
+  // Chats are listed by topic, not by the question's wording.
+  for (const [question, topic] of [["Explain Python functions", /Python Functions/i], ["What is a loop?", /Loop/i]] as const) {
     await input.fill(question);
     await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.locator(".session-item .session-title", { hasText: question })).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".session-item .session-title", { hasText: topic })).toBeVisible({ timeout: 60_000 });
     await page.getByRole("button", { name: "New chat" }).click();
   }
   await expect(page.locator(".session-item")).toHaveCount(2, { timeout: 20_000 });
@@ -87,7 +88,7 @@ test("empty learn screen renders starter prompt chips and clicking one sends the
   await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
   // Starter chip is visible
-  const chip = page.getByRole("button", { name: /Explain the core concepts/i });
+  const chip = page.getByRole("button", { name: /Explain a hard idea to me simply/i });
   await expect(chip).toBeVisible({ timeout: 10_000 });
   await chip.click();
 
@@ -117,11 +118,41 @@ test("returning to Learn opens a fresh chat and lists the old one by topic", asy
 
   await expect(page.locator(".chat-body .msg")).toHaveCount(0, { timeout: 20_000 });
   await expect(page).not.toHaveURL(/[?&]session=/);
-  const previous = page.locator(".session-item", { hasText: "Explain Python functions" });
+  const previous = page.locator(".session-item", { hasText: /Python Functions/i });
   await expect(previous).toBeVisible({ timeout: 20_000 });
-  await expect(previous.locator(".session-preview")).not.toBeEmpty();
+  await expect(previous.locator(".session-title")).toContainText(/Python Functions/i);
 
   // Re-opening it from history restores the conversation.
   await previous.click();
   await expect(page.locator(".chat-body .msg-aria").first()).toBeVisible({ timeout: 20_000 });
+});
+
+test("a long answer becomes study cards: next, dots, a flip card and full text", async ({ page }) => {
+  test.setTimeout(120_000);
+  const user = randomUser();
+  await createUser(user);
+  await signInAndOnboard(page, user);
+  const reply = [
+    "Dynamic programming reuses answers to smaller problems.",
+    "### What is dynamic programming", "Solving each sub-problem once and storing it.",
+    "### How memoization works", "Cache each result the first time it is computed.",
+    "### Example: Fibonacci", "```python\nfib = [0, 1]\n```",
+    "### Key takeaways", "- Overlapping sub-problems\n- Optimal substructure",
+    "### Check yourself", "What two properties does a problem need?", "Answer: Overlapping sub-problems and optimal substructure.",
+  ].join("\n\n");
+  await page.route("**/api/v1/study/sessions/*/messages/stream", (route) => fulfillReply(route, { id: "r1", role: "assistant", content: reply, depth: "deep", sources: [] }));
+  await page.goto("/app/learn");
+  await page.getByPlaceholder("Ask ARIA anything…").fill("Explain dynamic programming");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+
+  await expect(page.locator(".study-deck-count")).toHaveText("Card 1 of 5", { timeout: 20_000 });
+  await expect(page.locator(".study-card-kind")).toContainText("Definition");
+  await page.getByRole("button", { name: "Next card" }).click();
+  await expect(page.locator(".study-card-kind")).toContainText("How it works");
+  await page.getByRole("button", { name: "Card 5: Check yourself" }).click();
+  await expect(page.locator(".study-flip-face.front")).toContainText("What two properties");
+  await page.getByRole("button", { name: "Flip to see the answer" }).click();
+  await expect(page.locator(".study-card.flipped .study-flip-face.back")).toContainText("Overlapping sub-problems and optimal substructure");
+  await page.getByRole("button", { name: "Full text", exact: true }).click();
+  await expect(page.locator(".msg-aria .reply-block")).toHaveCount(5);
 });

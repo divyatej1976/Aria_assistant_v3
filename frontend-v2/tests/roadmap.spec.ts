@@ -4,6 +4,7 @@ import {
   activeContextId,
   authedApi,
   createUser,
+  openRoadmap,
   randomUser,
   seedResource,
   signInAndOnboard,
@@ -124,7 +125,7 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
   await setup.getByRole("button", { name: /Create roadmap/i }).click();
 
   // tree renders from real concepts with 0% completion
-  await expect(page.locator(".roadmap-tier-head").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".rm-node").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".r-n").first()).toHaveText("0%", { timeout: 30_000 });
   const topicCount = await page.locator(".roadmap-topic-card").count();
   expect(topicCount).toBeGreaterThan(0);
@@ -142,11 +143,7 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
   await expect(page.locator(".roadmap-topic-card").first()).toBeVisible();
 
   // Each milestone explains what you'll be able to do and how it's checked.
-  const firstPhase = page.locator(".roadmap-tier-head").first();
-  await expect(async () => {
-    if ((await firstPhase.getAttribute("aria-expanded")) !== "true") await firstPhase.click();
-    await expect(page.locator(".roadmap-topic-details:visible").first()).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  await expect(page.locator(".roadmap-topic-details:visible").first()).toBeVisible({ timeout: 20_000 });
   await page.locator(".roadmap-topic-details:visible").first().click();
   await expect(page.locator(".milestone-facts")).toContainText("How it's checked");
   await expect(page.locator(".milestone-facts")).toContainText("Effort");
@@ -164,6 +161,7 @@ test("roadmap milestones tick when a matching skill reaches Supported", async ({
 
   await page.reload();
   await page.getByRole("heading", { name: "Roadmaps" }).waitFor({ state: "visible", timeout: 20_000 });
+  await openRoadmap(page);
   // after the correct attempts, at least one milestone reached Supported -> ticks appear
   await expect(page.locator(".r-n").first()).not.toHaveText("0%", { timeout: 30_000 });
   await expect(page.getByText("Completed").first()).toBeVisible({ timeout: 20_000 });

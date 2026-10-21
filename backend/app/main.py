@@ -42,6 +42,14 @@ async def lifespan(_: FastAPI):
     import litellm  # noqa: F401
 
     init_sentry()
+    if get_settings().aria_brain_routing:
+        from starlette.concurrency import run_in_threadpool
+
+        from app.db.session import engine
+        from app.services.brain.checkpoints import setup_postgres_checkpoints
+
+        if engine.dialect.name == "postgresql":
+            await run_in_threadpool(setup_postgres_checkpoints, engine.url)
     start_scheduler()
     try:
         yield

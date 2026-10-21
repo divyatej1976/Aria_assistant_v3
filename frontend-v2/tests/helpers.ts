@@ -1,4 +1,4 @@
-import { expect, type APIResponse, type Page, request } from "@playwright/test";
+import { expect, type APIResponse, type Page, type Route, request } from "@playwright/test";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
@@ -176,4 +176,21 @@ export async function answerQuiz(page: Page): Promise<number> {
   }
   await expect(page.getByRole("heading", { name: "Answer review", exact: true })).toBeVisible({ timeout: 30_000 });
   return answered;
+}
+
+/** Roadmaps opens on the list of goals; open the first one. */
+export async function openRoadmap(page: Page): Promise<void> {
+  const card = page.locator(".roadmap-card:not(.roadmap-card-new)").first();
+  await card.waitFor({ state: "visible", timeout: 20_000 });
+  await card.click();
+}
+
+/** Fulfil a mocked tutor reply. The chat streams replies, so the stream endpoint gets the
+ * reply as one NDJSON "done" event; errors stay plain HTTP errors. */
+export async function fulfillReply(route: Route, body: unknown, status = 200): Promise<void> {
+  if (route.request().url().includes("/messages/stream") && status < 400) {
+    await route.fulfill({ status, contentType: "application/x-ndjson", body: JSON.stringify({ type: "done", message: body }) + "\n" });
+    return;
+  }
+  await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }

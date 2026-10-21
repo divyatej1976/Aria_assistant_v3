@@ -58,3 +58,6 @@ Thumbs.db
 # Design assets (wireframes kept locally, not tracked)
 design/*
 !design/README.md
+
+# Private AI keys (see keys.env.example)
+keys.env

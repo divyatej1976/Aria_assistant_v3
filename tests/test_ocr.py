@@ -35,8 +35,8 @@ def test_detect_image_mime_types():
     with pytest.raises(ValidationError, match="Unsupported file format"):
         detect_image_mime(b"GIF89a...")
 
-    with pytest.raises(ValidationError, match="exceeds the 10 MB limit"):
-        detect_image_mime(b"\x89PNG\r\n\x1a\n" + b"0" * (11 * 1024 * 1024))
+    with pytest.raises(ValidationError, match="exceeds the 25 MB limit"):
+        detect_image_mime(b"\x89PNG\r\n\x1a\n" + b"0" * (26 * 1024 * 1024))
 
 
 def test_ocr_extracts_text_from_rendered_image():

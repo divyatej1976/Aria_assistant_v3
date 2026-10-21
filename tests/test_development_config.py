@@ -49,3 +49,18 @@ def test_hosted_postgres_urls_use_the_psycopg3_driver() -> None:
     assert normalize_database_url("postgres://u:p@h/d") == "postgresql+psycopg://u:p@h/d"
     assert normalize_database_url("postgresql+psycopg://u:p@h/d") == "postgresql+psycopg://u:p@h/d"
     assert normalize_database_url("sqlite:///aria.db") == "sqlite:///aria.db"
+
+
+def test_app_ai_provider_can_be_openai_or_gemini(monkeypatch) -> None:
+    from app.ai.registry import get_llm_provider
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("ARIA_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ARIA_LLM_API_KEY", "test-gemini-key")
+    monkeypatch.setenv("LLM_MODEL", "gemini-2.0-flash")
+    get_settings.cache_clear()
+    try:
+        provider = get_llm_provider()
+        assert provider is not None and provider.route == "gemini" and provider.model == "gemini-2.0-flash"
+    finally:
+        get_settings.cache_clear()

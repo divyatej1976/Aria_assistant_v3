@@ -106,3 +106,51 @@ def test_upload_rejects_a_chat_from_another_subject(client: TestClient) -> None:
         headers={**headers, "Content-Type": "image/png"}, content=b"\x89PNG\r\n\x1a\n",
     )
     assert res.status_code == 404
+
+
+def test_summarize_this_document_sends_the_attached_file(client: TestClient, session_factory, monkeypatch) -> None:
+    """'Summarize this' shares no words with the file; the attachment must still reach the tutor."""
+    import app.services.study as study
+
+    headers, context_id, first, second = _learner(client)
+    _attach(session_factory, client, headers, context_id, first)
+    provider = _CapturingProvider()
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: provider)
+
+    for question in ("Summarize this document", "Can you explain it simply?"):
+        res = client.post(f"/api/v1/study/sessions/{first}/messages", headers=headers, json={"content": question})
+        assert res.status_code == 200, res.text
+    assert all("zorblax protocol rotates keys" in prompt for prompt in provider.prompts)
+    # A chat without the file still doesn't see it.
+    client.post(f"/api/v1/study/sessions/{second}/messages", headers=headers, json={"content": "Summarize this document"})
+    assert "zorblax protocol rotates keys" not in provider.prompts[-1]
+
+
+def test_chats_get_short_titles_after_the_first_reply(client: TestClient, monkeypatch) -> None:
+    """Like Claude's Recents: a few words, not the whole first question."""
+    import app.ai.registry as registry
+    import app.services.study as study
+    from app.services.study_requests import clean_title
+
+    class _Namer(_CapturingProvider):
+        async def generate_text(self, *, system, user, prompt_version=None, temperature=0.0):
+            return '"Zorblax Key Rotation."' if prompt_version == "chat_title:1" else await super().generate_text(
+                system=system, user=user)
+
+    provider = _Namer()
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: provider)
+    monkeypatch.setattr(registry, "get_llm_provider_for_owner", lambda db, owner_id: provider)
+    headers, context_id, first, _ = _learner(client)
+    _ask(client, headers, first)
+    listed = client.get(f"/api/v1/study/sessions?context_id={context_id}", headers=headers).json()
+    assert next(s for s in listed if s["id"] == first)["title"] == "Zorblax Key Rotation"
+    assert clean_title("This is far too long to be a chat title at all really") is None
+
+
+def test_chat_titles_fall_back_to_the_topic_not_the_wording() -> None:
+    from app.services.study import topic_title
+
+    assert topic_title("hi explain me about agent harness") == "Agent Harness"
+    assert topic_title("hey aria, how does two-phase locking work?") == "Two-phase Locking"
+    assert topic_title("can you explain the difference between 3NF and BCNF in detail") == "Difference between 3NF and BCNF"
+    assert topic_title("I want to learn about Kubernetes networking") == "Kubernetes Networking"

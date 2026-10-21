@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "@/components/modal";
+import { PageGuide } from "@/components/page-guide";
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import { milestonesPerWeek, tickExplanation, type Roadmap, type RoadmapSummary, 
 import { toast } from "@/lib/toast";
 import { ErrorState, Loading } from "@/components/states";
 import { MilestoneTrail } from "@/components/milestone-trail";
+import { RoadmapTree } from "@/components/roadmap-tree";
 import { useDismissed } from "@/lib/use-dismissed";
 import { RequestStatus } from "@/components/request-status";
 
@@ -55,6 +57,7 @@ type ServerRoadmapResponse = {
       title: string;
       description?: string;
       key_skills: string[];
+      done_skills?: string[];
       prerequisites: string[];
       state: string;
       confidence: number;
@@ -94,7 +97,6 @@ function RoadmapsPageWorkspace() {
   const [refineText, setRefineText] = useState("");
   const [refining, setRefining] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [openTiers, setOpenTiers] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<RoadmapTopic | null>(null);
   const [createError, setCreateError] = useState("");
   const { dismissed: infoDismissed, dismiss: dismissInfo } = useDismissed(`aria.roadmap-info:${context?.id}:${roadmap?.id}:${roadmap?.generationMode ?? "legacy"}`);
@@ -103,6 +105,25 @@ function RoadmapsPageWorkspace() {
   const activeIdRef = useRef<string | null>(null);
 
   useEffect(() => () => { detailsVersion.current += 1; }, []);
+
+  // Tick a sub-topic straight away; put it back if the save fails.
+  const tickSkill = async (topic: RoadmapTopic, skill: string, done: boolean) => {
+    const roadmapId = roadmap?.id;
+    if (!roadmapId) return;
+    const apply = (isDone: boolean) => setRoadmap((current) => current && {
+      ...current,
+      tiers: current.tiers.map((tier) => ({ ...tier, topics: tier.topics.map((item) => item.key !== topic.key ? item : {
+        ...item, doneSkills: isDone ? [...new Set([...(item.doneSkills ?? []), skill])] : (item.doneSkills ?? []).filter((s) => s !== skill),
+      }) })),
+    });
+    apply(done);
+    try {
+      await api(`/api/v1/roadmaps/${roadmapId}/milestones/${topic.key}/skills`, { method: "PUT", body: JSON.stringify({ skill, done }) });
+    } catch {
+      apply(!done);
+      toast("Could not save that tick. Please try again.", "error");
+    }
+  };
 
   const fetchRoadmapDetails = useCallback(async (roadmapId: string) => {
     const version = ++detailsVersion.current;
@@ -127,6 +148,7 @@ function RoadmapsPageWorkspace() {
             title: tp.title,
             description: tp.description,
             keySkills: tp.key_skills,
+            doneSkills: tp.done_skills ?? [],
             ticked: tp.ticked,
             state: tp.state,
             confidence: tp.confidence,
@@ -143,12 +165,6 @@ function RoadmapsPageWorkspace() {
       };
       if (version !== detailsVersion.current) return;
       setRoadmap(mappedRoadmap);
-      if (mappedRoadmap.tiers.length > 0) {
-        setOpenTiers((prev) => ({
-          ...prev,
-          [mappedRoadmap.tiers[0].name]: true,
-        }));
-      }
     } catch {
       if (version === detailsVersion.current) setFailed(true);
     }
@@ -203,10 +219,12 @@ function RoadmapsPageWorkspace() {
           return;
         }
 
-        const targetId = preferredId || (activeIdRef.current && summaries.some((s) => s.id === activeIdRef.current) ? activeIdRef.current : summaries[0].id);
+        // The page opens on the list of roadmaps; a roadmap opens when picked (or right after it is made).
+        const targetId = preferredId || (activeIdRef.current && summaries.some((s) => s.id === activeIdRef.current) ? activeIdRef.current : null);
         activeIdRef.current = targetId;
         setActiveRoadmapId(targetId);
-        await fetchRoadmapDetails(targetId);
+        if (targetId) await fetchRoadmapDetails(targetId);
+        else setRoadmap(null);
       } catch {
         setFailed(true);
       }
@@ -311,36 +329,43 @@ function RoadmapsPageWorkspace() {
           <h1 className="pg-title">Roadmaps</h1>
           <p className="pg-sub">Choose a goal and follow milestones backed by your learning evidence.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setCreateError(""); setStep(0); setGoal((g) => g || context?.title || ""); setOpen(true); }}>
+        <button className="btn btn-primary" data-tour="create-roadmap" onClick={() => { setCreateError(""); setStep(0); setGoal((g) => g || context?.title || ""); setOpen(true); }}>
           <Icon name="route" /> Create roadmap
         </button>
       </div>
+      <PageGuide page="plan" />
 
-      {/* Multi-Roadmap Switcher */}
-      {roadmapList.length > 1 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-3)", marginRight: 4 }}>Goals:</span>
-          {roadmapList.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className={`tag-chip${r.id === activeRoadmapId ? " tag-chip-selected" : ""}`}
-              onClick={() => {
-                activeIdRef.current = r.id;
-                setActiveRoadmapId(r.id);
-                fetchRoadmapDetails(r.id);
-                setSelected(null);
-              }}
-              style={{ cursor: "pointer", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <span>{r.goal}</span>
-              <span style={{ fontSize: 10, opacity: 0.8 }}>({r.done}/{r.total})</span>
+      {activeRoadmapId === null && roadmapList.length > 0 ? (
+        <section aria-labelledby="roadmap-list-title">
+          <h2 id="roadmap-list-title" className="roadmap-list-title">Your learning goals</h2>
+          <div className="roadmap-list">
+            {roadmapList.map((r) => {
+              const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
+              return (
+                <button key={r.id} type="button" className="roadmap-card" onClick={() => {
+                  activeIdRef.current = r.id;
+                  setActiveRoadmapId(r.id);
+                  setSelected(null);
+                  void fetchRoadmapDetails(r.id);
+                }}>
+                  <span className="tool-icon"><Icon name="route" size={20} /></span>
+                  <b>{r.goal}</b>
+                  <small>{r.level}{r.target_date ? ` · by ${new Date(r.target_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</small>
+                  <span className="roadmap-card-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`${r.goal} progress`}><span style={{ width: `${pct}%` }} /></span>
+                  <small>{r.done} of {r.total} milestones · {pct}%</small>
+                </button>
+              );
+            })}
+            <button type="button" className="roadmap-card roadmap-card-new" onClick={() => { setCreateError(""); setStep(0); setGoal(""); setOpen(true); }}>
+              <span className="tool-icon"><Icon name="plus" size={20} /></span>
+              <b>New roadmap</b>
+              <small>Another goal, its own milestones</small>
             </button>
-          ))}
-        </div>
-      )}
-
-      {roadmap === null ? (
+          </div>
+        </section>
+      ) : activeRoadmapId !== null && roadmap === null ? (
+        <Loading label="Loading roadmap" />
+      ) : roadmap === null ? (
         <div className="empty-state">
           <Icon name="route" size={30} />
           <p style={{ margin: "10px 0 14px", fontSize: 14, color: "var(--text-1)" }}>
@@ -417,6 +442,12 @@ function RoadmapsPageWorkspace() {
         </div>
       ) : (
         <>
+          <div className="roadmap-open-head">
+            <button className="btn btn-ghost" onClick={() => { activeIdRef.current = null; setActiveRoadmapId(null); setRoadmap(null); }}>
+              <Icon name="back" /> All roadmaps
+            </button>
+            <h2>{roadmap.goal}</h2>
+          </div>
           {(() => {
             const week = topics.filter((topic) => !topic.ticked).slice(0, milestonesPerWeek(roadmap.hoursPerWeek));
             if (week.length === 0) return null;
@@ -481,65 +512,8 @@ function RoadmapsPageWorkspace() {
           </div>}
 
           <MilestoneTrail key={roadmap.id} roadmapId={roadmap.id} milestones={roadmap.tiers.flatMap(tier => tier.topics)} onSelect={key => setSelected(roadmap.tiers.flatMap(tier => tier.topics).find(topic => topic.key === key) ?? null)} />
-          <div className="roadmap-timeline">{roadmap.tiers.map((tier, phaseIndex) => {
-            const tierDone = tier.topics.filter((t) => t.ticked).length;
-            const tierPct = tier.topics.length ? Math.round((tierDone / tier.topics.length) * 100) : 0;
-            return (
-            <div key={tier.name} className={`roadmap-tier phase-${phaseIndex}${tierDone === tier.topics.length && tierDone > 0 ? " phase-complete" : ""}`}>
-              <span className="phase-node" aria-hidden="true">{tierDone === tier.topics.length && tierDone > 0 ? <Icon name="check" size={15} /> : phaseIndex + 1}</span>
-              <button
-                type="button"
-                className="roadmap-tier-head"
-                onClick={() => setOpenTiers((o) => ({ ...o, [tier.name]: !o[tier.name] }))}
-                aria-expanded={!!openTiers[tier.name]}
-                aria-controls={`tier-${phaseIndex}`}
-              >
-                <div className="roadmap-tier-icon">
-                  <Icon name={tier.icon} size={18} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ fontSize: 14 }}>{tier.name}</b>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                    <div className="roadmap-tier-bar">
-                      <div style={{ width: `${tierPct}%` }} />
-                    </div>
-                    <span style={{ fontSize: 11, color: "var(--text-3)", whiteSpace: "nowrap" }}>
-                      {tierDone}/{tier.topics.length}
-                    </span>
-                  </div>
-                  {!openTiers[tier.name] && <p className="phase-preview">{tier.topics.slice(0, 3).map(topic => topic.title).join(" · ")}{tier.topics.length > 3 ? ` · +${tier.topics.length - 3} more` : ""}</p>}
-                </div>
-                <Icon name={openTiers[tier.name] ? "chevron-up" : "chevron-down"} size={16} />
-              </button>
-                <div className="roadmap-tile-grid route-arrival" id={`tier-${phaseIndex}`} hidden={!openTiers[tier.name]}>
-                  {tier.topics.map((topic) => {
-                    const requiresReview = topic.state === "NEEDS_REVIEW";
-                    const developing = !topic.ticked && topic.state === "DEVELOPING";
-                    const next = !topic.ticked && !requiresReview && !developing && topic.key === nextTopic?.key;
-                    const label = topic.ticked ? "Completed" : requiresReview ? "Review needed" : developing ? "Developing" : next ? "Up next" : "Upcoming";
-                    const prerequisitesPending = topic.prereqNames.some(name => !topics.some(candidate => candidate.title.toLowerCase() === name.toLowerCase() && candidate.ticked));
-                    return (
-                    <article
-                      className={`roadmap-topic-card${topic.ticked ? " completed" : requiresReview ? " needs-review" : developing ? " in-progress" : next ? " up-next" : prerequisitesPending ? " prerequisite-pending" : " upcoming"}`}
-                      key={topic.key}
-                    >
-                      <Link className="roadmap-topic-study" title={topic.title} href={`/app/learn?${new URLSearchParams({ topic: topic.title, context: context?.id ?? "", roadmap: roadmap.id ?? "", milestone: topic.key })}`} aria-label={`Study ${topic.title}`}>
-                      <div className="roadmap-topic-status">
-                        <Icon name={topic.ticked ? "check" : requiresReview ? "refresh" : developing ? "activity" : prerequisitesPending ? "lock" : tier.icon} size={18} />
-                      </div>
-                      <b className="roadmap-topic-title">{topic.title}</b>
-                      <div className="roadmap-topic-label">
-                        {label}
-                      </div>
-                      {prerequisitesPending && !topic.ticked && <span className="roadmap-prerequisite-hint">Prerequisites first</span>}
-                      </Link>
-                      <button className="roadmap-topic-details" onClick={() => setSelected(topic)} aria-label={`View ${topic.title} details`} title="View milestone details"><Icon name="info" size={15} /></button>
-                    </article>
-                  );})}
-                </div>
-            </div>
-            );
-          })}</div>
+          <RoadmapTree tiers={roadmap.tiers} nextKey={nextTopic?.key} contextId={context?.id} roadmapId={roadmap.id}
+            onDetails={setSelected} onTick={(topic, skill, done) => void tickSkill(topic, skill, done)} />
 
           <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 18 }}>
             <Icon name="sparkles" size={13} /> Only learning activities relevant to this goal tick milestones. Unrelated lessons or document uploads will never alter this curriculum.

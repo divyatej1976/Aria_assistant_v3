@@ -73,7 +73,7 @@ class NotificationProvider(Protocol):
 
 
 class TTSProvider(Protocol):
-    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+    def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
         """Synthesize speech. Returns (audio bytes, content type, duration seconds)."""
 
 
@@ -153,13 +153,14 @@ class CloudTTSProvider:
         self.model = model
         self.voice = voice
 
-    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+    def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
         parts: list[bytes] = []
         for segment in speech_segments(text):
             response = httpx.post(
                 "https://api.openai.com/v1/audio/speech",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={
+                    # OpenAI has its own voice names; the Groq-specific second voice does not apply.
                     "model": self.model, "voice": self.voice,
                     "input": segment, "response_format": "wav",
                 },
@@ -172,7 +173,7 @@ class CloudTTSProvider:
 
 
 class LocalTTSProvider:
-    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+    def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
         data = self._espeak_ng(text)
         if data is None:
             data = self._pyttsx3(text)
@@ -278,14 +279,14 @@ class GroqTTSProvider:
         self.model = model
         self.voice = voice
 
-    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+    def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
         parts: list[bytes] = []
         for segment in speech_segments(text):
             response = httpx.post(
                 "https://api.groq.com/openai/v1/audio/speech",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={
-                    "model": self.model, "voice": self.voice,
+                    "model": self.model, "voice": voice or self.voice,
                     "input": segment, "response_format": "wav",
                 },
                 timeout=120,
@@ -327,10 +328,10 @@ class ChainedTTSProvider:
     def __init__(self, providers: list) -> None:
         self.providers = providers
 
-    def generate(self, *, text: str) -> tuple[bytes, str, int]:
+    def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
         for provider in self.providers:
             try:
-                return provider.generate(text=text)
+                return provider.generate(text=text, **({"voice": voice} if voice else {}))
             except Exception as exc:  # noqa: BLE001 - chain reports every failure
                 logger.warning(
                     "tts provider failed provider=%s error_type=%s",
@@ -369,10 +370,17 @@ def retry_after_seconds(exc: Exception) -> float:
     return 1.0
 
 
+# Groq stops a reply at 3,072 tokens unless told otherwise, cutting Deep answers and long
+# roadmaps off mid-sentence; ask for room explicitly (every model ARIA uses allows this).
+MAX_OUTPUT_TOKENS = 8192
+
+
 class LiteLLMGroqProvider:
-    def __init__(self, *, api_key: str, model: str, owner_id=None, db=None) -> None:
+    def __init__(self, *, api_key: str, model: str, owner_id=None, db=None, route: str = "groq") -> None:
         self.api_key = api_key
         self.model = model
+        # LiteLLM provider prefix: "groq", "openai" or "gemini" (learner keys are always Groq).
+        self.route = route
         self.owner_id = owner_id
         # Request session whose transaction is ended before each provider await.
         self.db = db
@@ -384,6 +392,9 @@ class LiteLLMGroqProvider:
             from app.db.session import release_connection
 
             release_connection(self.db)
+        if self.route == "gemini":
+            # Gemini Flash "thinks" before answering by default: ~1 minute a reply instead of ~2 seconds.
+            kwargs.setdefault("reasoning_effort", "disable")
         for attempt in range(RATE_LIMIT_RETRIES + 1):
             try:
                 return await acompletion(**kwargs)
@@ -563,20 +574,36 @@ class LiteLLMGroqProvider:
         user: str,
         prompt_version: str | None = None,
         temperature: float = 0.0,
+        on_delta=None,
     ) -> str:
+        """The reply text. With on_delta, the reply streams and each new piece is passed to it."""
         global_reserved, reserved = await asyncio.to_thread(self._begin, len(system) + len(user))
         output_reservation = global_reserved or reserved
         started = time.monotonic()
         final = None
         try:
-            response = await self._acompletion(
-                model=f"groq/{self.model}",
+            request = dict(
+                model=f"{self.route}/{self.model}",
                 api_key=self.api_key,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 temperature=temperature,
-                **({"max_tokens": output_reservation[1]} if output_reservation is not None else {}),
+                max_tokens=output_reservation[1] if output_reservation is not None else MAX_OUTPUT_TOKENS,
                 timeout=60,
             )
+            if on_delta is None:
+                response = await self._acompletion(**request)
+            else:
+                import litellm
+
+                chunks = []
+                stream = await self._acompletion(**request, stream=True, stream_options={"include_usage": True})
+                async for chunk in stream:
+                    chunks.append(chunk)
+                    piece = chunk.choices[0].delta.content if chunk.choices else None
+                    if piece:
+                        on_delta(piece)
+                # One response with usage, as a non-streamed call returns, for logging and budgets.
+                response = litellm.stream_chunk_builder(chunks, messages=request["messages"])
             final = await asyncio.to_thread(
                 self._log_call,
                 kind="generate_text",
@@ -609,14 +636,14 @@ class LiteLLMGroqProvider:
         final = None
         try:
             response = await self._acompletion(
-                model=f"groq/{self.model}",
+                model=f"{self.route}/{self.model}",
                 api_key=self.api_key,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
-                **({"max_tokens": output_reservation[1]} if output_reservation is not None else {}),
+                max_tokens=output_reservation[1] if output_reservation is not None else MAX_OUTPUT_TOKENS,
                 timeout=60,
             )
             final = await asyncio.to_thread(

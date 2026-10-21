@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, apiUpload, ApiError } from "@/lib/api";
 
 export type QuizSetupValues = {
   source: "library" | "chats" | "topic" | "weak";
@@ -103,9 +103,29 @@ function Choice<T extends string>({ label, value, options, onChange }: {
   );
 }
 
-export function QuizSetup({ contextId, values, onChange, libraryReady = null }: {
+export function QuizSetup({ contextId, values, onChange, libraryReady = null, libraryFiles = null, onLibraryChanged }: {
   contextId: string; values: QuizSetupValues; onChange: (v: QuizSetupValues) => void; libraryReady?: boolean | null;
+  libraryFiles?: { id: string; title: string }[] | null; onLibraryChanged?: () => void;
 }) {
+  const [uploading, setUploading] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  // Quiz straight from a document: it goes to the library, where every quiz and chat can use it.
+  const uploadToLibrary = async (file: File) => {
+    const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    const title = file.name.replace(/\.[^/.]+$/, "") || "Document";
+    const query = `context_id=${contextId}&title=${encodeURIComponent(title)}`;
+    setUploading(file.name); setUploadError("");
+    try {
+      const saved = await apiUpload<{ processing_status: string; error_detail?: string | null }>(
+        `/api/v1/resources/${isPdf ? "pdf" : "image"}?${query}`, file, isPdf ? "application/pdf" : (file.type || "image/png"));
+      if (saved.processing_status !== "READY") setUploadError(saved.error_detail ?? "That file could not be read. Try a clearer PDF or photo.");
+      onLibraryChanged?.();
+    } catch (error) {
+      setUploadError(error instanceof ApiError ? error.message : "The upload failed. Please retry.");
+    } finally {
+      setUploading("");
+    }
+  };
   const [chats, setChats] = useState<Chat[] | null>(null);
   // The chat list loads after the learner may already have changed settings; read the latest ones.
   const latest = useRef({ values, onChange });
@@ -157,6 +177,19 @@ export function QuizSetup({ contextId, values, onChange, libraryReady = null }: 
                 <span>{chat.title ?? "Untitled chat"}</span>
               </label>
             ))}
+        </div>
+      )}
+      {values.source === "library" && (
+        <div className="quiz-library">
+          {libraryFiles && libraryFiles.length > 0 && (
+            <p className="field-help">Questions will cover: <b>{libraryFiles.map((file) => file.title).join(", ")}</b></p>
+          )}
+          <label className={`btn btn-secondary${uploading ? " is-busy" : ""}`}>
+            <input type="file" accept=".pdf,application/pdf,image/*" hidden disabled={!!uploading}
+              onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void uploadToLibrary(file); }} />
+            {uploading ? `Reading ${uploading}…` : libraryFiles?.length ? "Add another file" : "Upload a file to quiz on"}
+          </label>
+          {uploadError && <p className="field-help" role="alert">{uploadError}</p>}
         </div>
       )}
       {values.source === "topic" && (

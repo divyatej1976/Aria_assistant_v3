@@ -14,7 +14,8 @@ def normalize_database_url(url: str) -> str:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # keys.env (optional, private) is read after .env, so the AI keys put there win.
+    model_config = SettingsConfigDict(env_file=(".env", "keys.env"), extra="ignore")
 
     aria_env: str = "development"
     aria_log_level: str = "INFO"
@@ -28,6 +29,10 @@ class Settings(BaseSettings):
     aria_session_secret: str | None = Field(default=None, repr=False)
     groq_api_key: str | None = Field(default=None, repr=False)
     llm_model: str = "openai/gpt-oss-120b"
+    # The app's own AI provider: "groq" (default), "openai" or "gemini". With openai/gemini set
+    # ARIA_LLM_API_KEY and an LLM_MODEL from that provider, e.g. gpt-4o-mini or gemini-2.5-flash.
+    aria_llm_provider: str = "groq"
+    aria_llm_api_key: str | None = Field(default=None, repr=False)
     aria_brain_routing: bool = False
     aria_brain_llm_routing: bool = False
     aria_brain_checkpoint_path: str = "aria-brain-checkpoints.db"
@@ -98,7 +103,10 @@ class Settings(BaseSettings):
     # The orpheus TTS model requires one-time terms acceptance by the Groq
     # org admin; until then the provider chain falls back automatically.
     aria_tts_model: str = "canopylabs/orpheus-v1-english"
-    aria_tts_voice: str = "tara"
+    # Groq Orpheus English voices: autumn, diana, hannah, austin, daniel, troy.
+    aria_tts_voice: str = "hannah"
+    # The learner's voice in two-person episodes.
+    aria_tts_voice_2: str = "troy"
     aria_stt_model: str = "whisper-large-v3"
     # Audio byte storage root (local dir; prod mounts a volume here).
     # S3-compatible backends implement AudioStorage later without migration:

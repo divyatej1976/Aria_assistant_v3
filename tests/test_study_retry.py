@@ -121,3 +121,27 @@ def assert_concurrent_reply_dispatches_once(client, session_factory, monkeypatch
     assert len(calls) == 1
     with session_factory() as db:
         assert len(list(db.scalars(select(ConversationMessage)))) == 2
+
+
+def test_stopped_reply_is_discarded_not_saved(client, session_factory, monkeypatch):
+    token, session = setup_chat(client)
+    request_id = str(uuid4())
+
+    async def answer(*args, **kwargs):
+        # The learner presses Stop while the answer is still being written.
+        from app.services.study_requests import stop_reply
+        stop_reply(session_id=UUID(session), request_id=UUID(request_id))
+        return StudyResult("An answer nobody wants any more.", [], False)
+    monkeypatch.setattr("app.services.study_requests.answer_question", answer)
+
+    response = client.post(f"/api/v1/study/sessions/{session}/messages", headers=headers(token),
+                           json={"content": "Explain functions", "request_id": request_id})
+    assert response.status_code == 409 and "Stopped" in response.text
+    with session_factory() as db:
+        assert list(db.scalars(select(ConversationMessage).where(
+            ConversationMessage.study_session_id == UUID(session)))) == []
+    assert client.post(f"/api/v1/study/sessions/{session}/messages/{request_id}/stop",
+                       headers=headers(token)).status_code == 200
+    stranger = register(client, "stop-stranger@example.com")["access_token"]
+    assert client.post(f"/api/v1/study/sessions/{session}/messages/{request_id}/stop",
+                       headers=headers(stranger)).status_code == 404

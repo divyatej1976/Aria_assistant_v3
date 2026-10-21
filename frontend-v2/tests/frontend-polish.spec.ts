@@ -1,3 +1,4 @@
+import { fulfillReply, openRoadmap } from "./helpers";
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
@@ -48,10 +49,10 @@ async function fixture(page: Page, ready = false) {
 test("tutor retry reuses the request and keeps one question bubble", async ({ page }) => {
   await fixture(page);
   const requests: { content: string; request_id: string }[] = [];
-  await page.route("**/study/sessions/polish-session/messages", async route => {
+  await page.route("**/study/sessions/polish-session/messages/stream", async route => {
     requests.push(route.request().postDataJSON());
-    await route.fulfill({ status: requests.length === 1 ? 503 : 200, contentType: "application/json",
-      body: JSON.stringify(requests.length === 1 ? { detail: "The tutor is temporarily unavailable. Try again." } : { role: "assistant", content: "A primary key identifies each row uniquely.", sources: [] }) });
+    await fulfillReply(route, requests.length === 1 ? { detail: "The tutor is temporarily unavailable. Try again." } : { role: "assistant", content: "A primary key identifies each row uniquely.", sources: [] },
+      requests.length === 1 ? 503 : 200);
   });
   await page.goto("/app/learn");
   const input = page.getByPlaceholder("Ask ARIA anything…");
@@ -86,12 +87,13 @@ test("assessment types have friendly names and distinct badges", async ({ page }
 test("roadmap tiles stay readable, reveal prerequisites, and prefill the tutor", async ({ page }, info) => {
   await fixture(page);
   await page.goto("/app/roadmaps");
+  await openRoadmap(page);
   await expect(page.locator(".roadmap-summary")).toContainText("1 / 4 completed");
   await expect(page.locator(".roadmap-topic-card.completed")).toHaveCount(1);
   await expect(page.locator(".roadmap-topic-card.in-progress")).toHaveCount(1);
-  const collapsed = page.getByRole("button", { name: /Advanced topics/ });
-  await expect(collapsed).toContainText("Transactions · Index design");
-  await collapsed.click();
+  // roadmap.sh-style map: every phase and topic is visible, nothing to expand.
+  await expect(page.locator(".rm-phase-label").filter({ hasText: /Advanced topics/i })).toBeVisible();
+  await expect(page.locator(".rm-node").filter({ hasText: "Transactions" })).toBeVisible();
   await expect(page.locator(".roadmap-topic-card.prerequisite-pending")).toHaveCount(1);
   for (const width of [320, 375, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -101,7 +103,7 @@ test("roadmap tiles stay readable, reveal prerequisites, and prefill the tutor",
       return { width: box.width, height: box.height, clipped: tile.scrollHeight > tile.clientHeight + 2 };
     }));
     expect(dimensions.length).toBe(4);
-    for (const tile of dimensions) { expect(Math.abs(tile.width - tile.height)).toBeLessThan(3); expect(tile.clipped).toBe(false); }
+    for (const tile of dimensions) { expect(tile.width).toBeGreaterThan(200); expect(tile.clipped).toBe(false); }
     const trail = page.locator(".milestone-next");
     const trailSize = await trail.evaluate(element => ({ display: getComputedStyle(element).display, columns: getComputedStyle(element).gridTemplateColumns, scroll: element.scrollWidth, client: element.clientWidth }));
     await info.attach(`trail-${width}`, { body: JSON.stringify(trailSize), contentType: "application/json" });
@@ -112,12 +114,14 @@ test("roadmap tiles stay readable, reveal prerequisites, and prefill the tutor",
   }
   await page.getByRole("button", { name: "Dismiss roadmap information" }).click();
   await page.reload();
+  await openRoadmap(page);
   await expect(page.getByText("About this learning path", { exact: true })).toHaveCount(0);
   await expect(page.getByText("AI-generated curriculum", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "View Normalization and functional dependencies details" }).click();
   await page.getByRole("link", { name: "Study this milestone" }).click();
   await expect(page.getByPlaceholder("Ask ARIA anything…")).toHaveValue("Help me learn Normalization and functional dependencies. Start with a clear explanation and an example.");
   await page.goto("/app/roadmaps");
+  await openRoadmap(page);
   await page.getByRole("link", { name: "Study Tables and primary keys", exact: true }).click();
   await expect(page.getByPlaceholder("Ask ARIA anything…")).toHaveValue("Help me learn Tables and primary keys. Start with a clear explanation and an example.");
 });
@@ -139,7 +143,7 @@ test("note generation keeps conversation selection and shows failures inside the
 test("streaming replies follow the latest message without pulling an earlier reading position", async ({ page }) => {
   await fixture(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.route("**/study/sessions/polish-session/messages", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ role: "assistant", content: "A primary key identifies each row uniquely. ".repeat(70) + "End of explanation.", sources: [] }) }));
+  await page.route("**/study/sessions/polish-session/messages/stream", route => fulfillReply(route, { role: "assistant", content: "A primary key identifies each row uniquely. ".repeat(70) + "End of explanation.", sources: [] }));
   await page.goto("/app/learn");
   await page.getByPlaceholder("Ask ARIA anything…").fill("Explain primary keys");
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -179,29 +183,27 @@ test("assessment failure preserves selections and displays an inline error", asy
   await expect(modal.getByRole("button", { name: "Start quiz", exact: true })).toBeEnabled();
 });
 
-test("first session guidance makes materials optional", async ({ page }, info) => {
+test("first visit greets the learner and shows progress at a glance", async ({ page }, info) => {
   await fixture(page);
   await page.goto("/app");
-  await expect(page.getByRole("heading", { name: "Three small steps" })).toBeVisible();
-  await expect(page.locator(".first-chapter")).toContainText("Your own notes are optional");
-  await expect(page.locator(".first-chapter li").filter({ hasText: "Add your own material" })).toContainText("Optional");
+  await expect(page.getByRole("heading", { level: 1, name: /^(Good morning|Good afternoon|Good evening|Up late|Hi)/ })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Your progress at a glance" }).getByRole("listitem")).toHaveCount(4);
   await expect(page.getByRole("img", { name: "0% of concepts strong" })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("first-session.png"), fullPage: true });
 });
 
-test("creating a review keeps the guide until the learner submits it", async ({ page }) => {
+test("home stats count chats and taken quizzes, and the ring appears once a quiz is taken", async ({ page }) => {
   await fixture(page);
-  await page.route("**/api/v1/study/sessions?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "session", message_count: 2 }]) }));
+  await page.route("**/api/v1/study/sessions?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "session", message_count: 2, created_at: "2026-01-01T00:00:00Z" }]) }));
   let taken = false;
   await page.route("**/api/v1/assessments?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "review", submitted_attempt_count: taken ? 1 : 0 }]) }));
   await page.goto("/app");
-  const step = page.locator(".first-chapter li").filter({ hasText: "Take your first quiz" });
-  await expect(step).toContainText("Your quiz is ready in Practice");
-  await expect(step.getByRole("link")).toHaveAttribute("href", "/app/assess");
-  await expect(step.locator(".step-check")).toHaveAttribute("aria-label", "Not completed");
+  const stats = page.getByRole("list", { name: "Your progress at a glance" });
+  await expect(stats.getByRole("listitem").filter({ hasText: "chat" })).toContainText("1");
+  await expect(stats.getByRole("listitem").filter({ hasText: "quizzes taken" })).toContainText("0");
   taken = true;
   await page.reload();
-  await expect(page.locator(".first-chapter")).toHaveCount(0);
+  await expect(stats.getByRole("listitem").filter({ hasText: "quiz taken" })).toContainText("1");
   await expect(page.getByRole("img", { name: "0% of concepts strong" })).toBeVisible();
 });
 
@@ -210,9 +212,9 @@ test("slow replies explain the wait and the daily review has a clear action", as
   await page.clock.install();
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route("**/study/sessions/polish-session/messages", async route => {
+  await page.route("**/study/sessions/polish-session/messages/stream", async route => {
     await held;
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ role: "assistant", content: "Primary keys identify rows.", sources: [] }) });
+    await fulfillReply(route, { role: "assistant", content: "Primary keys identify rows.", sources: [] });
   });
   await page.route("**/api/v1/study/sessions?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify([{ id: "polish-session", message_count: 2, created_at: "2026-10-14T10:00:00Z" }]) }));
   await page.route("**/finish-day", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ assessment_id: "daily-review" }) }));

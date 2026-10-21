@@ -54,10 +54,14 @@ _PROMPTS: dict[str, PromptVersion] = {
     ),
     "mcq_generation": PromptVersion(
         key="mcq_generation",
-        version=4,
+        version=5,
         system="You produce only valid JSON matching the schema.",
         template=(
             "Generate multiple-choice questions grounded only in the supplied study material. "
+            "Test the learner's understanding of the subject itself: definitions, how things work, "
+            "why, and applying ideas to a new example. Never ask about the material as an object: "
+            "no questions about the conversation, the user, the AI, who asked what, or what a "
+            "document says about itself. "
             "Each question must have exactly four distinct options and a correct_option letter "
             "of A, B, C, or D matching the correct option. Exactly one option may be correct: "
             "every other option must be clearly wrong, never an equivalent way of writing or "
@@ -70,7 +74,7 @@ _PROMPTS: dict[str, PromptVersion] = {
     ),
     "roadmap_tree_generation": PromptVersion(
         key="roadmap_tree_generation",
-        version=2,
+        version=3,
         system="You are an expert Curriculum Architect. You produce only valid JSON matching the schema.",
         template=(
             "Create a goal-oriented, progressive learning roadmap tree for a learner with the following goal:\n"
@@ -80,12 +84,13 @@ _PROMPTS: dict[str, PromptVersion] = {
             "Rules:\n"
             "1. Organize the curriculum into 4 sequential phases: 'Foundations', 'Core "
             "Concepts', 'Advanced Topics', 'Mastery Track'.\n"
-            "2. For each phase, generate 2 to 4 distinct, concrete milestones.\n"
+            "2. For each phase, generate 3 to 5 distinct, concrete milestones (main topics).\n"
             "3. Each milestone MUST have:\n"
             "   - 'title': concise topic title (e.g. 'Goroutines & Concurrency Channels')\n"
             "   - 'description': what this milestone covers and why it matters\n"
-            "   - 'key_skills': list of 2 to 4 specific skills or concepts required to master "
-            "it (e.g. ['channel buffering', 'select statement', 'race condition detection'])\n"
+            "   - 'key_skills': 3 to 6 sub-topics the learner studies and ticks off one by one, "
+            "each a specific named thing, never a generic word (e.g. for 'Arrays': ['Two pointers', "
+            "'Sliding window', 'Prefix sums', \"Kadane's algorithm\"])\n"
             "   - 'prerequisites': list of milestone titles that must be completed before starting this one\n"
             "   - 'outcome': one sentence on what the learner can do afterwards\n"
             "   - 'effort_hours': estimated study hours (a whole number), fitting the timeframe\n"

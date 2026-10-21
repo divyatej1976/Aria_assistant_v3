@@ -1,13 +1,15 @@
 """Audio: text-to-speech generation, playback, progress, review, and STT."""
 
 import logging
+import re
+import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, delete, func, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.ai.providers import (
     ChainedTTSProvider,
@@ -40,6 +42,9 @@ RESOURCE = "RESOURCE"
 # synchronous TTS calls: sources above this many characters are rejected.
 # Cloud providers segment the complete source within each request's limit.
 MAX_AUDIO_CHARS = 20_000
+# With the AI tutor the source is condensed into a lesson script first, so only
+# reading a source aloud verbatim is held to MAX_AUDIO_CHARS.
+MAX_SOURCE_CHARS = 400_000
 
 
 class AudioSourceNotFound(ValidationError):
@@ -47,7 +52,7 @@ class AudioSourceNotFound(ValidationError):
 
 
 async def generate_text_audio(db: Session, *, owner_id: UUID, context_id: UUID,
-                              title: str, text: str) -> AudioArtifact:
+                              title: str, text: str, style: str = "explainer") -> AudioArtifact:
     from starlette.concurrency import run_in_threadpool
 
     from app.services.resource_ingestion import create_text_resource
@@ -59,11 +64,8 @@ async def generate_text_audio(db: Session, *, owner_id: UUID, context_id: UUID,
     text, title = text.strip(), title.strip()
     if not text or not title:
         raise ValidationError("Enter a title and some text to create audio")
-    if len(text) > MAX_AUDIO_CHARS:
-        raise ValidationError(
-            "This conversation is too long for one episode. "
-            "Paste a section of up to 20,000 characters in Audio studio."
-        )
+    if len(text) > MAX_SOURCE_CHARS:
+        raise ValidationError("This is too long for one episode. Split it into a few parts.")
     resource = db.scalar(select(Resource).where(
         Resource.owner_id == owner_id, Resource.context_id == context_id,
         Resource.title == title, Resource.source_text == text, Resource.resource_type == "TEXT",
@@ -76,10 +78,10 @@ async def generate_text_audio(db: Session, *, owner_id: UUID, context_id: UUID,
             AudioArtifact.owner_id == owner_id, AudioArtifact.source_type == RESOURCE,
             AudioArtifact.source_id == resource.id, AudioArtifact.status == "READY",
         ).order_by(AudioArtifact.created_at, AudioArtifact.id))
-        if ready is not None:
+        if ready is not None and style == "explainer":
             return ready
-    return await run_in_threadpool(generate_audio, db, owner_id=owner_id,
-                                  source_type=RESOURCE, source_id=resource.id)
+    return await run_in_threadpool(start_audio, db, owner_id=owner_id,
+                                  source_type=RESOURCE, source_id=resource.id, style=style)
 
 
 def session_audio_source(db: Session, *, owner_id: UUID, session_id: UUID,
@@ -108,15 +110,20 @@ def session_audio_source(db: Session, *, owner_id: UUID, session_id: UUID,
         f"{'You' if m.role == 'user' else 'ARIA'}: {m.content.strip()}"
         for m in messages if m.role in ("user", "assistant", "aria") and m.content.strip()
     )
+    from app.services.study import topic_title
+
     first_question = next((m.content for m in messages if m.role == "user"), "Tutor conversation")
-    return session.context_id, f"Chat: {first_question}"[:200], text, max(m.position for m in messages)
+    # The episode is named for what the chat taught, not the first thing typed.
+    title = session.title or topic_title(first_question)
+    return session.context_id, title[:200], text, max(m.position for m in messages)
 
 
 async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUID,
-                                 through_position: int | None = None) -> AudioArtifact:
+                                 through_position: int | None = None, style: str = "explainer") -> AudioArtifact:
     context_id, title, text, _ = session_audio_source(db, owner_id=owner_id,
         session_id=session_id, through_position=through_position)
-    return await generate_text_audio(db, owner_id=owner_id, context_id=context_id, title=title, text=text)
+    return await generate_text_audio(db, owner_id=owner_id, context_id=context_id, title=title, text=text,
+                                     style=style)
 
 
 def get_tts_provider():
@@ -182,7 +189,12 @@ def _source_text(
             .where(ResourceChunk.resource_id == resource.id)
             .order_by(ResourceChunk.chunk_index)
         ).all()
-        text = resource.source_text or ""
+        from app.services.audio_script import PART_CHARS
+
+        # A ready digest covers a medium file in a few thousand characters; files long enough
+        # to become a series are split from the full text so every part keeps its detail.
+        full = resource.source_text or ""
+        text = full if len(full) > PART_CHARS else resource.digest or full
         if not text.strip():
             # Legacy resources may have only overlapping retrieval chunks.
             pieces: list[str] = []
@@ -201,12 +213,9 @@ def _source_text(
         raise ValidationError("Unsupported audio source")
     if not text.strip():
         raise ValidationError("No readable text in this source")
-    if len(text) > MAX_AUDIO_CHARS:
-        # Guard against oversized artifact rows and long synchronous TTS calls.
-        raise ValidationError(
-            f"Source is too long for audio conversion (over {MAX_AUDIO_CHARS} characters). "
-            "Split it into smaller notes or resources."
-        )
+    if len(text) > MAX_SOURCE_CHARS:
+        # Guard against oversized rows; anything shorter is condensed into a script.
+        raise ValidationError("This source is too long for one episode. Split it into a few parts.")
     return text, label
 
 
@@ -259,6 +268,7 @@ def list_audio(
                 "status": artifact.status,
                 "content_type": artifact.content_type,
                 "duration_seconds": artifact.duration_seconds,
+                "parts": episode_parts(artifact.text) if artifact.status == "READY" else [],
                 "position_seconds": progress.position_seconds if progress else 0,
                 "completed": progress.completed if progress else False,
                 "created_at": artifact.created_at,
@@ -324,9 +334,107 @@ def _renew_audio_lease(db: Session, artifact_id: UUID, token: UUID):
         thread.join(timeout=5)
 
 
+def _speak(tts, turns) -> tuple[bytes, str, int]:
+    """Voice each turn; the learner gets the second voice, falling back to the first."""
+    from app.ai.speech_audio import assemble_wav
+
+    second = get_settings().aria_tts_voice_2
+    clips: list[tuple[bytes, str, int]] = []
+    for speaker, line in turns:
+        try:
+            clips.append(tts.generate(text=line, **({"voice": second} if speaker == "learner" else {})))
+        except Exception:
+            if speaker != "learner":
+                raise
+            clips.append(tts.generate(text=line))
+    if len(clips) == 1:
+        return clips[0]
+    data, duration = assemble_wav([clip[0] for clip in clips])
+    return data, "audio/wav", duration
+
+
+PART_MARK = re.compile(r"^\[Part (\d+) of (\d+) · (\d+):(\d\d)\]$", re.M)
+
+
+def _speak_parts(tts, parts, *, conversation: bool) -> tuple[bytes, str, int, str]:
+    """Voice each part into one file; the transcript marks where each part starts."""
+    from app.ai.speech_audio import assemble_wav
+
+    def transcript(turns) -> str:
+        if conversation:
+            return "\n\n".join(f"{'Learner' if who == 'learner' else 'Tutor'}: {line}" for who, line in turns)
+        return "\n\n".join(line for _, line in turns)
+
+    if len(parts) == 1:
+        return (*_speak(tts, parts[0]), transcript(parts[0]))
+    clips, sections, start = [], [], 0
+    for index, turns in enumerate(parts, start=1):
+        data, _, seconds = _speak(tts, turns)
+        clips.append(data)
+        sections.append(f"[Part {index} of {len(parts)} · {start // 60}:{start % 60:02d}]\n{transcript(turns)}")
+        start += seconds
+    data, duration = assemble_wav(clips)
+    return data, "audio/wav", duration, "\n\n".join(sections)
+
+
+def episode_parts(text: str) -> list[dict]:
+    """Part starts from the transcript markers, for the player's jump list."""
+    return [{"part": int(m[1]), "start_seconds": int(m[3]) * 60 + int(m[4])} for m in PART_MARK.finditer(text or "")]
+
+
+def start_audio(
+    db: Session, *, owner_id: UUID, source_type: str, source_id: UUID, style: str = "explainer",
+) -> AudioArtifact:
+    """Return at once with a PENDING episode that is written and voiced in the background.
+
+    Writing a lesson and voicing it takes minutes, longer than anyone should watch a dialog. The
+    learner can leave the page; the Audio list polls until READY, deleting it cancels, and the
+    audio queue recovers it if this process stops first. Without the AI tutor the source is only
+    read aloud, which stays in the request.
+    """
+    from app.ai.registry import get_llm_provider_for_owner
+
+    text, _ = _source_text(db, owner_id=owner_id, source_type=source_type, source_id=source_id)
+    if get_llm_provider_for_owner(db, owner_id=owner_id) is None:
+        return generate_audio(db, owner_id=owner_id, source_type=source_type, source_id=source_id, style=style)
+    artifact = db.scalar(select(AudioArtifact).where(
+        AudioArtifact.owner_id == owner_id, AudioArtifact.source_type == source_type,
+        AudioArtifact.source_id == source_id,
+    ).order_by(AudioArtifact.created_at, AudioArtifact.id))
+    if artifact is None:
+        artifact = AudioArtifact(owner_id=owner_id, source_type=source_type, source_id=source_id,
+                                 text=text, status="PENDING", style=style)
+        db.add(artifact)
+    elif artifact.status != "PROCESSING":
+        artifact.status, artifact.style, artifact.error_detail = "PENDING", style, None
+    db.commit()
+    db.refresh(artifact)
+    factory = sessionmaker(bind=db.get_bind(), autoflush=False, expire_on_commit=False)
+
+    def run() -> None:
+        from app.services import digest
+
+        # The file's digest may already be condensing; reuse it instead of a second, rate-limited pass.
+        for _ in range(60):
+            if source_type != RESOURCE or source_id not in digest._running:
+                break
+            time.sleep(2)
+        with factory() as worker:
+            if worker.get(AudioArtifact, artifact_id) is None:
+                return  # cancelled (deleted) before the job started; don't recreate it
+            try:
+                generate_audio(worker, owner_id=owner_id, source_type=source_type, source_id=source_id, style=style)
+            except Exception:
+                logger.exception("background audio generation failed")
+
+    artifact_id = artifact.id
+    Thread(target=run, daemon=True, name="aria-audio-long").start()
+    return artifact
+
+
 def generate_audio(
     db: Session, *, owner_id: UUID, source_type: str, source_id: UUID,
-    provider=None, recovery: bool = False, reuse_ready: bool = False,
+    provider=None, recovery: bool = False, reuse_ready: bool = False, style: str | None = None,
 ) -> AudioArtifact:
     """Claim one source atomically, synthesize outside its transaction, then fence publication."""
     source_model = Note if source_type == NOTE else Resource if source_type == RESOURCE else None
@@ -340,8 +448,16 @@ def generate_audio(
     if locked.rowcount != 1:
         db.rollback()
         raise ValidationError("Audio source not found")
+    from app.ai.registry import get_llm_provider_for_owner
+
     try:
-        text, _ = _source_text(db, owner_id=owner_id, source_type=source_type, source_id=source_id)
+        text, label = _source_text(db, owner_id=owner_id, source_type=source_type, source_id=source_id)
+        llm = get_llm_provider_for_owner(db, owner_id=owner_id)
+        if llm is None and len(text) > MAX_AUDIO_CHARS:
+            raise ValidationError(
+                f"This is too long to read aloud (over {MAX_AUDIO_CHARS:,} characters) without the AI tutor, "
+                "which condenses long sources. Add a Groq key or split it into parts."
+            )
     except Exception:
         db.rollback()
         raise
@@ -360,6 +476,7 @@ def generate_audio(
                                  source_id=source_id, text=text, status="PENDING")
         db.add(artifact)
         db.flush()
+    style = style or artifact.style or "explainer"
     now = datetime.now(UTC)
     token = uuid4()
     eligibility = _claimable(now)
@@ -376,7 +493,7 @@ def generate_audio(
     attempts = AudioArtifact.generation_attempts + 1 if recovery else 1
     claimed = db.execute(update(AudioArtifact).where(
         AudioArtifact.id == artifact.id, eligibility,
-    ).values(status="PROCESSING", text=text, error_detail=None,
+    ).values(status="PROCESSING", text=text, error_detail=None, style=style,
              generation_token=token, lease_until=now + timedelta(seconds=LEASE_SECONDS),
              generation_attempts=attempts).execution_options(synchronize_session=False))
     db.commit()
@@ -387,15 +504,30 @@ def generate_audio(
     old_key = artifact.storage_key
     new_key = None
     with _renew_audio_lease(db, artifact_id, token):
+        from app.services.audio_script import script_parts
+
+        # Explain the material like a lesson; without the AI tutor, read it aloud as before.
+        title = label.split(": ", 1)[-1]
+        parts = script_parts(llm, title=title, text=text,
+                             style="conversation" if style == "conversation" else "explainer",
+                             cancelled=lambda: db.get(AudioArtifact, artifact_id, populate_existing=True) is None)
         try:
-            audio_bytes, content_type, duration = (provider or get_tts_provider()).generate(text=text)
+            if parts is None and llm is not None:
+                # Reading a chat or file aloud is not a lesson; fail clearly so the learner can retry.
+                raise ValidationError("ARIA couldn't write the lesson just now (the AI is busy). "
+                                      "Retry in a minute.")
+            if parts is None and len(text) > MAX_AUDIO_CHARS:
+                raise ValidationError("The lesson script could not be written and this is too long to read aloud.")
+            audio_bytes, content_type, duration, spoken = _speak_parts(
+                provider or get_tts_provider(), parts or [[("tutor", text)]], conversation=style == "conversation")
         except Exception as exc:
             db.rollback()
             logger.warning("audio generation failed error_type=%s", type(exc).__name__)
             db.execute(update(AudioArtifact).where(
                 AudioArtifact.id == artifact_id, AudioArtifact.generation_token == token,
             ).values(status="FAILED", lease_until=None, generation_token=None,
-                     error_detail="Audio generation failed. Please retry or check audio setup."))
+                     error_detail=str(exc) if isinstance(exc, ValidationError)
+                     else "Audio generation failed. Please retry or check audio setup."))
             db.commit()
         else:
             try:
@@ -408,7 +540,7 @@ def generate_audio(
                 fallback_bytes = audio_bytes
             published = db.execute(update(AudioArtifact).where(
                 AudioArtifact.id == artifact_id, AudioArtifact.generation_token == token,
-            ).values(status="READY", lease_until=None, generation_token=None,
+            ).values(status="READY", lease_until=None, generation_token=None, text=spoken,
                      content_type=content_type, duration_seconds=duration,
                      storage_key=new_key, audio_bytes=fallback_bytes))
             db.commit()

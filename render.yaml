@@ -71,6 +71,8 @@ services:
         value: db
       - key: ARIA_SCHEDULER_ENABLED
         value: "true"
+      - key: ARIA_BRAIN_ROUTING
+        value: "true"
       - key: ARIA_AUDIO_DIR
         value: /audio
       # Render Postgres keeps its own backups; the in-app pg_dump job would only

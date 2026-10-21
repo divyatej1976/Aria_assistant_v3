@@ -20,6 +20,7 @@ dependencies = [
   "langgraph==1.2.15",
   "langgraph-checkpoint==4.3.0",
   "langgraph-checkpoint-sqlite==3.1.2",
+  "langgraph-checkpoint-postgres==3.2.0",
   "reportlab>=4,<5",
   "pyttsx3>=2.9,<3",
   "apscheduler>=3.10,<4",

@@ -21,6 +21,8 @@ export type RoadmapTopic = {
   title: string;
   description?: string;
   keySkills?: string[];
+  /** Sub-topics the learner has ticked off. */
+  doneSkills?: string[];
   ticked: boolean;
   state: string;
   confidence: number;

@@ -2,15 +2,31 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
+import { normalizeMath } from "@/lib/normalize-math";
 
-/** Renders tutor markdown with GFM tables, highlighted code, and copy buttons. */
+// Must match img-src in next.config.ts; other hosts become a plain link.
+export const IMAGE_HOSTS = ["upload.wikimedia.org"];
+
+function allowedImage(src: unknown): src is string {
+  try {
+    const url = new URL(String(src));
+    return url.protocol === "https:" && IMAGE_HOSTS.includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** Renders tutor markdown with GFM tables, math, highlighted code, and copy buttons. */
 export function TutorMarkdown({ content }: { content: string }) {
   return (
     <div className="tutor-md">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false }], rehypeHighlight]}
         components={{
           pre: ({ children, ...props }) => (
             <div className="code-block">
@@ -37,9 +53,21 @@ export function TutorMarkdown({ content }: { content: string }) {
               {kids}
             </a>
           ),
+          img: ({ src, alt }) =>
+            allowedImage(src) ? (
+              <figure className="tutor-figure">
+                {/* eslint-disable-next-line @next/next/no-img-element -- remote, unknown size */}
+                <img src={src} alt={alt ?? ""} loading="lazy" referrerPolicy="no-referrer" />
+                {alt && <figcaption>{alt}</figcaption>}
+              </figure>
+            ) : typeof src === "string" && /^https?:/.test(src) ? (
+              <a href={src} target="_blank" rel="noreferrer noopener">{alt || "Open image"}</a>
+            ) : (
+              <>{alt}</>
+            ),
         }}
       >
-        {content}
+        {normalizeMath(content)}
       </ReactMarkdown>
     </div>
   );

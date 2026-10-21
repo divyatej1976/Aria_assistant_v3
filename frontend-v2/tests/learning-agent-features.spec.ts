@@ -13,9 +13,9 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
     // Verify starter chips are rendered
-    await expect(page.getByRole("button", { name: /Explain the core concepts/i })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: /Give me a practical, real-world example/i })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: /Quiz me on key concepts/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /Explain a hard idea to me simply/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /Quiz me with 3 questions/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /Teach me something new in 5 minutes/i })).toBeVisible({ timeout: 10_000 });
 
     // Verify voice microphone button is enabled and ready
     const micBtn = page.getByRole("button", { name: "Speak question" });
@@ -38,7 +38,7 @@ test.describe("Learning Agent Features & Screenshots", () => {
     await page.getByPlaceholder("Ask ARIA anything…").waitFor({ state: "visible", timeout: 20_000 });
 
     // Wait for the starter chip to become enabled (context loaded)
-    const chip = page.getByRole("button", { name: /Explain the core concepts/i });
+    const chip = page.getByRole("button", { name: /Explain a hard idea to me simply/i });
     await expect(chip).toBeEnabled({ timeout: 15_000 });
     await chip.click();
 

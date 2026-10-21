@@ -59,10 +59,14 @@ def _fallback_roadmap_tree(goal: str, level: str) -> GeneratedRoadmapTree:
          "Explain or demonstrate your result and gather feedback against your original success criteria.",
          ["Demonstration", "Reflection"]),
     ]
+    # "master microservices" -> "Microservices": milestone names lead with the subject, not the verb.
+    subject = re.sub(r"^(?:i want to |to )?(?:master|learn|understand|study|get (?:good|better) at|become good at)\s+",
+                     "", clean_goal, flags=re.I).strip() or clean_goal
+    subject = subject[:1].upper() + subject[1:]
     phases: dict[str, list[GeneratedMilestone]] = {}
     previous = None
     for phase, title, description, skills in stages:
-        named_title = f"{clean_goal[:200 - len(title) - 2]}: {title}"
+        named_title = f"{subject[:200 - len(title) - 2]}: {title}"
         phases.setdefault(phase, []).append(GeneratedMilestone(
             title=named_title,
             description=(
@@ -508,6 +512,25 @@ def get_roadmap(db: Session, *, owner_id: UUID, roadmap_id: UUID) -> RoadmapResp
         total=total,
         done=done,
     )
+
+
+def set_skill_done(
+    db: Session, *, owner_id: UUID, roadmap_id: UUID, milestone_id: UUID, skill: str, done: bool
+) -> None:
+    """Tick or untick one sub-topic of a milestone (the learner's own checklist)."""
+    milestone = db.scalar(select(RoadmapMilestone).where(
+        RoadmapMilestone.id == milestone_id, RoadmapMilestone.roadmap_id == roadmap_id,
+        RoadmapMilestone.owner_id == owner_id,
+    ))
+    if milestone is None:
+        raise ValidationError("Roadmap milestone not found")
+    if skill not in (milestone.key_skills or []):
+        raise ValidationError("That sub-topic is not part of this milestone")
+    details = dict(milestone.details or {})
+    ticked = [item for item in details.get("done_skills", []) if item != skill]
+    details["done_skills"] = [*ticked, skill] if done else ticked
+    milestone.details = details  # reassign: plain JSON columns don't track in-place edits
+    db.commit()
 
 
 def delete_roadmap(db: Session, *, owner_id: UUID, roadmap_id: UUID) -> bool:

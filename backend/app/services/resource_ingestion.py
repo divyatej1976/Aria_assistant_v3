@@ -13,6 +13,7 @@ from app.db.models import ConceptChunk, Resource, ResourceChunk
 from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
 from app.services.contexts import get_owned_context
 from app.services.ocr import (
+    MAX_IMAGE_BYTES,
     detect_image_mime,
     extract_text_from_image,
     extract_text_from_pdf,
@@ -26,7 +27,7 @@ def _extraction_error(exc: Exception) -> str:
         "Failed to perform OCR on the uploaded image",
         "No readable text could be recognized from the image",
         "Unsupported file format. Please upload a PNG, JPEG, or WEBP image, or a PDF.",
-        "Image upload exceeds the 10 MB limit",
+        f"Image upload exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MB limit",
     }
     message = str(exc)
     return message if message in known else "The uploaded file could not be processed. Please retry."

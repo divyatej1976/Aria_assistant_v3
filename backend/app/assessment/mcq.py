@@ -265,7 +265,8 @@ async def generate_conversation_mcqs(
             parsed = await provider.generate_structured(
                 prompt=version.render(
                     difficulty=difficulty, count=count,
-                    material="Today's tutoring transcript (unverified conversation):\n" + transcript,
+                    material=("A tutoring chat (unverified conversation). Quiz the learner on the subject "
+                              "the tutor taught in it, never on the chat itself:\n" + transcript),
                 ),
                 schema=MCQSet, prompt_version=version.label(),
             )

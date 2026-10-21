@@ -79,7 +79,7 @@ test("full journey: signup to account across every feature", async ({ page }) =>
   await page.getByRole("button", { name: /Create audio/i }).last().click();
   const recording = page.locator(".audio-card").filter({ hasText: noteTitle });
   await expect(recording).toBeVisible({ timeout: 30_000 });
-  await expect(recording.getByText(/^READY(?:\s|$)/)).toBeVisible({ timeout: 30_000 });
+  await expect(recording.getByText(/^Ready(?:\s|$)/)).toBeVisible({ timeout: 30_000 });
   await recording.getByRole("button", { name: /Play NOTE audio/i }).click();
   await expect(page.locator("audio").first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: /Pause/i }).click();

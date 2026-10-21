@@ -11,8 +11,11 @@ from app.db.models import AuditLog, BrainAction, ConversationMessage, StudySessi
 
 @pytest.fixture
 def graph_setup(client, session_factory, monkeypatch, tmp_path):
-    if session_factory.kw["bind"].dialect.name != "sqlite":
-        pytest.skip("SQLite graph runtime stage; PostgreSQL checkpointer is a separate rollout")
+    bind = session_factory.kw["bind"]
+    if bind.dialect.name == "postgresql":
+        from app.services.brain.checkpoints import setup_postgres_checkpoints
+
+        setup_postgres_checkpoints(bind.url)
     settings = get_settings()
     monkeypatch.setattr(settings, "aria_brain_routing", True)
     monkeypatch.setattr(settings, "aria_brain_llm_routing", False)
@@ -89,12 +92,27 @@ def test_graph_action_is_saved_replayable_and_checkpoints_contain_no_source(
     assert len(client.get(f"/api/v1/audio?context_id={cid}", headers=headers(token)).json()) == 1
     import sqlite3
 
-    with sqlite3.connect(tmp_path / "checkpoints.db") as conn:
-        assert conn.execute("select count(*) from checkpoints").fetchone()[0] > 0
-        for table, column in [("checkpoints", "checkpoint"), ("writes", "value")]:
-            assert all(
-                b"PRIVATE_SOURCE" not in bytes(row[0] or b"") for row in conn.execute(f"select {column} from {table}")
-            )
+    bind = session_factory.kw["bind"]
+    if bind.dialect.name == "sqlite":
+        with sqlite3.connect(tmp_path / "checkpoints.db") as conn:
+            assert conn.execute("select count(*) from checkpoints").fetchone()[0] > 0
+            for table, column in [("checkpoints", "checkpoint"), ("writes", "value")]:
+                assert all(
+                    b"PRIVATE_SOURCE" not in bytes(row[0] or b"") for row in conn.execute(f"select {column} from {table}")
+                )
+    else:
+        from sqlalchemy import text
+
+        with bind.connect() as conn:
+            thread = {"thread": f"{owner}:{aid}"}
+            checkpoints = conn.execute(
+                text("SELECT checkpoint FROM checkpoints WHERE thread_id=:thread"), thread
+            ).all()
+            assert checkpoints
+            assert "PRIVATE_SOURCE" not in str(checkpoints)
+            for table in ["checkpoint_blobs", "checkpoint_writes"]:
+                rows = conn.execute(text(f"SELECT blob FROM {table} WHERE thread_id=:thread"), thread)
+                assert all(b"PRIVATE_SOURCE" not in bytes(row[0] or b"") for row in rows)
     with session_factory() as db:
         assert "PRIVATE_SOURCE" not in str(
             [a.detail for a in db.scalars(select(AuditLog).where(AuditLog.agent == "langgraph"))]

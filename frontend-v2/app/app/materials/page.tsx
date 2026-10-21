@@ -1,6 +1,8 @@
 "use client";
 
 import { Modal } from "@/components/modal";
+import { TutorMarkdown } from "@/components/tutor-markdown";
+import { PageGuide } from "@/components/page-guide";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -37,6 +39,7 @@ type Resource = {
   chunk_count: number;
 };
 type Session = {
+  title?: string | null;
   id: string;
   context_id: string;
   mode: string;
@@ -61,6 +64,7 @@ function ContextMaterials() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [genOpen, setGenOpen] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
   const [resOpen, setResOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [generationError, setGenerationError] = useState("");
@@ -239,10 +243,11 @@ function ContextMaterials() {
           <p className="pg-sub">Files and notes here are shared with every chat in this subject. Files you attach inside a chat stay in that chat.</p>
         </div>
         <div className="page-actions">
-          <button className="btn btn-secondary" onClick={() => { setGenerationError(""); setGenOpen(true); }} title="Save notes from a conversation or your study material"><Icon name="sparkles" /> Generate notes</button>
-          <button className="btn btn-primary" onClick={() => { setUploadError(""); setResOpen(true); }} title="Upload a PDF or image, or paste text"><Icon name="plus" /> Add material</button>
+          <button className="btn btn-secondary" data-tour="generate-notes" onClick={() => { setGenerationError(""); setGenOpen(true); }} title="Save notes from a conversation or your study material"><Icon name="sparkles" /> Generate notes</button>
+          <button className="btn btn-primary" data-tour="add-material" onClick={() => { setUploadError(""); setResOpen(true); }} title="Upload a PDF or image, or paste text"><Icon name="plus" /> Add material</button>
         </div>
       </div>
+      <PageGuide page="library" />
 
       <div style={{ marginBottom: 8 }} className="nav-sec">Generated from your learning</div>
       {notes.length === 0 ? (
@@ -276,10 +281,14 @@ function ContextMaterials() {
               <button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => review(n, "good")} aria-label={`Review good ${n.title}`}>
                 Good
               </button>
+              <button className="btn btn-secondary" onClick={() => setReading(reading === n.id ? null : n.id)} aria-expanded={reading === n.id}>
+                <Icon name="book" /> {reading === n.id ? "Hide notes" : "Read notes"}
+              </button>
               <button className="btn btn-primary" onClick={() => download(n)} aria-label={`Download ${n.title}`}>
-                <Icon name="download" /> Download
+                <Icon name="download" /> Download PDF
               </button>
             </div>
+            {reading === n.id && <div className="note-view"><TutorMarkdown content={n.body} /></div>}
           </div>
         ))
       )}
@@ -328,9 +337,9 @@ function ContextMaterials() {
           <div className="form-group">
             <label className="field-label" htmlFor="note-source">Source</label>
             <select id="note-source" className="input" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
-              <option value="">Context study material</option>
+              <option value="">All my library files</option>
               {sessions.map((s) => (
-                  <option key={s.id} value={s.id}>Conversation · {fmtDate(s.created_at)}</option>
+                  <option key={s.id} value={s.id}>{s.title ?? "Untitled chat"} · {fmtDate(s.created_at)}</option>
               ))}
             </select>
           </div>
@@ -395,7 +404,7 @@ function ContextMaterials() {
                 }}
               />
               <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>
-                Scanned PDFs and photo/whiteboard images are transcribed automatically using OCR. Max 10 MB.
+                Scanned PDFs and photo/whiteboard images are transcribed automatically using OCR. PDFs up to 50 MB, photos up to 25 MB.
               </div>
             </div>
           ) : (

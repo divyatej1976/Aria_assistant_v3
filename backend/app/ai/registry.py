@@ -12,11 +12,13 @@ from app.core.config import get_settings
 
 def get_llm_provider():
     settings = get_settings()
-    if not settings.groq_api_key:
+    route = (getattr(settings, "aria_llm_provider", None) or "groq").strip().lower()
+    api_key = getattr(settings, "aria_llm_api_key", None) or (settings.groq_api_key if route == "groq" else None)
+    if not api_key:
         return None
     from app.ai.providers import LiteLLMGroqProvider
 
-    return LiteLLMGroqProvider(api_key=settings.groq_api_key, model=settings.llm_model)
+    return LiteLLMGroqProvider(api_key=api_key, model=settings.llm_model, route=route)
 
 
 def get_llm_provider_for_owner(db, *, owner_id):

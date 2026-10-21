@@ -32,6 +32,7 @@ CONFUSED_RE = re.compile(
     re.IGNORECASE,
 )
 CASUAL_RE = re.compile(r"^(hey|hi|hello|yo|ok|okay|so|hmm|btw)\b|!\s*$|\b(lol|pls|plz)\b", re.IGNORECASE)
+SUMMARY_RE = re.compile(r"\b(summar(?:y|ise|ize)|overview|key points|main (?:points|ideas))", re.IGNORECASE)
 # "Quiz me", "test me", "give me an interview question": the learner wants to answer, not read.
 PRACTICE_RE = re.compile(
     r"\b(quiz me|test me|ask me|drill me|let me (?:try|answer|practi[cs]e)|"
@@ -47,19 +48,30 @@ class ResponseStyle:
     screen: Screen
     practice: bool = False
     grading: bool = False
+    summary: bool = False
 
     def instruction(self) -> str:
         """The per-message style rules placed in the user prompt."""
         size = {
-            "quick": "Reply in 2-4 short lines. Give the direct answer and at most one tiny example. "
-                     "No headings.",
-            "balanced": "Open with the direct answer in 1-2 lines, then up to 3 short blocks such as "
-                        "'**What it means**', '**Example**' and '**Watch out**'. Keep each block to "
-                        "2-4 lines and one small example.",
-            "deep": "Open with the direct answer in 1-2 lines, then a step-by-step breakdown in short "
-                    "blocks (each with a bold label), worked examples, common mistakes, and finish "
-                    "with one '**Check yourself**' question.",
+            "quick": "Reply in 2-4 short lines: the key point and at most one tiny example. No headings.",
+            "balanced": "Give a clear, well-structured explanation of the key concepts with one or two "
+                        "concrete examples, like a good textbook section on exactly this question. Use "
+                        "'###' headings only if it has distinct parts.",
+            # The app shows a Deep answer as study cards, one '###' section per card.
+            "deep": "Give a thorough, in-depth explanation, written as 6-10 short sections that each fit on "
+                    "one study card: a '###' heading, then about 60-150 words. Name each heading for what "
+                    "it is (for example 'What is …', 'How … works', 'Example: …', 'Common mistakes'), "
+                    "covering every main concept and sub-topic, definitions, the reasoning behind it, worked "
+                    "examples (code or numbers where it fits), edge cases and how it connects to related "
+                    "ideas. Split a big idea across several cards rather than writing one long section. "
+                    "Finish with '### Key takeaways' (3-5 bullets) and then '### Check yourself': one "
+                    "question, then a line starting 'Answer:' with the answer. Never cut it short.",
         }[self.depth]
+        if self.summary:
+            size = ("Write structured study notes covering the whole material: one '###' heading per main "
+                    "topic in the material's order, key definitions in **bold**, the important points as "
+                    "bullets, examples, and how the ideas connect. Cover every section, including the "
+                    "last ones, and end with '### Key takeaways'.")
         if self.grading:
             size = ("The learner is answering the question you just asked. Open with a bold verdict: "
                     "'**Correct**', '**Partly right**' or '**Not quite**'. Then in 2-5 short lines say what "
@@ -93,7 +105,8 @@ def detect_tone(question: str) -> Tone:
 
 def auto_depth(question: str) -> Depth:
     text = question.strip()
-    if DEEP_RE.search(text):
+    # "Summarize this" is short to type but asks for the whole document, not two lines.
+    if DEEP_RE.search(text) or SUMMARY_RE.search(text):
         return "deep"
     if QUICK_RE.search(text) or len(text.split()) <= 6:
         return "quick"
@@ -108,4 +121,5 @@ def resolve_style(
     grading = (bool(last_tutor) and len(question.split()) >= 3 and not question.rstrip().endswith("?")
                and bool(ASKED_RE.search(last_tutor[-300:])))
     return ResponseStyle(depth=depth, tone=detect_tone(question), screen=screen,
-                         practice=bool(PRACTICE_RE.search(question)) and not grading, grading=grading)
+                         practice=bool(PRACTICE_RE.search(question)) and not grading, grading=grading,
+                         summary=bool(SUMMARY_RE.search(question)) and not grading)

@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "@/components/modal";
+import { PageGuide } from "@/components/page-guide";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -70,7 +71,11 @@ function AssessPageWorkspace() {
   const [list, setList] = useState<Summary[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
-  const [materialReady, setMaterialReady] = useState<boolean | null>(null);
+  // Ready library files the quiz can use; null while loading.
+  const [libraryFiles, setLibraryFiles] = useState<{ id: string; title: string }[] | null>(null);
+  const [libraryVersion, setLibraryVersion] = useState(0);
+  const materialReady = libraryFiles === null ? null : libraryFiles.length > 0;
+  const setMaterialReady = (value: null) => setLibraryFiles(value);
   const [busy, setBusy] = useState(false);
   const [setup, setSetup] = useState<QuizSetupValues>(DEFAULT_SETUP);
 
@@ -117,11 +122,11 @@ function AssessPageWorkspace() {
   useEffect(() => {
     if (!createOpen || !context) return;
     let cancelled = false;
-    api<{ processing_status: string }[]>(`/api/v1/resources?context_id=${context.id}`)
-      .then(items => { if (!cancelled) setMaterialReady(items.some(item => item.processing_status === "READY")); })
-      .catch(() => { if (!cancelled) setMaterialReady(null); });
+    api<{ id: string; title: string; processing_status: string }[]>(`/api/v1/resources?context_id=${context.id}`)
+      .then(items => { if (!cancelled) setLibraryFiles(items.filter(item => item.processing_status === "READY")); })
+      .catch(() => { if (!cancelled) setLibraryFiles(null); });
     return () => { cancelled = true; };
-  }, [createOpen, context]);
+  }, [createOpen, context, libraryVersion]);
 
   useEffect(() => {
     if (!context) return;
@@ -304,11 +309,12 @@ function AssessPageWorkspace() {
           <p className="pg-sub">Test what you know. Find what you don&apos;t. Improve where it matters.</p>
         </div>
         {!taking && !reviewing && (
-          <button className="btn btn-primary" onClick={() => { setCreateError(""); setMaterialReady(null); setSetup(savedSetup()); setCreateOpen(true); }} disabled={busy}>
+          <button className="btn btn-primary" data-tour="create-quiz" onClick={() => { setCreateError(""); setMaterialReady(null); setSetup(savedSetup()); setCreateOpen(true); }} disabled={busy}>
             <Icon name="plus" /> Create assessment
           </button>
         )}
       </div>
+      <PageGuide page="practice" hidden={!!taking} />
 
       {draftWarning && <div className="banner" role="alert" style={{ marginBottom: 16 }}>{draftWarning}</div>}
 
@@ -367,7 +373,9 @@ function AssessPageWorkspace() {
       )}
 
       {taking && (
-        <>
+        // Full screen while answering, like an exam app: nothing else competes for attention.
+        <div className="quiz-focus">
+          <div className="quiz-focus-inner">
           {resumed && (
             <div className="banner" style={{ marginBottom: 16, maxWidth: 760 }}>
               <span style={{ display: "inline-flex" }}><Icon name="refresh" size={18} /></span>
@@ -398,7 +406,8 @@ function AssessPageWorkspace() {
             onAnswer={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
             onFinish={(complete) => { setAnswers(complete); void submit(complete); }}
             onExit={() => { setTaking(null); toast("Progress saved. Open the quiz again to continue."); }} />
-        </>
+          </div>
+        </div>
       )}
 
       {reviewing && (
@@ -468,7 +477,8 @@ function AssessPageWorkspace() {
             <h3 className="m-title" style={{ fontSize: 20, fontWeight: 800 }}><Icon name="clipboard" size={20} /> Create assessment</h3>
             <button className="btn btn-ghost" style={{ padding: 6 }} onClick={() => setCreateOpen(false)} aria-label="Close"><Icon name="x" size={16} /></button>
           </div>
-          {context && <QuizSetup contextId={context.id} values={setup} onChange={setSetup} libraryReady={materialReady} />}
+          {context && <QuizSetup contextId={context.id} values={setup} onChange={setSetup} libraryReady={materialReady}
+            libraryFiles={libraryFiles} onLibraryChanged={() => setLibraryVersion(v => v + 1)} />}
           {setupProblem(setup, materialReady) && <p className="field-help" role="status">{setupProblem(setup, materialReady)}</p>}
           {createError && <div className="inline-error" role="alert"><b>Assessment could not be created</b><p>{createError}</p></div>}
           {busy && <RequestStatus label="Preparing your assessment…" />}

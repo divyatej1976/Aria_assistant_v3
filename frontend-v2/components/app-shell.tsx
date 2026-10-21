@@ -85,13 +85,6 @@ function navItemFor(pathname: string): NavItem | undefined {
     : pathname === page.href || pathname.startsWith(page.href + "/")));
 }
 
-// Account lives in the profile menu, not the workspace nav; it still needs a
-// page title in the top bar.
-const PAGE_TITLES: Record<string, string> = {
-  ...Object.fromEntries(NAV.flatMap((item) => item.pages.map((page) => [page.href, page.href === item.href ? item.label : `${item.label} · ${page.label}`]))),
-  "/app/account": "Account",
-};
-
 export function AppShell({ children }: { children: ReactNode }) {
   const hydrated = useHydrated();
   const pathname = usePathname();
@@ -109,6 +102,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Dismissal persists per browser so the verify banner doesn't reappear on
   // every navigation/reload; it clears automatically once the email verifies.
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useDismissed(`aria.verifyBannerDismissed:${user?.id ?? "anonymous"}`);
+  // The reminder shows for a few seconds per visit; the avatar dot keeps reminding after that.
+  const [bannerTimedOut, setBannerTimedOut] = useState(false);
+  useEffect(() => {
+    if (!user || user.verified) return;
+    const timer = window.setTimeout(() => setBannerTimedOut(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [user]);
   const ref = useRef<HTMLDivElement>(null);
   const bellTrigger = useRef<HTMLButtonElement>(null);
   const profileTrigger = useRef<HTMLButtonElement>(null);
@@ -208,83 +208,44 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [bellOpen, profileOpen]);
 
   return (
-    <div className={`shell${isChat ? " shell-rail" : ""}`}>
-      {isChat && <button className="btn btn-secondary mobile-menu-toggle chat-nav-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>}
-      {isChat && (
-        // Phones hide the sidebar entirely; keep a way back from the tutor.
-        <button
-          className="btn btn-secondary chat-back"
-          onClick={() => router.push("/app")}
-          aria-label="Back to dashboard"
-        >
-          <Icon name="back" size={18} />
-        </button>
-      )}
-      <aside className="shell-side">
-        <Link href="/app" className="shell-brand" aria-label="ARIA dashboard">
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 11,
-              background: "var(--accent-grad)",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "var(--shadow-2)",
-            }}
-          >
-            A
-          </div>
-          <div className="shell-label">
-            <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-.5px", lineHeight: 1 }}>ARIA</div>
-            <div style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.4, color: "var(--text-3)" }}>AI Learning System</div>
-          </div>
-        </Link>
-
-        <LayoutGroup id="workspace-navigation">
-        <nav aria-label="Workspace">
-        {NAV.map((item) => {
-          const active = current === item;
-          return (
-            <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`} title={isChat ? item.label : undefined}>
-              {active && <motion.span layoutId="active-navigation" className="nav-active-surface" aria-hidden="true" />}
-              <Icon name={item.icon} size={17} />
-              <span className="shell-label">{item.label}</span>
-            </Link>
-          );
-        })}
-        </nav>
-        </LayoutGroup>
-
-      </aside>
-
+    <div className={`shell${isChat ? " shell-chat" : ""}`}>
       <div className="shell-main">
-        {!isChat && (<>
+        {/* One bar on every page: brand, the seven sections, then alerts and profile. */}
         <header className="shell-top">
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div className="top-left">
             <button className="btn btn-secondary mobile-menu-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>
-            <div className="shell-page-title" style={{ fontWeight: 700, color: "var(--text-2)", fontSize: 13, whiteSpace: "nowrap" }}>
-              {PAGE_TITLES[pathname] ?? "ARIA"}
-            </div>
+            <Link href="/app" className="shell-brand" aria-label="ARIA dashboard">
+              <span className="brand-mark">A</span>
+              <span className="brand-name">ARIA</span>
+            </Link>
+          </div>
+          <LayoutGroup id="workspace-navigation">
+          <nav className="top-nav" aria-label="Workspace">
+            {NAV.map((item) => {
+              const active = current === item;
+              return (
+                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`}>
+                  {active && <motion.span layoutId="active-navigation" className="nav-active-surface" aria-hidden="true" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
+                  <Icon name={item.icon} size={16} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          </LayoutGroup>
+          <div ref={ref} className="top-right">
             {contexts.length > 1 && (
               <select
-                className="input"
+                className="input top-context"
                 aria-label="Active learning context"
                 value={context?.id ?? ""}
                 onChange={(e) => selectContext(e.target.value)}
-                style={{ maxWidth: 220, height: 34, fontSize: 12.5, padding: "4px 10px" }}
               >
                 {contexts.map((c) => (
                   <option key={c.id} value={c.id}>{c.title}</option>
                 ))}
               </select>
             )}
-          </div>
-          <div ref={ref} style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button ref={bellTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="bell-btn" onClick={(e) => { e.stopPropagation(); openBell(); }} aria-label="Notifications" aria-expanded={bellOpen}>
               <Icon name="bell" size={19} />
               {unread > 0 && <span className="badge">{unread}</span>}
@@ -352,7 +313,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </AnimatePresence>
           </div>
         </header>
-        {user && !user.verified && !bannerDismissed && (
+        {!isChat && user && !user.verified && !bannerDismissed && !bannerTimedOut && (
           <div className="banner shell-banner" role="status">
             <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name="alert" size={18} /></span>
             <div style={{ flex: 1 }}>
@@ -377,7 +338,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         )}
-        </>)}
         <main className={`shell-content${isChat ? " shell-content-flush" : ""}`}>
           {!isChat && (
             <LayoutGroup id="mobile-workspace-navigation">

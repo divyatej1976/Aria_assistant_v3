@@ -5,7 +5,28 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon, type IconName } from "./icons";
 import { ProgressRing, Reveal } from "./motion-system";
+import { useAuth } from "./auth-provider";
+import { PageGuide } from "./page-guide";
+import { useHydrated } from "@/lib/use-hydrated";
 import type { NextAction } from "@/lib/next-action";
+
+// Onboarding names a skipped subject this; it says nothing, so Home leaves it out.
+const DEFAULT_SUBJECT = "My studies";
+
+/** One line a day under the greeting: short, plain, about studying today. */
+const MOTTOS = [
+  "Ten focused minutes today beat an hour of someday.",
+  "Confusion is just the part right before it clicks.",
+  "Ask the question you think is too basic. That's where it starts.",
+  "You don't need a perfect plan. You need the next step.",
+  "Small sessions, every day. That's the whole trick.",
+  "Explaining it out loud is how you find out you know it.",
+  "Getting it wrong in practice is how you get it right later.",
+];
+
+function greeting(hour: number) {
+  return hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+}
 
 const TOOLS: { title: string; icon: IconName; description: string; href: string }[] = [
   { title: "Learn", icon: "message", description: "Chat with ARIA about anything you want to understand.", href: "/app/learn" },
@@ -30,6 +51,7 @@ type Props = {
   firstSteps?: { learned: boolean | null; reviewCreated: boolean | null; reviewTaken: boolean | null; noteSaved: boolean | null; materialAdded: boolean | null };
   lastChat: { id: string; title: string } | null;
   week: WeekItem[];
+  counts?: { chats: number | null; quizzes: number | null };
 };
 
 function dueLabel(dueAt: string) {
@@ -44,46 +66,54 @@ function askHref(question: string): string {
 /** Home has two shapes: a first visit asks one question and shows three small
  * steps; a returning learner gets their last chat, one suggestion, and this
  * week. No streak, ring or locked badges before there is anything to show. */
-export function DashboardView({ title, pct, nextAction, streak, dueNotes, onReview, progressError, onRetry, firstSteps, lastChat, week }: Props) {
+export function DashboardView({ title, pct, nextAction, streak, dueNotes, onReview, progressError, onRetry, firstSteps, lastChat, week, counts }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
+  // Time of day is the viewer's clock, so it waits for the browser instead of the server render.
+  const hydrated = useHydrated();
   const [question, setQuestion] = useState("");
   const firstVisit = !firstSteps || !(firstSteps.learned && firstSteps.reviewTaken);
-  const starters = [
-    `Explain the basics of ${title}`,
-    `Give me a real-world example from ${title}`,
-    `What should I learn first in ${title}?`,
+  const name = (user?.display_name || "").trim().split(/\s+/)[0];
+  const now = hydrated ? new Date() : null;
+  const motto = MOTTOS[now ? Math.floor(now.getTime() / 86_400_000) % MOTTOS.length : 0];
+  const stats: { icon: IconName; value: string; label: string }[] = [
+    { icon: "flame", value: streak ? String(streak.current_streak) : "–", label: "day streak" },
+    { icon: "trend", value: pct === null ? "–" : `${pct}%`, label: "concepts strong" },
+    { icon: "message", value: counts?.chats == null ? "–" : String(counts.chats), label: counts?.chats === 1 ? "chat" : "chats" },
+    { icon: "clipboard", value: counts?.quizzes == null ? "–" : String(counts.quizzes), label: counts?.quizzes === 1 ? "quiz taken" : "quizzes taken" },
   ];
 
   return (
     <div className="learning-dashboard home" data-home-ready={firstSteps ? "true" : undefined}>
-      {firstVisit && !lastChat ? (
-        <Reveal>
-          <section className="learning-hero home-ask" aria-labelledby="home-ask-title">
-            <p className="hero-topic">{title}</p>
-            <h1 id="home-ask-title">What do you want to learn?</h1>
-            <form className="home-ask-box" onSubmit={(event) => {
-              event.preventDefault();
-              if (question.trim()) router.push(askHref(question.trim()));
-            }}>
-              <input className="input" aria-label="Your question" placeholder="Ask ARIA anything…" value={question}
-                onChange={(event) => setQuestion(event.target.value)} maxLength={2000} />
-              <button className="btn btn-primary" type="submit" disabled={!question.trim()}>Ask <Icon name="arrow" size={16} /></button>
-            </form>
-            <div className="home-starters">
-              {starters.map((starter) => <Link key={starter} className="tag-chip" href={askHref(starter)}>{starter}</Link>)}
-            </div>
-          </section>
-        </Reveal>
-      ) : (
-        <Reveal>
-          <div className="home-welcome">
-            <h1>{firstVisit ? "Keep going" : "Welcome back"}</h1>
-            {streak && streak.current_streak > 0 && (
-              <span className="learning-streak"><Icon name="flame" size={16} /> {streak.current_streak}-day streak{streak.today_active && <span className="today-dot" title="Active today" />}</span>
-            )}
-          </div>
-        </Reveal>
-      )}
+      <PageGuide page="home" />
+      <Reveal>
+        <section className="home-hero" aria-labelledby="home-greeting">
+          <p className="home-date">{now ? now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }) : " "}
+            {title && title !== DEFAULT_SUBJECT && <> · <span className="home-subject">{title}</span></>}</p>
+          <h1 id="home-greeting">{now ? greeting(now.getHours()) : "Hi"}{name ? `, ${name}` : ""}</h1>
+          <p className="home-motto">{motto}</p>
+          <form className="home-ask-box" onSubmit={(event) => {
+            event.preventDefault();
+            if (question.trim()) router.push(askHref(question.trim()));
+          }}>
+            <input className="input" aria-label="Your question" placeholder="What do you want to learn today?" value={question}
+              onChange={(event) => setQuestion(event.target.value)} maxLength={2000} />
+            <button className="btn btn-primary" type="submit" disabled={!question.trim()}>Ask <Icon name="arrow" size={16} /></button>
+          </form>
+        </section>
+      </Reveal>
+
+      <Reveal delay={30}>
+        <ul className="home-stats" aria-label="Your progress at a glance">
+          {stats.map((stat) => (
+            <li key={stat.label}>
+              <span className="tool-icon"><Icon name={stat.icon} size={18} /></span>
+              <b>{stat.value}</b>
+              <small>{stat.label}</small>
+            </li>
+          ))}
+        </ul>
+      </Reveal>
 
       <div className="home-grid">
         {lastChat && (
@@ -98,32 +128,15 @@ export function DashboardView({ title, pct, nextAction, streak, dueNotes, onRevi
           </Reveal>
         )}
 
-        {firstVisit ? (
-          <Reveal delay={90}>
-            <section className="studio-panel first-chapter" aria-labelledby="first-steps-title">
-              <h2 id="first-steps-title">Three small steps</h2>
-              <p>You can learn with ARIA right away. Your own notes are optional.</p>
-              <ol>
-                {[
-                  { label: "Have a tutor conversation", done: firstSteps?.learned ?? null, href: "/app/learn", hint: "Ask about something you want to understand." },
-                  { label: "Take your first quiz", done: firstSteps?.reviewTaken ?? null, href: "/app/assess", hint: firstSteps?.reviewCreated ? "Your quiz is ready in Practice." : "After a chat, create a short quiz in Practice." },
-                  { label: "Add your own material", done: firstSteps ? Boolean(firstSteps.materialAdded || firstSteps.noteSaved) : null, href: "/app/materials", hint: "Optional · a PDF, image, text or saved notes." },
-                ].map((step, index) => <li key={step.label} className={step.done ? "done" : ""}>
-                  <span className="step-check" role="img" aria-label={step.done ? "Completed" : step.done === null ? "Status unavailable" : "Not completed"}>{step.done ? <Icon name="check" size={14} /> : index + 1}</span>
-                  <Link href={step.href}><b>{step.label}</b><small>{step.hint}</small></Link>
-                </li>)}
-              </ol>
-            </section>
-          </Reveal>
-        ) : (
+        <Reveal delay={90}>
+          <section className="next-action-card" aria-labelledby="next-heading">
+            <span className="tool-icon"><Icon name={nextAction.icon} size={23} /></span>
+            <div><p className="eyebrow">Suggested next</p><h2 id="next-heading">{nextAction.title}</h2><p>{nextAction.why}</p></div>
+            <Link href={nextAction.href} className="btn btn-primary">{nextAction.cta} <Icon name="arrow" /></Link>
+          </section>
+        </Reveal>
+        {!firstVisit && (
           <>
-            <Reveal delay={90}>
-              <section className="next-action-card" aria-labelledby="next-heading">
-                <span className="tool-icon"><Icon name={nextAction.icon} size={23} /></span>
-                <div><p className="eyebrow">Suggested next</p><h2 id="next-heading">{nextAction.title}</h2><p>{nextAction.why}</p></div>
-                <Link href={nextAction.href} className="btn btn-primary">{nextAction.cta} <Icon name="arrow" /></Link>
-              </section>
-            </Reveal>
             <Reveal delay={120}>
               <section className="studio-panel home-progress" aria-labelledby="progress-heading">
                 <h2 id="progress-heading">Your progress</h2>

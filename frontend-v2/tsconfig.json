@@ -54,7 +54,11 @@
     ".next-review-consistency/types/**/*.ts",
     ".next-review-consistency/dev/types/**/*.ts",
     ".next-review-consistency-build/types/**/*.ts",
-    ".next-review-consistency-build/dev/types/**/*.ts"
+    ".next-review-consistency-build/dev/types/**/*.ts",
+    ".next-review-graph/types/**/*.ts",
+    ".next-review-graph/dev/types/**/*.ts",
+    ".next-local/types/**/*.ts",
+    ".next-local/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

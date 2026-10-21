@@ -418,7 +418,7 @@ def test_session_list_describes_what_was_covered(client: TestClient) -> None:
     }
     covered = listed[talked["id"]]
     assert covered["message_count"] == 2
-    assert covered["title"].startswith("When does strict two-phase locking")
+    assert covered["title"] == "Strict Two-phase Locking"  # the topic, not the question wording
     assert len(covered["title"]) <= 61 and "*" not in covered["title"]
     assert covered["preview"]
     assert covered["last_message_at"] is not None

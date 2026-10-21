@@ -1,3 +1,4 @@
+import { fulfillReply, openRoadmap } from "./helpers";
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { writeFile } from "node:fs/promises";
@@ -68,7 +69,7 @@ test("learning screens remain accessible and contained across palettes and width
     for (const route of routes) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(route);
-      await expect(page.locator(".constellation, .chat-input-row, .resource-card, .milestone-trail").first()).toBeVisible();
+      await expect(page.locator(".constellation, .chat-input-row, .resource-card, .milestone-trail, .roadmap-card").first()).toBeVisible();
       await settleUI(page);
       const results = await new AxeBuilder({ page }).analyze();
       expect(results.violations.filter(v => v.impact === "serious" || v.impact === "critical"), `${palette} ${route}`).toEqual([]);
@@ -84,6 +85,7 @@ test("learning screens remain accessible and contained across palettes and width
 test("roadmap trail selects real topic details and materials processing follows the request", async ({ page }) => {
   await fixture(page);
   await page.goto("/app/roadmaps");
+  await openRoadmap(page);
   await page.getByRole("button", { name: "Normalization, next milestone", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Normalization", exact: true })).toBeVisible();
   await page.goto("/app/materials");
@@ -131,6 +133,7 @@ test("chat focus and incoming replies preserve an earlier reading position", asy
   await fixture(page);
   await page.route("**/study/sessions**", async route => {
     const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === "POST" && path.endsWith("/messages/stream")) return fulfillReply(route, { content: "A new response to your question." });
     const body = path.endsWith("/messages") ? route.request().method() === "POST" ? { content: "A new response to your question." } : Array.from({ length: 30 }, (_, index) => ({ role: index % 2 ? "assistant" : "user", content: `Earlier message ${index}. ` + "An explanation about concepts and connections. ".repeat(20) })) : [{ id: "session", context_id: "context-a", mode: "BASELINE", status: "ACTIVE", created_at: "2026-10-05T00:00:00Z", title: "Earlier message 0", message_count: 30 }];
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
@@ -261,15 +264,18 @@ test("roadmap celebrates a newly confirmed milestone once per session", async ({
         tiers: [{ name: "Foundation", icon: "book", topics: [{ id: "keys", title: "Tables and keys", key_skills: [], prerequisites: [], state: completed ? "SUPPORTED" : "DEVELOPING", confidence: 80, ticked: completed }] }] }) });
   });
   await page.goto("/app/roadmaps");
+  await openRoadmap(page);
   await expect(page.locator(".milestone-count")).toHaveText("0 / 1 complete");
   await expect(page.locator(".milestone-status")).toBeEmpty();
   completed = true;
   await page.reload();
+  await openRoadmap(page);
   await expect(page.locator(".milestone-status")).toHaveText("1 new milestone completed.");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".milestone-status")).toHaveText("1 new milestone completed.");
   await expect(page.locator(".milestone-status")).toBeEmpty();
   await page.reload();
+  await openRoadmap(page);
   await expect(page.locator(".milestone-count")).toHaveText("1 / 1 complete");
   await expect(page.locator(".milestone-status")).toBeEmpty();
 });
@@ -310,7 +316,7 @@ test("a delayed tutor reply stays out of a different study session", async ({ pa
     if (route.request().method() === "POST") {
       replyStarted = true;
       await gate;
-      body = { content: "Reply belonging to the old session" };
+      return fulfillReply(route, { content: "Reply belonging to the old session" });
     } else if (path.endsWith("/messages")) {
       body = [{ role: "assistant", content: path.includes("/second/") ? "Second conversation history" : "First conversation history" }];
     } else {
@@ -395,7 +401,7 @@ test("dashboard stays interactive under CPU throttling and repeated workspace na
     await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Home", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Continue learning", exact: true })).toBeVisible();
     await expect(page.locator(".ambient canvas")).toHaveCount(1);
-    await expect(page.locator(".shell-side")).toHaveCount(1);
+    await expect(page.locator(".shell-top")).toHaveCount(1);
   }
   await testInfo.attach("current-performance-baseline", { body: JSON.stringify({ developmentDashboardReadyMs: elapsed, cpuThrottle: 4, navigationCycles: 3, note: "Frontend fixtures; this is a current baseline, not a pre-change comparison or production performance claim." }), contentType: "application/json" });
 });

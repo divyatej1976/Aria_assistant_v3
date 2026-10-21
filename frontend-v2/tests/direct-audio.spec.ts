@@ -11,7 +11,7 @@ test("create audio from text without materials and restore its saved source", as
   await expect(page.getByLabel("Create from", { exact: true })).toHaveValue("text");
   await expect(page.getByRole("button", { name: "Create audio", exact: true })).toBeDisabled();
   await page.getByLabel("Episode title (optional)").fill("My direct episode");
-  await page.getByLabel("Text to read aloud").fill("A stack follows last in, first out. Push adds an item and pop removes the latest item.");
+  await page.getByLabel("Text to turn into a lesson").fill("A stack follows last in, first out. Push adds an item and pop removes the latest item.");
   await page.screenshot({ path: testInfo.outputPath("paste-text.png") });
   await page.setViewportSize({width: 375, height: 812});
   await page.screenshot({ path: testInfo.outputPath("paste-text-mobile.png") });
@@ -32,7 +32,7 @@ test("upload an image directly in Audio studio", async ({ page }) => {
   await page.goto("/app/audio");
   await page.getByRole("button", { name: "Convert to audio" }).first().click();
   await page.getByLabel("Create from", { exact: true }).selectOption("file");
-  await page.getByLabel("PDF or image (up to 10 MB)").setInputFiles(path.resolve(__dirname, "../test-assets/sample_ocr_notes.png"));
+  await page.getByLabel("PDF (up to 50 MB) or image (up to 25 MB)").setInputFiles(path.resolve(__dirname, "../test-assets/sample_ocr_notes.png"));
   await page.getByRole("button", { name: "Create audio", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 120000 });
   await expect(page.locator(".audio-card").filter({hasText: "sample_ocr_notes.png"})).toBeVisible();
@@ -57,7 +57,7 @@ test("a chat picked in Audio studio becomes a durable episode", async ({ page })
   await chat.selectOption({ index: 1 });
   await page.getByRole("button", { name: "Create audio", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 120000 });
-  await expect(page.locator(".audio-card").filter({ hasText: "Chat: Explain stacks briefly." })).toBeVisible();
+  await expect(page.locator(".audio-card").filter({ hasText: /Stacks/ })).toBeVisible();
   const api = await authedApi(user);
   const cid = await activeContextId(page);
   const listed = await api.get(`/api/v1/audio?context_id=${cid}`);
@@ -72,9 +72,9 @@ test("generation errors retain the pasted draft for retry", async ({ page }) => 
   await page.route("**/api/v1/audio/text/generate", route => route.fulfill({status: 422, contentType: "application/json", body: JSON.stringify({detail: "Please retry audio creation."})}));
   await page.goto("/app/audio");
   await page.getByRole("button", { name: "Convert to audio" }).first().click();
-  await page.getByLabel("Text to read aloud").fill("Keep this draft.");
+  await page.getByLabel("Text to turn into a lesson").fill("Keep this draft.");
   await page.getByRole("button", { name: "Create audio", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Please retry audio creation.");
-  await expect(page.getByLabel("Text to read aloud")).toHaveValue("Keep this draft.");
+  await expect(page.getByLabel("Text to turn into a lesson")).toHaveValue("Keep this draft.");
   await expect(page.getByRole("button", { name: "Create audio", exact: true })).toBeEnabled();
 });

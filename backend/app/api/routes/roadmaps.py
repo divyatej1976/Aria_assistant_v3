@@ -12,6 +12,7 @@ from app.schemas.roadmap import (
     RoadmapRefineRequest,
     RoadmapResponse,
     RoadmapSummaryResponse,
+    SkillTickRequest,
 )
 from app.security.dependencies import CurrentLearner
 from app.security.rate_limit import rate_limited
@@ -21,6 +22,7 @@ from app.services.roadmap import (
     get_roadmap,
     list_roadmaps,
     refine_roadmap,
+    set_skill_done,
 )
 
 router = APIRouter(prefix="/api/v1/roadmaps", tags=["roadmaps"])
@@ -90,3 +92,15 @@ def delete_roadmap_endpoint(
     if not delete_roadmap(db, owner_id=learner.id, roadmap_id=roadmap_id):
         raise HTTPException(status_code=404, detail="Roadmap not found")
     return {"deleted": True}
+
+
+@router.put("/{roadmap_id}/milestones/{milestone_id}/skills", response_model=RoadmapResponse)
+def tick_skill_endpoint(
+    roadmap_id: UUID, milestone_id: UUID, request: SkillTickRequest, learner: CurrentLearner, db: Db
+) -> RoadmapResponse:
+    try:
+        set_skill_done(db, owner_id=learner.id, roadmap_id=roadmap_id, milestone_id=milestone_id,
+                       skill=request.skill, done=request.done)
+        return get_roadmap(db, owner_id=learner.id, roadmap_id=roadmap_id)
+    except ValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

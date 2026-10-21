@@ -7,15 +7,14 @@ Conversation text and learner snapshots never enter graph state/config.
 from typing import TypedDict
 from uuid import UUID
 
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy import update
 
-from app.core.config import get_settings
 from app.core.errors import ValidationError
 from app.db.models import BrainAction
 from app.services.brain.actions import audit, owned_action
 from app.services.brain.capabilities import execute_capability
+from app.services.brain.checkpoints import checkpoint_saver
 
 
 class ActionState(TypedDict, total=False):
@@ -26,9 +25,6 @@ class ActionState(TypedDict, total=False):
 
 
 async def execute_graph(db, *, owner_id, action_id, claim_id):
-    if db.get_bind().dialect.name != "sqlite":
-        raise ValidationError("PostgreSQL graph checkpoint storage is not enabled yet")
-
     async def validate(state):
         action = owned_action(db, owner_id=owner_id, action_id=action_id)
         if action.capability != "audio.from_session" or action.claim_id != claim_id:
@@ -86,7 +82,7 @@ async def execute_graph(db, *, owner_id, action_id, claim_id):
     builder.add_edge("validate", "execute")
     builder.add_edge("execute", "report")
     builder.add_edge("report", END)
-    async with AsyncSqliteSaver.from_conn_string(get_settings().aria_brain_checkpoint_path) as saver:
+    async with checkpoint_saver(db) as saver:
         graph = builder.compile(checkpointer=saver, interrupt_before=["execute"], name="aria_audio_action")
         config = {"configurable": {"thread_id": f"{owner_id}:{action_id}"}}
         saved = await graph.aget_state(config)
