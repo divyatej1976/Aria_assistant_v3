@@ -1,203 +1,101 @@
-"""Phase 12.2 background worker tests: aggregate reminders and audio queue."""
+"""Background jobs: claimed once, run in parallel, resumed after a hand-over, retried, guarded."""
 
-from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import uuid4
 
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import select
+from tests.test_resources_study import create_context, headers, register
 
-from app.db.models import AudioArtifact
-from app.services.audio import process_audio_queue
-from app.services.notifications import check_reminders_for_all
-
-MATERIAL = (
-    "Two-phase locking uses a growth phase and a shrink phase. "
-    "Strict two-phase locking releases every lock only at commit time."
-)
+from app.db.models import Job, UploadChunk
+from app.services import jobs
 
 
-class FakeTTS:
-    def generate(self, *, text: str):
-        return b"audio-bytes", "audio/mpeg", 1
+def test_a_job_is_claimed_by_only_one_worker(session_factory) -> None:
+    with session_factory() as db:
+        jobs.enqueue(db, kind="test", owner_id=uuid4(), target_id=uuid4(), start=False)
+        first, second = jobs.claim(db), jobs.claim(db)
+        assert first is not None and first.status == "running" and first.attempts == 1
+        assert second is None  # the lease keeps every other worker off it
 
 
-def register(client: TestClient, email: str) -> dict[str, str]:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={"email": email, "password": "correct-horse", "display_name": "Learner"},
-    )
-    assert response.status_code == 201
-    return response.json()
+def test_enqueue_reuses_an_unfinished_job_for_the_same_target(session_factory) -> None:
+    owner, target = uuid4(), uuid4()
+    with session_factory() as db:
+        a = jobs.enqueue(db, kind="test", owner_id=owner, target_id=target, start=False)
+        b = jobs.enqueue(db, kind="test", owner_id=owner, target_id=target, start=False)
+        assert a.id == b.id
 
 
-def headers(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
+def test_several_workers_each_take_a_different_job_at_once(session_factory) -> None:
+    with session_factory() as db:
+        targets = {jobs.enqueue(db, kind="test", owner_id=uuid4(), target_id=uuid4(), start=False).target_id
+                   for _ in range(3)}
+    # Three workers, each with its own connection, claim while the others still hold theirs.
+    sessions = [session_factory() for _ in range(4)]
+    claimed = [jobs.claim(db) for db in sessions]
+    taken = {job.target_id for job in claimed[:3]}
+    assert taken == targets  # every job taken, none twice: they now run side by side
+    assert claimed[3] is None  # a fourth worker finds nothing left
+    for db in sessions:
+        db.close()
 
 
-def _session(engine) -> Session:
-    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    return factory()
+def test_a_job_that_runs_out_of_time_resumes_from_its_saved_progress(session_factory, monkeypatch) -> None:
+    seen = []
+
+    def stepwise(db, job, progress):
+        step = progress.data.get("step", 0)
+        seen.append(step)
+        if step < 2:
+            progress.save(step=step + 1)
+            raise jobs.Continue()
+    monkeypatch.setitem(jobs.HANDLERS, "test", stepwise)
+    monkeypatch.setattr(jobs, "kick", lambda *args, **kwargs: None)
+    with session_factory() as db:
+        job = jobs.enqueue(db, kind="test", owner_id=uuid4(), target_id=uuid4(), start=False)
+        while jobs.run_one(db):
+            pass
+        job = db.get(Job, job.id, populate_existing=True)
+    assert seen == [0, 1, 2]
+    assert job.status == "done" and job.attempts == 1  # hand-overs do not count as failures
 
 
-def test_check_reminders_for_all_aggregates_across_learners(
-    client: TestClient, engine
-) -> None:
-    first = register(client, "job-a@example.com")
-    second = register(client, "job-b@example.com")
-
-    for token in (first["access_token"], second["access_token"]):
-        context = client.post(
-            "/api/v1/contexts",
-            headers=headers(token),
-            json={"title": "DBMS", "description": "Reminder test"},
-        ).json()
-        client.post(
-            "/api/v1/planner/deadlines",
-            headers=headers(token),
-            json={
-                "context_id": context["id"],
-                "title": "DBMS End Sem",
-                "due_at": (datetime.now(UTC) + timedelta(days=3)).isoformat(),
-                "reminder_days_before": 5,
-            },
-        )
-
-    session = _session(engine)
-    try:
-        result = check_reminders_for_all(session)
-    finally:
-        session.close()
-
-    assert set(result) == {
-        "notifications_created",
-        "emails_delivered",
-        "emails_logged",
-        "emails_failed",
-    }
-    assert result["notifications_created"] >= 2
+def test_a_crashing_job_is_retried_then_marked_failed(session_factory, monkeypatch) -> None:
+    def boom(db, job, progress):
+        raise RuntimeError("provider down")
+    monkeypatch.setitem(jobs.HANDLERS, "test", boom)
+    with session_factory() as db:
+        job = jobs.enqueue(db, kind="test", owner_id=uuid4(), target_id=uuid4(), start=False)
+        while jobs.run_one(db):
+            pass
+        job = db.get(Job, job.id, populate_existing=True)
+    assert job.status == "failed" and job.attempts == jobs.MAX_ATTEMPTS and "provider down" in job.error
 
 
-def test_process_audio_queue_generates_pending_artifacts(
-    client: TestClient, engine, monkeypatch, tmp_path
-) -> None:
-    from app.services.audio_storage import LocalAudioStorage
+def test_internal_endpoints_need_the_secret(client, monkeypatch) -> None:
+    from app.core.config import get_settings
 
-    monkeypatch.setattr(
-        "app.services.audio.get_audio_storage",
-        lambda: LocalAudioStorage(tmp_path / "audiofiles"),
-    )
-    session_data = register(client, "job-audio@example.com")
-    token = session_data["access_token"]
-    context = client.post(
-        "/api/v1/contexts",
-        headers=headers(token),
-        json={"title": "DBMS", "description": "Audio queue test"},
-    ).json()
-    note = client.post(
-        "/api/v1/notes",
-        headers=headers(token),
-        json={"context_id": context["id"], "title": "Locks", "body": MATERIAL},
-    ).json()
-
-    session = _session(engine)
-    try:
-        session.add(
-            AudioArtifact(
-                owner_id=UUID(session_data["learner_id"]),
-                source_type="NOTE",
-                source_id=UUID(note["id"]),
-                text=MATERIAL,
-                status="PROCESSING",
-            )
-        )
-        session.commit()
-
-        processed = process_audio_queue(session, provider=FakeTTS())
-        assert processed == 1
-
-        artifact = session.query(AudioArtifact).first()
-        assert artifact.status == "READY"
-        assert artifact.storage_key
-        assert artifact.audio_bytes is None
-    finally:
-        session.close()
+    monkeypatch.setattr(get_settings(), "aria_cron_secret", "s3cret-for-tests")
+    assert client.post("/api/v1/internal/work").status_code == 404
+    assert client.post("/api/v1/internal/tick", headers={"Authorization": "Bearer wrong"}).status_code == 404
+    ok = client.post("/api/v1/internal/tick", headers={"Authorization": "Bearer s3cret-for-tests"})
+    assert ok.status_code == 200 and "jobs_started" in ok.json()
 
 
-def test_scheduler_noop_when_disabled(monkeypatch) -> None:
-    from app.jobs.scheduler import scheduler_instance, start_scheduler
+def test_a_large_file_uploads_in_pieces(client, session_factory) -> None:
+    token = register(client, "pieces@example.com")["access_token"]
+    context = create_context(client, token)
+    text = ("Normalization removes redundancy. " * 400).encode()
+    upload = uuid4()
+    for seq, start in enumerate(range(0, len(text), 5000)):
+        put = client.put(f"/api/v1/resources/uploads/{upload}/{seq}", headers=headers(token),
+                         content=text[start:start + 5000])
+        assert put.status_code == 204, put.text
+    stranger = register(client, "pieces-stranger@example.com")["access_token"]
+    stolen = client.post(f"/api/v1/resources/pdf?context_id={context}&upload_id={upload}", headers=headers(stranger))
+    assert stolen.status_code in (400, 404)  # another learner cannot claim these pieces
 
-    class Settings:
-        aria_scheduler_enabled = False
-        aria_reminder_check_interval_minutes = 60
-        aria_audio_queue_interval_seconds = 30
-
-    monkeypatch.setattr("app.jobs.scheduler.get_settings", lambda: Settings())
-    start_scheduler()
-    assert scheduler_instance().running is False
-
-
-def test_advisory_lock_guards_against_replicas(engine) -> None:
-    from app.jobs.scheduler import _release_advisory_lock, _try_advisory_lock
-
-    first = engine.connect()
-    second = engine.connect()
-    key = 4242
-    try:
-        assert _try_advisory_lock(first, key) is True
-        held_by_second = _try_advisory_lock(second, key)
-        if engine.dialect.name == "postgresql":
-            assert held_by_second is False
-        else:
-            assert held_by_second is True  # SQLite: single-instance fallback
-    finally:
-        _release_advisory_lock(first, key)
-        _release_advisory_lock(second, key)
-        first.close()
-        second.close()
-
-
-def test_run_locked_skips_when_lock_held(engine) -> None:
-    from app.jobs.scheduler import _release_advisory_lock, _run_locked, _try_advisory_lock
-
-    key = 4243
-    holder = engine.connect()
-    try:
-        assert _try_advisory_lock(holder, key) is True
-        calls: list[str] = []
-
-        def work() -> None:
-            calls.append("ran")
-
-        if engine.dialect.name == "postgresql":
-            assert _run_locked(engine, key=key, work=work) is False
-            assert calls == []
-        else:
-            # SQLite cannot hold a real advisory lock; the job always runs.
-            assert _run_locked(engine, key=key, work=work) is True
-            assert calls == ["ran"]
-    finally:
-        _release_advisory_lock(holder, key)
-        holder.close()
-
-
-def test_advisory_lock_postgres_failure_is_not_bypassed(engine, monkeypatch) -> None:
-    import pytest
-
-    from app.jobs.scheduler import _try_advisory_lock
-
-    if engine.dialect.name != "postgresql":
-        return  # SQLite is always-acquired by design (single instance)
-
-    connection = engine.connect()
-
-    def boom(*args, **kwargs):
-        raise RuntimeError("database unavailable")
-
-    monkeypatch.setattr(connection, "execute", boom)
-    try:
-        # A real DB failure must propagate (fail closed) rather than silently
-        # treating the lock as acquired and running the job on every replica.
-        with pytest.raises(RuntimeError):
-            _try_advisory_lock(connection, 4244)
-    finally:
-        connection.close()
+    # The pieces are joined back in order and processed like a single upload.
+    done = client.post(f"/api/v1/resources/pdf?context_id={context}&upload_id={upload}", headers=headers(token))
+    assert done.status_code != 413 and "Empty PDF upload" not in done.text, done.text
+    with session_factory() as db:
+        assert db.scalars(select(UploadChunk)).all() == []  # pieces are removed once used

@@ -108,7 +108,7 @@ def parse_turns(script: str, style: Style) -> list[Turn]:
 
 
 def script_parts(provider, *, title: str, text: str, style: Style,
-                 cancelled=lambda: False) -> list[list[Turn]] | None:
+                 cancelled=lambda: False, progress=None) -> list[list[Turn]] | None:
     """Blocking wrapper for the audio worker thread: one list of turns per part.
 
     None means no lesson could be written. `cancelled` is checked before each part so a
@@ -118,19 +118,31 @@ def script_parts(provider, *, title: str, text: str, style: Style,
         return None
     sources = split_parts(text)
 
+    # From a job, scripts written by an earlier worker are reused.
+    saved = list(progress.data.get("scripts", []))[:len(sources)] if progress is not None else []
+
     async def write_all() -> list[str]:
-        scripts = []
+        scripts = list(saved)
         # One part at a time: parts share the provider's per-minute limit.
         for index, source in enumerate(sources, start=1):
+            if index <= len(scripts):
+                continue
             if cancelled():
                 raise RuntimeError("episode cancelled")
             scripts.append(await _write_script(provider, title=title, text=source, style=style,
                                                part=index, parts=len(sources),
                                                next_start=sources[index][:300] if index < len(sources) else ""))
+            if progress is not None:
+                progress.save(scripts=scripts, label=f"Writing part {index} of {len(sources)}")
+                progress.check_time()
         return scripts
+
+    from app.services.jobs import Continue
 
     try:
         scripts = asyncio.run(write_all())
+    except Continue:
+        raise  # out of time: the job resumes from the saved scripts
     except Exception:
         logger.warning("audio script generation failed; reading the source instead", exc_info=True)
         return None

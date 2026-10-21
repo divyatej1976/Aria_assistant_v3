@@ -37,6 +37,8 @@ class AudioListItem(BaseModel):
     duration_seconds: int | None
     # Where each part of a long episode starts; empty for single-part episodes.
     parts: list[dict] = []
+    # The background job's current step while the episode is being made.
+    step: str | None = None
     position_seconds: int
     completed: bool
     created_at: datetime

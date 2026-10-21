@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     # ARIA_LLM_API_KEY and an LLM_MODEL from that provider, e.g. gpt-4o-mini or gemini-2.5-flash.
     aria_llm_provider: str = "groq"
     aria_llm_api_key: str | None = Field(default=None, repr=False)
+    # Background jobs. "thread" runs workers in this process (local); "http" starts each worker as
+    # its own request to ARIA_PUBLIC_URL (serverless hosts, where threads stop with the request).
+    aria_job_runner: str = "thread"
+    # Seconds a worker may spend before saving progress and handing over (0 = no limit).
+    aria_job_budget_seconds: int = 0
+    # Shared secret for /api/v1/internal/* (worker starts and the timer).
+    aria_cron_secret: str | None = Field(default=None, repr=False)
+    # Vercel Blob store token: when set, audio files live in Blob instead of the local disk.
+    blob_read_write_token: str | None = Field(default=None, repr=False)
     aria_brain_routing: bool = False
     aria_brain_llm_routing: bool = False
     aria_brain_checkpoint_path: str = "aria-brain-checkpoints.db"

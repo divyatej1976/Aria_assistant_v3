@@ -1,7 +1,7 @@
-﻿from typing import Annotated
-import asyncio
+﻿import asyncio
 import json
 import logging
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query

@@ -13,6 +13,7 @@ from app.api.routes.audio import router as audio_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.contexts import router as contexts_router
 from app.api.routes.health import router as health_router
+from app.api.routes.internal import router as internal_router
 from app.api.routes.memory import router as memory_router
 from app.api.routes.notes import router as notes_router
 from app.api.routes.notifications import router as notifications_router
@@ -108,6 +109,7 @@ app.add_middleware(
     max_age=600,
 )
 app.include_router(health_router)
+app.include_router(internal_router)
 app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(contexts_router)

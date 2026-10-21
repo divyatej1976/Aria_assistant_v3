@@ -133,7 +133,55 @@ class LocalAudioStorage:
                     logger.exception("audio cleanup file inspection failed")
 
 
+class BlobAudioStorage:
+    """Vercel Blob: files survive serverless restarts and stay out of the database.
+
+    The key is the blob's URL. Paths are UUIDs (unguessable), and playback still goes through
+    ARIA's own signed-in audio endpoint, which reads the bytes here.
+    """
+
+    API = "https://blob.vercel-storage.com"
+
+    def __init__(self, token: str) -> None:
+        self._headers = {"authorization": f"Bearer {token}", "x-api-version": "7"}
+
+    def save(self, *, owner_id: UUID, artifact_id: UUID, content_type: str | None, data: bytes) -> str:
+        import httpx
+
+        path = f"audio/{owner_id}/{artifact_id}.{_extension(content_type)}"
+        response = httpx.put(f"{self.API}/{path}", content=data, timeout=120, headers={
+            **self._headers, "x-content-type": content_type or "application/octet-stream",
+            "x-add-random-suffix": "0", "x-allow-overwrite": "1"})
+        response.raise_for_status()
+        return response.json()["url"]
+
+    @staticmethod
+    def _ours(key: str) -> bool:
+        return key.startswith("https://") and ".public.blob.vercel-storage.com/audio/" in key
+
+    def load(self, key: str) -> bytes | None:
+        import httpx
+
+        if not self._ours(key):
+            return None
+        try:
+            response = httpx.get(key, timeout=120)
+        except httpx.HTTPError:
+            logger.exception("blob audio read failed")
+            return None
+        return response.content if response.status_code == 200 else None
+
+    def delete(self, key: str) -> None:
+        import httpx
+
+        if self._ours(key):
+            httpx.post(f"{self.API}/delete", json={"urls": [key]}, headers=self._headers, timeout=60).raise_for_status()
+
+
 def get_audio_storage() -> AudioStorage:
     from app.core.config import get_settings
 
-    return LocalAudioStorage(get_settings().aria_audio_dir)
+    settings = get_settings()
+    if settings.blob_read_write_token:
+        return BlobAudioStorage(settings.blob_read_write_token)
+    return LocalAudioStorage(settings.aria_audio_dir)

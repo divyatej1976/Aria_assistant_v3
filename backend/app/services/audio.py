@@ -2,14 +2,13 @@
 
 import logging
 import re
-import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, delete, func, or_, select, update
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from app.ai.providers import (
     ChainedTTSProvider,
@@ -245,6 +244,11 @@ def list_audio(
     ).all()
     # One batched progress query instead of N+1.
     artifact_ids = [a.id for a, _, _ in [*note_rows, *resource_rows]]
+    from app.db.models import Job
+
+    # What the background job is doing right now, e.g. "Recording part 2 of 4".
+    step = {job.target_id: (job.progress or {}).get("label") for job in db.scalars(select(Job).where(
+        Job.kind == "audio", Job.target_id.in_(artifact_ids), Job.status.in_(["queued", "running"])))}         if artifact_ids else {}
     progress_map: dict[UUID, AudioProgress] = {}
     if artifact_ids:
         for progress in db.scalars(
@@ -269,6 +273,7 @@ def list_audio(
                 "content_type": artifact.content_type,
                 "duration_seconds": artifact.duration_seconds,
                 "parts": episode_parts(artifact.text) if artifact.status == "READY" else [],
+                "step": step.get(artifact.id),
                 "position_seconds": progress.position_seconds if progress else 0,
                 "completed": progress.completed if progress else False,
                 "created_at": artifact.created_at,
@@ -356,8 +361,15 @@ def _speak(tts, turns) -> tuple[bytes, str, int]:
 PART_MARK = re.compile(r"^\[Part (\d+) of (\d+) · (\d+):(\d\d)\]$", re.M)
 
 
-def _speak_parts(tts, parts, *, conversation: bool) -> tuple[bytes, str, int, str]:
-    """Voice each part into one file; the transcript marks where each part starts."""
+def _speak_parts(tts, parts, *, conversation: bool, progress=None, owner_id: UUID | None = None,
+                 job_id: UUID | None = None) -> tuple[bytes, str, int, str]:
+    """Voice each part into one file; the transcript marks where each part starts.
+
+    From a job, each part's recording is stored as soon as it is made, so a resumed job only
+    records the parts still missing.
+    """
+    from uuid import NAMESPACE_URL, uuid5
+
     from app.ai.speech_audio import assemble_wav
 
     def transcript(turns) -> str:
@@ -367,13 +379,30 @@ def _speak_parts(tts, parts, *, conversation: bool) -> tuple[bytes, str, int, st
 
     if len(parts) == 1:
         return (*_speak(tts, parts[0]), transcript(parts[0]))
+    resumable = progress is not None and owner_id is not None and job_id is not None
+    storage = get_audio_storage() if resumable else None
+    saved = list(progress.data.get("clips", [])) if resumable else []
     clips, sections, start = [], [], 0
     for index, turns in enumerate(parts, start=1):
-        data, _, seconds = _speak(tts, turns)
+        if index <= len(saved):
+            data, seconds = storage.load(saved[index - 1]["key"]), saved[index - 1]["seconds"]
+            if data is None:
+                raise RuntimeError("a saved part of this episode is missing; retrying from the start")
+        else:
+            data, _, seconds = _speak(tts, turns)
+            if resumable:
+                key = storage.save(owner_id=owner_id, artifact_id=uuid5(NAMESPACE_URL, f"{job_id}:part:{index}"),
+                                   content_type="audio/wav", data=data)
+                saved.append({"key": key, "seconds": seconds})
+                progress.save(clips=saved, label=f"Recording part {index} of {len(parts)}")
+                if index < len(parts):
+                    progress.check_time()
         clips.append(data)
         sections.append(f"[Part {index} of {len(parts)} · {start // 60}:{start % 60:02d}]\n{transcript(turns)}")
         start += seconds
     data, duration = assemble_wav(clips)
+    if storage is not None:
+        _remove_stored([item["key"] for item in saved])
     return data, "audio/wav", duration, "\n\n".join(sections)
 
 
@@ -409,34 +438,24 @@ def start_audio(
         artifact.status, artifact.style, artifact.error_detail = "PENDING", style, None
     db.commit()
     db.refresh(artifact)
-    factory = sessionmaker(bind=db.get_bind(), autoflush=False, expire_on_commit=False)
+    from app.services import jobs
 
-    def run() -> None:
-        from app.services import digest
-
-        # The file's digest may already be condensing; reuse it instead of a second, rate-limited pass.
-        for _ in range(60):
-            if source_type != RESOURCE or source_id not in digest._running:
-                break
-            time.sleep(2)
-        with factory() as worker:
-            if worker.get(AudioArtifact, artifact_id) is None:
-                return  # cancelled (deleted) before the job started; don't recreate it
-            try:
-                generate_audio(worker, owner_id=owner_id, source_type=source_type, source_id=source_id, style=style)
-            except Exception:
-                logger.exception("background audio generation failed")
-
-    artifact_id = artifact.id
-    Thread(target=run, daemon=True, name="aria-audio-long").start()
+    # Any free worker makes it; several episodes are made side by side.
+    jobs.enqueue(db, kind="audio", owner_id=owner_id, target_id=artifact.id)
+    db.refresh(artifact)
     return artifact
 
 
 def generate_audio(
     db: Session, *, owner_id: UUID, source_type: str, source_id: UUID,
     provider=None, recovery: bool = False, reuse_ready: bool = False, style: str | None = None,
+    progress=None, job_id: UUID | None = None,
 ) -> AudioArtifact:
-    """Claim one source atomically, synthesize outside its transaction, then fence publication."""
+    """Claim one source atomically, synthesize outside its transaction, then fence publication.
+
+    From a job (`progress`), each part is saved as it is finished; when the worker runs out of
+    time the claim is handed back (PENDING) and the next worker resumes from the saved parts.
+    """
     source_model = Note if source_type == NOTE else Resource if source_type == RESOURCE else None
     if source_model is None:
         raise ValidationError("Unsupported audio source")
@@ -508,10 +527,13 @@ def generate_audio(
 
         # Explain the material like a lesson; without the AI tutor, read it aloud as before.
         title = label.split(": ", 1)[-1]
-        parts = script_parts(llm, title=title, text=text,
-                             style="conversation" if style == "conversation" else "explainer",
-                             cancelled=lambda: db.get(AudioArtifact, artifact_id, populate_existing=True) is None)
+        from app.services.jobs import Continue
+
         try:
+            parts = script_parts(llm, title=title, text=text,
+                                 style="conversation" if style == "conversation" else "explainer",
+                                 cancelled=lambda: db.get(AudioArtifact, artifact_id, populate_existing=True) is None,
+                                 progress=progress)
             if parts is None and llm is not None:
                 # Reading a chat or file aloud is not a lesson; fail clearly so the learner can retry.
                 raise ValidationError("ARIA couldn't write the lesson just now (the AI is busy). "
@@ -519,7 +541,16 @@ def generate_audio(
             if parts is None and len(text) > MAX_AUDIO_CHARS:
                 raise ValidationError("The lesson script could not be written and this is too long to read aloud.")
             audio_bytes, content_type, duration, spoken = _speak_parts(
-                provider or get_tts_provider(), parts or [[("tutor", text)]], conversation=style == "conversation")
+                provider or get_tts_provider(), parts or [[("tutor", text)]], conversation=style == "conversation",
+                progress=progress, owner_id=owner_id, job_id=job_id)
+        except Continue:
+            # Out of time, not failed: hand the episode back so the next worker resumes it.
+            db.rollback()
+            db.execute(update(AudioArtifact).where(
+                AudioArtifact.id == artifact_id, AudioArtifact.generation_token == token,
+            ).values(status="PENDING", lease_until=None, generation_token=None))
+            db.commit()
+            raise
         except Exception as exc:
             db.rollback()
             logger.warning("audio generation failed error_type=%s", type(exc).__name__)

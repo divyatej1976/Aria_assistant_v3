@@ -553,8 +553,7 @@ async def retrieve_chunks(
         pending = [r.id for r in {resource.id: resource for _, resource in rows}.values()
                    if not r.digest and len(r.source_text or "") > whole_doc_chars()]
         if pending:
-            release_connection(db)
-            await wait_for_digest(pending)
+            await wait_for_digest(db, pending)
             for _, resource in rows:
                 if resource.id in pending:
                     db.refresh(resource, attribute_names=["digest"])

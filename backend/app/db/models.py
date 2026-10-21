@@ -573,3 +573,33 @@ class RoadmapMilestone(OwnedModel, Base):
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # outcome, effort_hours, activity, check: how the learner works through it.
     details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class Job(OwnedModel, Base):
+    """Slow work done outside the request: audio episodes, whole-file digests.
+
+    Any number of workers run jobs at once; each claims one row with a lease, so a job is
+    never run twice, and a worker that dies or runs out of time is picked up again.
+    """
+
+    __tablename__ = "jobs"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, nullable=False)
+    # queued, running, done, failed
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Saved between steps so a long job resumes where it stopped.
+    progress: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class UploadChunk(OwnedModel, Base):
+    """One piece of a large upload, kept until the upload is assembled (requests cap at 4.5 MB)."""
+
+    __tablename__ = "upload_chunks"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    upload_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)

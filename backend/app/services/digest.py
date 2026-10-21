@@ -1,61 +1,66 @@
-"""Condense long uploads in the background so "summarize this" covers the whole file."""
+"""Condense long uploads in the background so "summarize this" covers the whole file.
+
+The work runs as a "digest" job (app.services.jobs): any worker can take it, and it saves its
+place section by section, so a long book resumes where it stopped instead of starting over.
+"""
 
 import asyncio
 import logging
 from uuid import UUID
 
-from app.db.models import Resource
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models import Job, Resource
 from app.services.condense import FITS_CHARS, condense
 
 logger = logging.getLogger(__name__)
 
-# Running digests by resource; also keeps a strong reference so tasks are not collected.
-_running: dict[UUID, asyncio.Task] = {}
+
+def needs_digest(resource: Resource | None) -> bool:
+    return (resource is not None and resource.processing_status == "READY" and not resource.digest
+            and len(resource.source_text or "") > FITS_CHARS)
 
 
-def schedule_digest(*, owner_id: UUID, resource_id: UUID) -> None:
-    """Start condensing after the upload response; a no-op outside an event loop.
+def schedule_digest(db: Session, *, owner_id: UUID, resource_id: UUID) -> None:
+    """Queue a digest for a long, ready file; short files need none."""
+    from app.services import jobs
 
-    shortcut: the task lives in this process; a restart mid-digest leaves no digest and
-    chat falls back to the beginning of the file. Move to the job queue when it matters.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-    task = loop.create_task(build_digest(owner_id=owner_id, resource_id=resource_id))
-    _running[resource_id] = task
-    task.add_done_callback(lambda _: _running.pop(resource_id, None))
+    resource = db.get(Resource, resource_id)
+    if resource is not None and resource.owner_id == owner_id and needs_digest(resource):
+        jobs.enqueue(db, kind="digest", owner_id=owner_id, target_id=resource_id)
 
 
-async def wait_for_digest(resource_ids, *, timeout: float = 40.0) -> None:
+async def wait_for_digest(db: Session, resource_ids, *, timeout: float = 40.0) -> None:
     """Let a "summarize this" asked right after upload wait for the whole-file digest."""
-    tasks = [_running[rid] for rid in resource_ids if rid in _running]
-    if tasks:
-        await asyncio.wait([asyncio.shield(task) for task in tasks], timeout=timeout)
+    from app.db.session import release_connection
+
+    ids = list(resource_ids)
+    for _ in range(int(timeout)):
+        busy = db.scalar(select(Job.id).where(Job.kind == "digest", Job.target_id.in_(ids),
+                                              Job.status.in_(["queued", "running"])).limit(1))
+        db.rollback()  # end the read so the next poll sees the worker's commits
+        if busy is None:
+            return
+        release_connection(db)
+        await asyncio.sleep(1)
 
 
-async def build_digest(*, owner_id: UUID, resource_id: UUID) -> str | None:
+def build_digest(db: Session, job, progress) -> None:
+    """The "digest" job: condense the whole file, resuming from saved sections."""
     from app.ai.registry import get_llm_provider_for_owner
-    from app.db.session import SessionLocal
 
-    with SessionLocal() as db:
-        resource = db.get(Resource, resource_id)
-        if (resource is None or resource.owner_id != owner_id or resource.processing_status != "READY"
-                or resource.digest or len(resource.source_text or "") <= FITS_CHARS):
-            return None
-        provider = get_llm_provider_for_owner(db, owner_id=owner_id)
-        if provider is None:
-            return None
-        title, text = resource.title, resource.source_text or ""
-        try:
-            digest = await condense(provider, title=title, text=text)
-        except Exception:
-            logger.warning("digest failed resource_id=%s", resource_id, exc_info=True)
-            return None
-        resource = db.get(Resource, resource_id)
-        if resource is not None:
-            resource.digest = digest
-            db.commit()
-        logger.info("digest ready resource_id=%s chars=%d->%d", resource_id, len(text), len(digest))
-        return digest
+    resource = db.get(Resource, job.target_id)
+    if resource is None or resource.owner_id != job.owner_id or not needs_digest(resource):
+        return
+    provider = get_llm_provider_for_owner(db, owner_id=job.owner_id)
+    if provider is None:
+        return
+    title, text = resource.title, resource.source_text or ""
+    db.rollback()  # no transaction held open while the AI works
+    digest = asyncio.run(condense(provider, title=title, text=text, progress=progress))
+    resource = db.get(Resource, job.target_id, populate_existing=True)
+    if resource is not None:
+        resource.digest = digest
+        db.commit()
+    logger.info("digest ready resource_id=%s chars=%d->%d", job.target_id, len(text), len(digest))

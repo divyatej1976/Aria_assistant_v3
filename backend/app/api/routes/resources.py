@@ -2,11 +2,11 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
-from app.db.models import LearningContext, Resource, ResourceChunk, StudySession
+from app.db.models import LearningContext, Resource, ResourceChunk, StudySession, UploadChunk
 from app.schemas.resources import (
     ChunkResponse,
     ResourceResponse,
@@ -30,10 +30,42 @@ router = APIRouter(prefix="/api/v1/resources", tags=["resources"])
 Db = Annotated[Session, Depends(get_db)]
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB: textbooks and lecture packs fit
+# Some hosts cap a request body (Vercel: 4.5 MB), so bigger files arrive in pieces of at most this.
+MAX_PIECE_BYTES = 4 * 1024 * 1024
 
 
-async def read_upload_body(request: Request) -> bytes:
-    """Read the request body streaming, enforcing the upload size cap."""
+@router.put("/uploads/{upload_id}/{seq}", status_code=204)
+async def add_upload_piece(upload_id: UUID, seq: int, learner: CurrentLearner, db: Db, request: Request) -> None:
+    """Store one piece of a large file; the upload endpoint then takes `upload_id` instead of a body."""
+    if not 0 <= seq < MAX_UPLOAD_BYTES // MAX_PIECE_BYTES + 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid upload piece")
+    data = await request.body()
+    if not data or len(data) > MAX_PIECE_BYTES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Each upload piece must be 1 byte to 4 MB")
+    db.execute(delete(UploadChunk).where(UploadChunk.owner_id == learner.id, UploadChunk.upload_id == upload_id,
+                                         UploadChunk.seq == seq))  # a retried piece replaces the first try
+    db.add(UploadChunk(owner_id=learner.id, upload_id=upload_id, seq=seq, data=data))
+    db.commit()
+
+
+async def read_upload_body(request: Request, db: Session | None = None, owner_id: UUID | None = None) -> bytes:
+    """Read the upload, enforcing the size cap: the request body, or the pieces sent for `upload_id`."""
+    upload_id = request.query_params.get("upload_id")
+    if upload_id and db is not None and owner_id is not None:
+        try:
+            upload = UUID(upload_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid upload id") from exc
+        pieces = db.scalars(select(UploadChunk.data).where(
+            UploadChunk.owner_id == owner_id, UploadChunk.upload_id == upload).order_by(UploadChunk.seq)).all()
+        content = b"".join(pieces)
+        db.execute(delete(UploadChunk).where(UploadChunk.owner_id == owner_id, UploadChunk.upload_id == upload))
+        db.commit()
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                                detail=f"This file is over {MAX_UPLOAD_BYTES // (1024 * 1024)} MB. "
+                                       "Try a smaller file or split it.")
+        return content
     chunks: list[bytes] = []
     total = 0
     async for chunk in request.stream():
@@ -111,7 +143,7 @@ async def add_text_resource(
     resource = await create_text_resource(
         db, owner_id=learner.id, context_id=request.context_id, title=request.title, text=request.text
     )
-    schedule_digest(owner_id=learner.id, resource_id=resource.id)
+    schedule_digest(db, owner_id=learner.id, resource_id=resource.id)
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
@@ -126,7 +158,7 @@ async def add_pdf_resource(
 ) -> ResourceResponse:
     ensure_context(db, context_id=context_id, owner_id=learner.id)
     chat_id = ensure_chat(db, session_id=session_id, context_id=context_id, owner_id=learner.id)
-    content = await read_upload_body(request)
+    content = await read_upload_body(request, db, learner.id)
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty PDF upload")
     resource = await create_pdf_resource(
@@ -137,7 +169,7 @@ async def add_pdf_resource(
         content=content,
         study_session_id=chat_id,
     )
-    schedule_digest(owner_id=learner.id, resource_id=resource.id)
+    schedule_digest(db, owner_id=learner.id, resource_id=resource.id)
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
@@ -152,7 +184,7 @@ async def add_image_resource(
 ) -> ResourceResponse:
     ensure_context(db, context_id=context_id, owner_id=learner.id)
     chat_id = ensure_chat(db, session_id=session_id, context_id=context_id, owner_id=learner.id)
-    content = await read_upload_body(request)
+    content = await read_upload_body(request, db, learner.id)
     if not content:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -168,7 +200,7 @@ async def add_image_resource(
         mime_type=content_type,
         study_session_id=chat_id,
     )
-    schedule_digest(owner_id=learner.id, resource_id=resource.id)
+    schedule_digest(db, owner_id=learner.id, resource_id=resource.id)
     return resource_response(resource, chunk_count=chunk_count_for(db, resource_id=resource.id))
 
 
@@ -256,7 +288,7 @@ async def retry_processing(
     processed = await reprocess_resource(db, resource=resource)
     processed.digest = None  # the file changed; condense it again
     db.commit()
-    schedule_digest(owner_id=learner.id, resource_id=processed.id)
+    schedule_digest(db, owner_id=learner.id, resource_id=processed.id)
     return resource_response(processed, chunk_count=chunk_count_for(db, resource_id=processed.id))
 
 
@@ -273,7 +305,7 @@ async def replace_text(
     )
     replaced.digest = None  # the file changed; condense it again
     db.commit()
-    schedule_digest(owner_id=learner.id, resource_id=replaced.id)
+    schedule_digest(db, owner_id=learner.id, resource_id=replaced.id)
     return resource_response(replaced, chunk_count=chunk_count_for(db, resource_id=replaced.id))
 
 
@@ -286,7 +318,7 @@ async def replace_pdf(
     title: str = "Uploaded PDF",
 ) -> ResourceResponse:
     resource = get_resource(db, resource_id=resource_id, owner_id=learner.id)
-    content = await read_upload_body(request)
+    content = await read_upload_body(request, db, learner.id)
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty PDF upload")
     replaced = await replace_pdf_resource(
@@ -294,5 +326,5 @@ async def replace_pdf(
     )
     replaced.digest = None  # the file changed; condense it again
     db.commit()
-    schedule_digest(owner_id=learner.id, resource_id=replaced.id)
+    schedule_digest(db, owner_id=learner.id, resource_id=replaced.id)
     return resource_response(replaced, chunk_count=chunk_count_for(db, resource_id=replaced.id))

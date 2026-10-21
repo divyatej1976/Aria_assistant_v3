@@ -31,13 +31,20 @@ async def generate_with_retry(provider, **request) -> str:
     raise AssertionError("unreachable")
 
 
-async def condense(provider, *, title: str, text: str, fits: int = FITS_CHARS) -> str:
-    """Return notes covering all of `text` in at most `fits` characters (best effort)."""
+async def condense(provider, *, title: str, text: str, fits: int = FITS_CHARS, progress=None) -> str:
+    """Return notes covering all of `text` in at most `fits` characters (best effort).
+
+    With a job `progress`, the first (longest) round saves each section's notes, and hands over
+    when the worker's time is up, so the next worker carries on from the next section.
+    """
     rounds = 0
     while len(text) > fits and rounds < MAX_ROUNDS:
         parts = [text[start:start + SECTION_CHARS] for start in range(0, len(text), SECTION_CHARS)]
-        notes: list[str] = []
+        resumable = progress is not None and rounds == 0
+        notes: list[str] = list(progress.data.get("condense_notes", []))[:len(parts)] if resumable else []
         for index, part in enumerate(parts, start=1):
+            if index <= len(notes):
+                continue  # done by an earlier worker
             try:
                 note = (await generate_with_retry(
                     provider,
@@ -53,6 +60,9 @@ async def condense(provider, *, title: str, text: str, fits: int = FITS_CHARS) -
                 note = None
             # Keep an excerpt rather than dropping the section without trace.
             notes.append(note or part[:2000].strip())
+            if resumable:
+                progress.save(condense_notes=notes, label=f"Reading section {index} of {len(parts)}")
+                progress.check_time()
         text = "\n\n".join(note for note in notes if note)
         rounds += 1
     return text[:fits] if len(text) > fits else text

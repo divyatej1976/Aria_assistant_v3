@@ -442,7 +442,8 @@ def build_note_pdf(note: Note) -> bytes:
 
     font = _pick_font(note.title + note.body)
     # CJK fonts draw these symbols; the standard font needs plain equivalents.
-    note_title, note_body = (pdf_safe(note.title), pdf_safe(note.body)) if font == "Helvetica" else (note.title, note.body)
+    plain = font == "Helvetica"
+    note_title, note_body = (pdf_safe(note.title), pdf_safe(note.body)) if plain else (note.title, note.body)
     buffer = io.BytesIO()
     document = SimpleDocTemplate(
         buffer,

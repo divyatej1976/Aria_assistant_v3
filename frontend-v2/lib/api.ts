@@ -197,8 +197,38 @@ export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blo
   return response.blob();
 }
 
+// The host caps a request body (Vercel: 4.5 MB), so bigger files go up in pieces first.
+const UPLOAD_PIECE_BYTES = 4 * 1024 * 1024;
+
+async function uploadPieces(file: File | Blob): Promise<string> {
+  const uploadId = crypto.randomUUID();
+  for (let start = 0, seq = 0; start < file.size; start += UPLOAD_PIECE_BYTES, seq += 1) {
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/api/v1/resources/uploads/${uploadId}/${seq}`, {
+        method: "PUT", signal: timeoutSignal(), credentials: "include",
+        headers: { "Content-Type": "application/octet-stream", ...csrfHeaders("PUT") },
+        body: file.slice(start, start + UPLOAD_PIECE_BYTES),
+      });
+    } catch {
+      throw new ApiError(0, "The upload was interrupted. Check your connection, then retry.");
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      await handleAuthFailure(response.status);
+      throw new ApiError(response.status, (payload as { detail?: string }).detail ?? "Upload failed");
+    }
+  }
+  return uploadId;
+}
+
 export async function apiUpload<T>(path: string, file: File | Blob, contentType: string): Promise<T> {
   const method = "POST";
+  if (file.size > UPLOAD_PIECE_BYTES) {
+    const uploadId = await uploadPieces(file);
+    path += `${path.includes("?") ? "&" : "?"}upload_id=${uploadId}`;
+    file = new Blob([]);
+  }
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {

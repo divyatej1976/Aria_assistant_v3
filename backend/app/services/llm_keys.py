@@ -261,5 +261,6 @@ def get_llm_provider_for_owner(db: Session, *, owner_id: UUID):
     if not api_key:
         return None
     # Learner keys are Groq keys; the deployment's own key follows ARIA_LLM_PROVIDER.
-    route = "groq" if source == "learner" else (getattr(get_settings(), "aria_llm_provider", None) or "groq").strip().lower()
+    deployment = (getattr(get_settings(), "aria_llm_provider", None) or "groq").strip().lower()
+    route = "groq" if source == "learner" else deployment
     return LiteLLMGroqProvider(api_key=api_key, model=model, owner_id=owner_id, db=db, route=route)
