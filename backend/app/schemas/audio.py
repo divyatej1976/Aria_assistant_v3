@@ -39,6 +39,8 @@ class AudioListItem(BaseModel):
     parts: list[dict] = []
     # The background job's current step while the episode is being made.
     step: str | None = None
+    # Why a failed episode failed (e.g. the free daily voice limit), shown on its card.
+    error_detail: str | None = None
     position_seconds: int
     completed: bool
     created_at: datetime

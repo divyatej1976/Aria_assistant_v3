@@ -218,3 +218,57 @@ def test_local_tts_espeak_failure_falls_through(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "pyttsx3", None)
     with pytest.raises(RuntimeError, match="espeak-ng"):
         LocalTTSProvider().generate(text="hi")
+
+
+def test_gemini_voices_turn_raw_speech_into_wav_and_use_the_learner_voice(monkeypatch) -> None:
+    import base64
+    import io
+    import wave
+
+    from app.ai.providers import GeminiTTSProvider
+
+    calls = []
+
+    class _Response:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict:
+            pcm = b"\x00\x00" * 2400  # 0.1 s of silence at 24 kHz
+            return {"candidates": [{"content": {"parts": [{"inlineData": {
+                "mimeType": "audio/L16;codec=pcm;rate=24000", "data": base64.b64encode(pcm).decode()}}]}}]}
+
+    def fake_post(url, *, params, json, timeout):
+        calls.append(json["generationConfig"]["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"])
+        return _Response()
+
+    monkeypatch.setattr("app.ai.providers.httpx.post", fake_post)
+    tts = GeminiTTSProvider(api_key="k", model="gemini-2.5-flash-preview-tts", voice="Kore", learner_voice="Puck")
+    data, content_type, seconds = tts.generate(text="Hello there.")
+    tts.generate(text="A learner question?", voice="troy")
+    with wave.open(io.BytesIO(data)) as clip:
+        assert (clip.getframerate(), clip.getnchannels(), clip.getsampwidth()) == (24000, 1, 2)
+    assert content_type == "audio/wav" and seconds >= 1
+    assert calls == ["Kore", "Puck"]  # tutor voice, then the learner's
+
+
+def test_gemini_daily_quota_is_told_to_the_learner_and_short_limits_are_waited_out(monkeypatch) -> None:
+    import httpx
+    import pytest
+
+    from app.ai.providers import ChainedTTSProvider, GeminiTTSProvider, VoiceQuotaExceeded
+
+    delays, slept = ["2s", "56698s"], []
+
+    def fake_post(url, *, params, json, timeout):
+        body = {"error": {"details": [{"retryDelay": delays.pop(0)}]}}
+        return httpx.Response(429, json=body, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr("app.ai.providers.httpx.post", fake_post)
+    monkeypatch.setattr("app.ai.providers.time.sleep", slept.append)
+    chain = ChainedTTSProvider([GeminiTTSProvider(api_key="k", model="m", voice="Kore", learner_voice="Puck")])
+    with pytest.raises(VoiceQuotaExceeded, match="free daily voice limit.*16 h"):
+        chain.generate(text="Hello there.")
+    assert slept == [2.0]  # the per-minute limit is waited out; the daily one is not

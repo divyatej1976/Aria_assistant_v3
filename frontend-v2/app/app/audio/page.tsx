@@ -366,7 +366,7 @@ function AudioPageWorkspace() {
                         : resources.find((r) => r.id === a.source_id)?.title ?? "Resource")}
                   </b>
                   <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-                    {({ PENDING: "Creating…", PROCESSING: "Creating…", READY: "Ready", FAILED: "Failed" } as Record<string, string>)[a.status] ?? a.status}{a.step && (a.status === "PENDING" || a.status === "PROCESSING") ? ` · ${a.step}` : ""} {a.duration_seconds ? ` · ${fmtDur(a.duration_seconds)}` : ""}{" "}
+                    {({ PENDING: "Creating…", PROCESSING: "Creating…", READY: "Ready", FAILED: "Failed" } as Record<string, string>)[a.status] ?? a.status}{a.step && (a.status === "PENDING" || a.status === "PROCESSING") ? ` · ${a.step}` : ""}{a.status === "FAILED" && a.error_detail ? ` · ${a.error_detail}` : ""} {a.duration_seconds ? ` · ${fmtDur(a.duration_seconds)}` : ""}{" "}
                     {p.completed ? " · Complete" : p.position_seconds > 0 ? ` · Resume ${fmtDur(p.position_seconds)}` : ""}
                   </div>
                 </div>

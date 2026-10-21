@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     aria_cron_secret: str | None = Field(default=None, repr=False)
     # Vercel Blob store token: when set, audio files live in Blob instead of the local disk.
     blob_read_write_token: str | None = Field(default=None, repr=False)
+    # Gemini voices: used after Groq's (or instead, when Groq's voice model is unavailable).
+    gemini_api_key: str | None = Field(default=None, repr=False)
+    aria_gemini_tts_model: str = "gemini-2.5-flash-preview-tts"
+    aria_gemini_tts_voice: str = "Kore"
+    aria_gemini_tts_voice_2: str = "Puck"
     aria_brain_routing: bool = False
     aria_brain_llm_routing: bool = False
     aria_brain_checkpoint_path: str = "aria-brain-checkpoints.db"

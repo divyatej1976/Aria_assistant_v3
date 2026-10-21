@@ -11,6 +11,7 @@ from typing import Protocol
 import httpx
 
 from app.ai.speech_audio import assemble_wav, speech_segments
+from app.core.errors import ValidationError
 
 logger = logging.getLogger(__name__)
 # Use litellm's bundled price map instead of fetching it over the network on import.
@@ -297,6 +298,74 @@ class GroqTTSProvider:
         return data, "audio/wav", duration
 
 
+class VoiceQuotaExceeded(ValidationError):
+    """A voice provider's quota is used up; the message is shown to the learner."""
+
+
+def gemini_retry_seconds(response: httpx.Response) -> float:
+    """Gemini's RetryInfo delay ("56698s") from a 429 body; 30 s when absent."""
+    try:
+        for detail in response.json()["error"].get("details", []):
+            if "retryDelay" in detail:
+                return float(str(detail["retryDelay"]).rstrip("s"))
+    except (ValueError, KeyError, TypeError, AttributeError):
+        pass
+    return 30.0
+
+
+class GeminiTTSProvider:
+    """Google Gemini text-to-speech, used when Groq's voices are unavailable.
+
+    Gemini returns raw 16-bit mono PCM; each segment is wrapped as WAV so the shared WAV
+    assembly joins them. A learner line (any `voice` passed) uses the second voice.
+    """
+
+    def __init__(self, *, api_key: str, model: str, voice: str, learner_voice: str) -> None:
+        self.api_key, self.model, self.voice, self.learner_voice = api_key, model, voice, learner_voice
+
+    def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
+        import base64
+        import io
+        import wave
+
+        parts: list[bytes] = []
+        for segment in speech_segments(text):
+            for attempt in range(3):
+                response = httpx.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
+                    params={"key": self.api_key},
+                    # Without the instruction Gemini sometimes answers the text instead (400).
+                    json={"contents": [{"parts": [{"text": f"Read this text aloud exactly as written:\n{segment}"}]}],
+                          "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {
+                              "prebuiltVoiceConfig": {"voiceName": self.learner_voice if voice else self.voice}}}}},
+                    timeout=120,
+                )
+                if response.status_code != 429:
+                    break
+                wait = gemini_retry_seconds(response)
+                if wait > 60 or attempt == 2:
+                    # The free tier allows only a few voice requests a day per project.
+                    raise VoiceQuotaExceeded(
+                        "The free daily voice limit is used up. Press Retry after it resets"
+                        f" (in about {max(1, round(wait / 3600))} h)." if wait > 60 else
+                        "The voice service is busy. Please press Retry in a minute."
+                    )
+                time.sleep(wait)
+            response.raise_for_status()
+            inline = response.json()["candidates"][0]["content"]["parts"][0]["inlineData"]
+            rate = int(re.search(r"rate=(\d+)", inline.get("mimeType", "")).group(1)) \
+                if "rate=" in inline.get("mimeType", "") else 24000
+            buffer = io.BytesIO()
+            with wave.open(buffer, "wb") as clip:
+                clip.setnchannels(1)
+                clip.setsampwidth(2)
+                clip.setframerate(rate)
+                clip.writeframes(base64.b64decode(inline["data"]))
+            parts.append(buffer.getvalue())
+        data, duration = assemble_wav(parts)
+        return data, "audio/wav", duration
+
+
 class GroqSTTProvider:
     """Groq OpenAI-compatible /audio/transcriptions (whisper-large-v3)."""
 
@@ -329,14 +398,19 @@ class ChainedTTSProvider:
         self.providers = providers
 
     def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
+        quota = None
         for provider in self.providers:
             try:
                 return provider.generate(text=text, **({"voice": voice} if voice else {}))
             except Exception as exc:  # noqa: BLE001 - chain reports every failure
+                quota = exc if isinstance(exc, VoiceQuotaExceeded) else quota
                 logger.warning(
-                    "tts provider failed provider=%s error_type=%s",
+                    "tts provider failed provider=%s error_type=%s status=%s",
                     type(provider).__name__, type(exc).__name__,
+                    getattr(getattr(exc, "response", None), "status_code", None),
                 )
+        if quota is not None:
+            raise quota  # tell the learner why, instead of a generic failure
         raise RuntimeError("all TTS providers failed")
 
 

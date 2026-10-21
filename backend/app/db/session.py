@@ -1,5 +1,8 @@
+import os
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 
@@ -8,6 +11,10 @@ connect_args = {}
 pool_args = {}
 if db_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False, "timeout": 30}
+elif os.environ.get("VERCEL"):
+    # Serverless: many short-lived instances share a small hosted pooler (~15 connections on
+    # Supabase free), so idle per-instance pools exhaust it. Hand each connection back at once.
+    pool_args = {"poolclass": NullPool}
 else:
     # Async routes check out connections on the event loop, so a long wait for
     # a free connection stalls every request: fail fast instead of queueing 30s.

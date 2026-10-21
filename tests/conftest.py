@@ -24,6 +24,7 @@ os.environ["GROQ_API_KEY"] = ""
 # The same for an OpenAI/Gemini key in keys.env.
 os.environ["ARIA_LLM_API_KEY"] = ""
 os.environ["BLOB_READ_WRITE_TOKEN"] = ""  # tests store audio on local disk
+os.environ["GEMINI_API_KEY"] = ""
 os.environ["ARIA_LLM_PROVIDER"] = "groq"
 os.environ["LLM_MODEL"] = "openai/gpt-oss-120b"
 # Point the app-level engine (used by /ready probes) at the test database.

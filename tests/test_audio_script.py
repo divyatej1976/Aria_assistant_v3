@@ -191,3 +191,31 @@ def test_cancelled_episode_is_not_recreated(client, monkeypatch, tmp_audio_stora
     time.sleep(1.5)
     listed = client.get(f"/api/v1/audio?context_id={cid}", headers=headers(token)).json()
     assert listed == []  # cancelling removed it and the background job did not bring it back
+
+
+def test_an_episode_handed_over_midway_resumes_without_re_recording(client, monkeypatch, tmp_audio_storage) -> None:  # noqa: F811
+    from app.services import jobs
+
+    script = " ".join(f"Sentence {i} explains one idea about locking in plain words." for i in range(60))  # ~3.5k chars
+    voices = _VoiceRecorder()
+    monkeypatch.setattr("app.ai.registry.get_llm_provider_for_owner", lambda db, owner_id: _ScriptWriter(script))
+    monkeypatch.setattr("app.services.audio.get_tts_provider", lambda: voices)
+    handed_over = []
+    real_check = jobs.Progress.check_time
+
+    def check_time(self) -> None:
+        if not handed_over and self.data.get("pieces"):
+            handed_over.append(True)
+            raise jobs.Continue()  # as if the worker's 5 minutes were up after the first piece
+        real_check(self)
+    monkeypatch.setattr(jobs.Progress, "check_time", check_time)
+    token = register(client, "resume-audio@example.com")["access_token"]
+    cid = create_context(client, token)
+
+    episode = client.post("/api/v1/audio/text/generate", headers=headers(token),
+                          json={"context_id": cid, "title": "Locking", "text": MATERIAL}).json()
+    episode = _wait_until_done(client, token, episode)
+
+    assert handed_over and episode["status"] == "READY", episode
+    spoken = [text for text, _ in voices.calls]
+    assert len(spoken) == len(set(spoken)) >= 3  # every piece recorded exactly once across both workers

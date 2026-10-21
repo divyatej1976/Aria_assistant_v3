@@ -14,6 +14,7 @@ from app.ai.providers import (
     ChainedTTSProvider,
     CloudSTTProvider,
     CloudTTSProvider,
+    GeminiTTSProvider,
     GroqSTTProvider,
     GroqTTSProvider,
     LocalTTSProvider,
@@ -126,7 +127,7 @@ async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUI
 
 
 def get_tts_provider():
-    """Provider chain: Groq TTS (GROQ_API_KEY) -> OpenAI TTS key -> local.
+    """Provider chain: Groq TTS (GROQ_API_KEY) -> Gemini TTS (GEMINI_API_KEY) -> OpenAI TTS key -> local.
 
     'auto' keeps the local pyttsx3 fallback as the last resort so audio
     generation still works in containers without cloud access; 'cloud'
@@ -142,6 +143,10 @@ def get_tts_provider():
                 voice=settings.aria_tts_voice,
             )
         )
+    if getattr(settings, "gemini_api_key", None):
+        cloud.append(GeminiTTSProvider(api_key=settings.gemini_api_key, model=settings.aria_gemini_tts_model,
+                                       voice=settings.aria_gemini_tts_voice,
+                                       learner_voice=settings.aria_gemini_tts_voice_2))
     if settings.aria_tts_api_key:
         cloud.append(CloudTTSProvider(api_key=settings.aria_tts_api_key))
     if settings.aria_tts_provider == "local":
@@ -247,8 +252,9 @@ def list_audio(
     from app.db.models import Job
 
     # What the background job is doing right now, e.g. "Recording part 2 of 4".
-    step = {job.target_id: (job.progress or {}).get("label") for job in db.scalars(select(Job).where(
-        Job.kind == "audio", Job.target_id.in_(artifact_ids), Job.status.in_(["queued", "running"])))}         if artifact_ids else {}
+    active = select(Job).where(Job.kind == "audio", Job.target_id.in_(artifact_ids),
+                               Job.status.in_(["queued", "running"]))
+    step = {job.target_id: (job.progress or {}).get("label") for job in db.scalars(active)} if artifact_ids else {}
     progress_map: dict[UUID, AudioProgress] = {}
     if artifact_ids:
         for progress in db.scalars(
@@ -274,6 +280,7 @@ def list_audio(
                 "duration_seconds": artifact.duration_seconds,
                 "parts": episode_parts(artifact.text) if artifact.status == "READY" else [],
                 "step": step.get(artifact.id),
+                "error_detail": artifact.error_detail if artifact.status == "FAILED" else None,
                 "position_seconds": progress.position_seconds if progress else 0,
                 "completed": progress.completed if progress else False,
                 "created_at": artifact.created_at,
@@ -368,7 +375,6 @@ def _speak_parts(tts, parts, *, conversation: bool, progress=None, owner_id: UUI
     From a job, each part's recording is stored as soon as it is made, so a resumed job only
     records the parts still missing.
     """
-    from uuid import NAMESPACE_URL, uuid5
 
     from app.ai.speech_audio import assemble_wav
 
@@ -377,32 +383,66 @@ def _speak_parts(tts, parts, *, conversation: bool, progress=None, owner_id: UUI
             return "\n\n".join(f"{'Learner' if who == 'learner' else 'Tutor'}: {line}" for who, line in turns)
         return "\n\n".join(line for _, line in turns)
 
+    if progress is not None and owner_id is not None and job_id is not None:
+        return _speak_in_pieces(tts, parts, transcript, progress=progress, owner_id=owner_id, job_id=job_id)
     if len(parts) == 1:
         return (*_speak(tts, parts[0]), transcript(parts[0]))
-    resumable = progress is not None and owner_id is not None and job_id is not None
-    storage = get_audio_storage() if resumable else None
-    saved = list(progress.data.get("clips", [])) if resumable else []
     clips, sections, start = [], [], 0
     for index, turns in enumerate(parts, start=1):
-        if index <= len(saved):
-            data, seconds = storage.load(saved[index - 1]["key"]), saved[index - 1]["seconds"]
-            if data is None:
-                raise RuntimeError("a saved part of this episode is missing; retrying from the start")
-        else:
-            data, _, seconds = _speak(tts, turns)
-            if resumable:
-                key = storage.save(owner_id=owner_id, artifact_id=uuid5(NAMESPACE_URL, f"{job_id}:part:{index}"),
-                                   content_type="audio/wav", data=data)
-                saved.append({"key": key, "seconds": seconds})
-                progress.save(clips=saved, label=f"Recording part {index} of {len(parts)}")
-                if index < len(parts):
-                    progress.check_time()
+        data, _, seconds = _speak(tts, turns)
         clips.append(data)
         sections.append(f"[Part {index} of {len(parts)} · {start // 60}:{start % 60:02d}]\n{transcript(turns)}")
         start += seconds
     data, duration = assemble_wav(clips)
-    if storage is not None:
-        _remove_stored([item["key"] for item in saved])
+    return data, "audio/wav", duration, "\n\n".join(sections)
+
+
+# One saved piece of speech: about 80 s of audio, so even a voice slower than real time
+# (Gemini is ~1.5x) finishes a piece well inside one serverless request.
+SPEECH_PIECE_CHARS = 1200
+
+
+def _speak_in_pieces(tts, parts, transcript, *, progress, owner_id: UUID, job_id: UUID) -> tuple[bytes, str, int, str]:
+    """Voice an episode piece by piece, storing each piece at once; a resumed job skips the saved ones."""
+    from uuid import NAMESPACE_URL, uuid5
+
+    from app.ai.speech_audio import assemble_wav, speech_segments
+
+    second = get_settings().aria_tts_voice_2
+    pieces = [(index, speaker, text) for index, turns in enumerate(parts) for speaker, line in turns
+              for text in speech_segments(line, limit=SPEECH_PIECE_CHARS)]
+    storage = get_audio_storage()
+    saved = list(progress.data.get("pieces", []))[:len(pieces)]
+    for number, (index, speaker, text) in enumerate(pieces):
+        if number < len(saved):
+            continue
+        try:
+            data, _, seconds = tts.generate(text=text, **({"voice": second} if speaker == "learner" else {}))
+        except Exception:
+            if speaker != "learner":
+                raise
+            data, _, seconds = tts.generate(text=text)  # the second voice is optional
+        key = storage.save(owner_id=owner_id, artifact_id=uuid5(NAMESPACE_URL, f"{job_id}:piece:{number}"),
+                           content_type="audio/wav", data=data)
+        saved.append({"key": key, "seconds": seconds, "part": index})
+        where = f"part {index + 1} of {len(parts)}, " if len(parts) > 1 else ""
+        progress.save(pieces=saved, label=f"Recording {where}{round(100 * (number + 1) / len(pieces))}%")
+        if number < len(pieces) - 1:
+            progress.check_time()
+    clips = []
+    for item in saved:
+        data = storage.load(item["key"])
+        if data is None:
+            raise RuntimeError("a saved piece of this episode is missing")
+        clips.append(data)
+    data, duration = assemble_wav(clips)
+    _remove_stored([item["key"] for item in saved])
+    if len(parts) == 1:
+        return data, "audio/wav", duration, transcript(parts[0])
+    sections, start = [], 0
+    for index, turns in enumerate(parts):
+        sections.append(f"[Part {index + 1} of {len(parts)} · {start // 60}:{start % 60:02d}]\n{transcript(turns)}")
+        start += sum(item["seconds"] for item in saved if item["part"] == index)
     return data, "audio/wav", duration, "\n\n".join(sections)
 
 
