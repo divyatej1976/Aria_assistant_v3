@@ -26,7 +26,7 @@ class FailingTTS:
 def _register(client: TestClient, email: str) -> dict:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "correct-horse", "display_name": "Learner"},
+        json={"email": email, "password": "correct-horse-9", "display_name": "Learner"},
     )
     assert response.status_code == 201
     return response.json()

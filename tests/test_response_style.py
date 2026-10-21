@@ -63,7 +63,7 @@ def test_depth_reaches_the_prompt_and_is_saved(client: TestClient, monkeypatch) 
 
     auth = client.post(
         "/api/v1/auth/register",
-        json={"email": f"depth-{uuid.uuid4().hex[:8]}@example.com", "password": "correct-horse",
+        json={"email": f"depth-{uuid.uuid4().hex[:8]}@example.com", "password": "correct-horse-9",
               "display_name": "Depth Tester"},
     ).json()
     headers = {"Authorization": f"Bearer {auth['access_token']}"}

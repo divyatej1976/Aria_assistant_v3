@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 
 def register(client: TestClient, email: str) -> tuple[str, str]:
-    r = client.post("/api/v1/auth/register", json={"email": email, "password": "correct-horse", "display_name": "Learner"})
+    r = client.post("/api/v1/auth/register", json={"email": email, "password": "correct-horse-9", "display_name": "Learner"})
     assert r.status_code == 201
     token = r.json()["access_token"]
     return token, email

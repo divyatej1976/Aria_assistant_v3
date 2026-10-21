@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
 import { toast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
+import { emailOk, passwordOk, PasswordRules } from "@/lib/password-rules";
 
 function ResetPasswordForm() {
   const params = useSearchParams();
@@ -22,8 +23,8 @@ function ResetPasswordForm() {
   const [busy, setBusy] = useState(false);
 
   const request = async () => {
-    if (!email) {
-      setError("Please enter your email.");
+    if (!emailOk(email)) {
+      setError("Please enter a valid email, like name@example.com.");
       return;
     }
     setBusy(true);
@@ -43,8 +44,8 @@ function ResetPasswordForm() {
   };
 
   const confirm = async () => {
-    if (newPassword.length < 8) {
-      setError("New password must be at least 8 characters.");
+    if (!passwordOk(newPassword)) {
+      setError("Password needs 8+ characters with a letter, a number and a symbol.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -84,6 +85,7 @@ function ResetPasswordForm() {
             <div>
               <label className="field-label" htmlFor="rp-new">New password</label>
               <input id="rp-new" className="input" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <PasswordRules value={newPassword} />
             </div>
             <div>
               <label className="field-label" htmlFor="rp-confirm">Confirm new password</label>

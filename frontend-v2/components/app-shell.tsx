@@ -65,6 +65,8 @@ function relTime(iso: string): string {
 
 // Seven destinations. Where two pages serve one job they share a destination
 // and switch with tabs, so the sidebar stays short.
+const PHONE_TABS = ["/app", "/app/learn", "/app/audio", "/app/assess"];
+
 const NAV: NavItem[] = [
   { href: "/app", label: "Home", icon: "home", pages: [{ href: "/app", label: "Home" }] },
   { href: "/app/learn", label: "Learn", icon: "message", pages: [{ href: "/app/learn", label: "Learn" }] },
@@ -342,7 +344,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           {!isChat && (
             <LayoutGroup id="mobile-workspace-navigation">
             <nav className="mobile-nav" aria-label="Primary">
-              {NAV.map((item) => {
+              {/* Phones get the four everyday places; the rest stay in the menu (☰). */}
+              {NAV.filter((item) => PHONE_TABS.includes(item.href) || item === current).map((item) => {
                 const active = current === item;
                 return (
                   <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : undefined}>

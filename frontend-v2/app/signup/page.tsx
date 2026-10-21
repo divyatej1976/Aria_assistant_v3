@@ -8,6 +8,7 @@ import { Icon } from "@/components/icons";
 import { toast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
 import { deviceName } from "@/lib/device-name";
+import { emailOk, passwordOk, PasswordRules } from "@/lib/password-rules";
 import { useAuth, type AuthUser } from "@/components/auth-provider";
 
 export default function SignUpPage() {
@@ -25,8 +26,12 @@ export default function SignUpPage() {
       setError("Please fill in your name and email.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (!emailOk(email)) {
+      setError("Please enter a valid email, like name@example.com.");
+      return;
+    }
+    if (!passwordOk(password)) {
+      setError("Password needs 8+ characters with a letter, a number and a symbol.");
       return;
     }
     setBusy(true);
@@ -53,15 +58,16 @@ export default function SignUpPage() {
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <label className="field-label" htmlFor="su-name">Full Name</label>
-          <input id="su-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Divya Tejaswi" />
+          <input id="su-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
         </div>
         <div>
           <label className="field-label" htmlFor="su-email">Email</label>
-          <input id="su-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+          <input id="su-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
         </div>
         <div>
           <label className="field-label" htmlFor="su-pass">Password</label>
-          <input id="su-pass" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" />
+          <input id="su-pass" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password" autoComplete="new-password" />
+          <PasswordRules value={password} />
         </div>
         {error && <p role="alert" style={{ color: "var(--danger)", fontSize: 13, fontWeight: 600 }}>{error}</p>}
         <button className="btn btn-primary btn-lg btn-block" disabled={busy} style={{ marginTop: 8 }}>

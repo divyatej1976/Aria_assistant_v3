@@ -12,7 +12,7 @@ from app.security.tokens import create_action_token
 def register(client: TestClient, email: str) -> dict[str, str]:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "correct-horse", "display_name": "Learner"},
+        json={"email": email, "password": "correct-horse-9", "display_name": "Learner"},
     )
     assert response.status_code == 201
     return response.json()
@@ -75,7 +75,7 @@ def test_password_reset_changes_password_and_revokes_sessions(
         json={
             "email": "reset@example.com",
             "token": reset_token,
-            "new_password": "new-horse-pass",
+            "new_password": "new-horse-pass-9",
         },
     )
     assert confirm.status_code == 200
@@ -84,12 +84,12 @@ def test_password_reset_changes_password_and_revokes_sessions(
 
     old_login = client.post(
         "/api/v1/auth/login",
-        json={"email": "reset@example.com", "password": "correct-horse"},
+        json={"email": "reset@example.com", "password": "correct-horse-9"},
     )
     assert old_login.status_code == 401
     new_login = client.post(
         "/api/v1/auth/login",
-        json={"email": "reset@example.com", "password": "new-horse-pass"},
+        json={"email": "reset@example.com", "password": "new-horse-pass-9"},
     )
     assert new_login.status_code == 200
 
@@ -113,7 +113,7 @@ def test_password_reset_token_is_single_use(
         json={
             "email": "reset-replay@example.com",
             "token": reset_token,
-            "new_password": "new-horse-pass",
+            "new_password": "new-horse-pass-9",
         },
     )
     assert first.status_code == 200
@@ -123,7 +123,7 @@ def test_password_reset_token_is_single_use(
         json={
             "email": "reset-replay@example.com",
             "token": reset_token,
-            "new_password": "other-horse-pass",
+            "new_password": "other-horse-pass-9",
         },
     )
     assert replay.status_code == 422
@@ -136,7 +136,7 @@ def test_password_reset_rejects_invalid_or_expired_token(client: TestClient) -> 
         json={
             "email": "reset-invalid@example.com",
             "token": "not-a-real-token",
-            "new_password": "new-horse-pass",
+            "new_password": "new-horse-pass-9",
         },
     )
     assert bad.status_code == 422
@@ -152,7 +152,7 @@ def test_password_reset_rejects_invalid_or_expired_token(client: TestClient) -> 
         json={
             "email": "reset-invalid@example.com",
             "token": expired,
-            "new_password": "new-horse-pass",
+            "new_password": "new-horse-pass-9",
         },
     )
     assert expired_response.status_code == 422

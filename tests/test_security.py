@@ -11,7 +11,7 @@ from app.security.rate_limit import _hits, allow_request, allow_request_db
 def _register(client: TestClient, email: str = "sec@example.com") -> dict:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "correct-horse"},
+        json={"email": email, "password": "correct-horse-9"},
     )
     assert response.status_code == 201
     return response.json()
@@ -27,7 +27,7 @@ def test_session_and_csrf_cookies_are_set_on_register(client: TestClient) -> Non
 def test_csrf_cookie_outlives_browser_close_like_session(client: TestClient) -> None:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": "ttl@example.com", "password": "correct-horse"},
+        json={"email": "ttl@example.com", "password": "correct-horse-9"},
     )
     cookies = {h.split("=", 1)[0]: h for h in response.headers.get_list("set-cookie")}
     assert "Max-Age=86400" in cookies["aria_session"]
@@ -69,7 +69,7 @@ def test_cookie_only_login_omits_bearer_token(client: TestClient) -> None:
     _register(client, email="cookieonly@example.com")
     response = client.post(
         "/api/v1/auth/login?bearer=false",
-        json={"email": "cookieonly@example.com", "password": "correct-horse"},
+        json={"email": "cookieonly@example.com", "password": "correct-horse-9"},
     )
     assert response.status_code == 200
     assert response.json()["access_token"] is None
@@ -77,7 +77,7 @@ def test_cookie_only_login_omits_bearer_token(client: TestClient) -> None:
 
     default = client.post(
         "/api/v1/auth/login",
-        json={"email": "cookieonly@example.com", "password": "correct-horse"},
+        json={"email": "cookieonly@example.com", "password": "correct-horse-9"},
     )
     assert default.status_code == 200
     assert default.json()["access_token"]
@@ -142,7 +142,7 @@ def test_rate_limit_dependency_inactive_in_development(
     for _ in range(30):
         response = client.post(
             "/api/v1/auth/login",
-            json={"email": "missing@example.com", "password": "correct-horse"},
+            json={"email": "missing@example.com", "password": "correct-horse-9"},
         )
         assert response.status_code in (401, 422)
 

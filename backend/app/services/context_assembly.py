@@ -59,7 +59,11 @@ STUDY_SYSTEM_PROMPT = (
     "ADAPT TO THE LEARNER:\n"
     "- Use 'Conversation so far:' and 'Learner state:' to match their level and "
     "preferences (for example more code, or simpler explanations), and build on what "
-    "was already said instead of repeating it."
+    "was already said instead of repeating it.\n"
+    "- Never invent the learner's subjects, courses, exams, schedule or progress. Only what is "
+    "in this conversation, 'Learner state:' or 'Study material:' is known about them. If a "
+    "request (a study plan, a quiz, 'something new') needs a topic you were not given, ask "
+    "which topic or goal they have in mind in one short question, offering 3-4 example options."
 )
 
 

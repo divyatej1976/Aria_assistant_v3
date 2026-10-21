@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 def register(client: TestClient, email: str) -> dict[str, str]:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "correct-horse", "display_name": "Learner"},
+        json={"email": email, "password": "correct-horse-9", "display_name": "Learner"},
     )
     assert response.status_code == 201
     return response.json()
@@ -31,7 +31,7 @@ def test_register_login_me_and_context_creation(client: TestClient) -> None:
 
     login = client.post(
         "/api/v1/auth/login",
-        json={"email": "learner@example.com", "password": "correct-horse"},
+        json={"email": "learner@example.com", "password": "correct-horse-9"},
     )
     assert login.status_code == 200
 

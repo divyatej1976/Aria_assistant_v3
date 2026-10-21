@@ -46,7 +46,7 @@ def test_roadmap_provenance_survives_create_list_and_reload(client, monkeypatch,
     monkeypatch.setattr("app.services.roadmap.get_llm_provider_for_owner", lambda *args, **kwargs: provider)
     monkeypatch.setattr("app.ai.registry.get_llm_provider", lambda: provider)
     registered = client.post("/api/v1/auth/register", json={
-        "email": f"roadmap-origin-{outcome}@example.com", "password": "roadmap-password",
+        "email": f"roadmap-origin-{outcome}@example.com", "password": "roadmap-password-9",
     })
     headers = {"Authorization": "Bearer " + registered.json()["access_token"]}
     created = client.post("/api/v1/roadmaps", headers=headers, json={"goal": "Biology"})
@@ -171,7 +171,7 @@ def test_fallback_supports_all_accepted_goal_lengths_and_text(monkeypatch, goal)
 
 def test_roadmap_route_rate_gate_blocks_generation(client, monkeypatch):
     registered = client.post("/api/v1/auth/register", json={
-        "email": "roadmap-rate@example.com", "password": "roadmap-rate-password",
+        "email": "roadmap-rate@example.com", "password": "roadmap-rate-password-9",
     })
     assert registered.status_code == 201
 

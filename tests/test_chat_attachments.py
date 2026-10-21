@@ -26,7 +26,7 @@ class _CapturingProvider:
 def _learner(client: TestClient) -> tuple[dict, str, str, str]:
     auth = client.post(
         "/api/v1/auth/register",
-        json={"email": f"attach-{uuid.uuid4().hex[:8]}@example.com", "password": "correct-horse",
+        json={"email": f"attach-{uuid.uuid4().hex[:8]}@example.com", "password": "correct-horse-9",
               "display_name": "Attach Tester"},
     ).json()
     headers = {"Authorization": f"Bearer {auth['access_token']}"}

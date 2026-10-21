@@ -145,14 +145,14 @@ test("a long answer becomes study cards: next, dots, a flip card and full text",
   await page.getByPlaceholder("Ask ARIA anything…").fill("Explain dynamic programming");
   await page.getByRole("button", { name: "Send", exact: true }).click();
 
-  await expect(page.locator(".study-deck-count")).toHaveText("Card 1 of 5", { timeout: 20_000 });
-  await expect(page.locator(".study-card-kind")).toContainText("Definition");
-  await page.getByRole("button", { name: "Next card" }).click();
-  await expect(page.locator(".study-card-kind")).toContainText("How it works");
-  await page.getByRole("button", { name: "Card 5: Check yourself" }).click();
-  await expect(page.locator(".study-flip-face.front")).toContainText("What two properties");
-  await page.getByRole("button", { name: "Flip to see the answer" }).click();
-  await expect(page.locator(".study-card.flipped .study-flip-face.back")).toContainText("Overlapping sub-problems and optimal substructure");
+  await expect(page.locator(".study-deck-count")).toHaveText("5 cards · tap a card to flip it", { timeout: 20_000 });
+  await expect(page.locator(".flip-card")).toHaveCount(5);
+  await expect(page.locator(".flip-card").first().locator(".front .study-card-kind")).toContainText("Definition");
+  const quiz = page.locator(".flip-card.kind-quiz");
+  await expect(quiz.locator(".front")).toContainText("What two properties");
+  await quiz.click();
+  await expect(quiz).toHaveAttribute("aria-pressed", "true");
+  await expect(quiz.locator(".back")).toContainText("Overlapping sub-problems and optimal substructure");
   await page.getByRole("button", { name: "Full text", exact: true }).click();
   await expect(page.locator(".msg-aria .reply-block")).toHaveCount(5);
 });

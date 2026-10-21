@@ -70,7 +70,7 @@ def test_wav_assembly_rejects_invalid_or_inconsistent_audio():
 
 def test_resource_speech_uses_original_text_without_chunk_overlap(client, monkeypatch):
     session = client.post("/api/v1/auth/register", json={
-        "email": "speech-source@example.com", "password": "correct-horse", "display_name": "Learner",
+        "email": "speech-source@example.com", "password": "correct-horse-9", "display_name": "Learner",
     }).json()
     headers = {"Authorization": "Bearer " + session["access_token"]}
     context = client.post("/api/v1/contexts", headers=headers, json={"title": "Speech"}).json()

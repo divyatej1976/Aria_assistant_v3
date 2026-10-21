@@ -9,6 +9,7 @@ import { disablePush, enablePush, pushSupported } from "@/lib/push";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog, type ConfirmState } from "@/components/confirm";
 import { toast } from "@/lib/toast";
+import { passwordOk, PasswordRules } from "@/lib/password-rules";
 import { ErrorState, Loading } from "@/components/states";
 
 type Me = { id: string; email: string; display_name: string | null; verified: boolean };
@@ -168,8 +169,8 @@ export default function AccountPage() {
       toast("Enter your current and new password.");
       return;
     }
-    if (newPw.length < 8) {
-      toast("New password must be at least 8 characters.");
+    if (!passwordOk(newPw)) {
+      toast("Password needs 8+ characters with a letter, a number and a symbol.");
       return;
     }
     if (newPw !== confirmPw) {
@@ -453,7 +454,7 @@ export default function AccountPage() {
             <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Change password</h2>
             <p style={{ fontSize: 12, color: "var(--text-3)", margin: "0 0 12px" }}>Changing your password signs out every other device.</p>
             <div className="form-group"><label className="field-label" htmlFor="pw-current">Current password</label><input id="pw-current" type="password" className="input" autoComplete="current-password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} /></div>
-            <div className="form-group"><label className="field-label" htmlFor="pw-new">New password</label><input id="pw-new" type="password" className="input" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} /></div>
+            <div className="form-group"><label className="field-label" htmlFor="pw-new">New password</label><input id="pw-new" type="password" className="input" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} /><PasswordRules value={newPw} /></div>
             <div className="form-group"><label className="field-label" htmlFor="pw-confirm">Confirm new password</label><input id="pw-confirm" type="password" className="input" autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} /></div>
             <button className="btn btn-primary" onClick={() => void changePassword()} disabled={pwBusy}>
               <Icon name="lock" /> Change password

@@ -296,7 +296,7 @@ def test_roadmap_api_endpoints(client: TestClient):
     # 1. Register test user
     reg = client.post(
         "/api/v1/auth/register",
-        json={"email": f"api_user_{uuid4().hex[:6]}@example.com", "password": "password123", "display_name": "API Learner"},
+        json={"email": f"api_user_{uuid4().hex[:6]}@example.com", "password": "password-123", "display_name": "API Learner"},
     )
     assert reg.status_code == 201
     token = reg.json()["access_token"]

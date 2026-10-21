@@ -14,7 +14,7 @@ MATERIAL = (
 def register(client: TestClient, email: str) -> dict[str, str]:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "correct-horse", "display_name": "Learner"},
+        json={"email": email, "password": "correct-horse-9", "display_name": "Learner"},
     )
     assert response.status_code == 201
     return response.json()
@@ -181,7 +181,7 @@ def test_data_reset_requires_approval(client: TestClient) -> None:
 
     relogin = client.post(
         "/api/v1/auth/login",
-        json={"email": "orch-reset@example.com", "password": "correct-horse"},
+        json={"email": "orch-reset@example.com", "password": "correct-horse-9"},
     ).json()
     contexts = client.get(
         "/api/v1/contexts", headers=headers(relogin["access_token"])

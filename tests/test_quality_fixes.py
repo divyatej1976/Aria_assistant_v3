@@ -42,7 +42,7 @@ def test_retrieval_prefers_term_dense_relevant_chunk(client: TestClient) -> None
     tag = uuid.uuid4().hex[:8]
     user = client.post(
         "/api/v1/auth/register",
-        json={"email": f"bm25-{tag}@example.com", "password": "correct-horse",
+        json={"email": f"bm25-{tag}@example.com", "password": "correct-horse-9",
               "display_name": "Learner"},
     ).json()
     auth = {"Authorization": f"Bearer {user['access_token']}"}
@@ -129,7 +129,7 @@ def test_oversized_note_rejected_before_tts(client: TestClient, monkeypatch) -> 
     tag = uuid.uuid4().hex[:8]
     user = client.post(
         "/api/v1/auth/register",
-        json={"email": f"audio-cap-{tag}@example.com", "password": "correct-horse",
+        json={"email": f"audio-cap-{tag}@example.com", "password": "correct-horse-9",
               "display_name": "Learner"},
     ).json()
     auth = {"Authorization": f"Bearer {user['access_token']}"}
@@ -148,7 +148,7 @@ def test_normal_note_still_converts(client: TestClient, monkeypatch) -> None:
     tag = uuid.uuid4().hex[:8]
     user = client.post(
         "/api/v1/auth/register",
-        json={"email": f"audio-ok-{tag}@example.com", "password": "correct-horse",
+        json={"email": f"audio-ok-{tag}@example.com", "password": "correct-horse-9",
               "display_name": "Learner"},
     ).json()
     auth = {"Authorization": f"Bearer {user['access_token']}"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { TutorMarkdown } from "@/components/tutor-markdown";
 
@@ -46,21 +46,21 @@ export function splitAnswer(body: string): { question: string; answer: string } 
   return { question: body.slice(0, match.index).trim(), answer: body.slice(match.index + match[0].length).trim() };
 }
 
-/** A Deep answer as a deck of study cards, one idea per card; quiz cards flip to reveal the answer. */
+/** A Deep answer as flip cards, all visible at once: the front names the idea (or asks the
+ * quiz question), a tap turns the card over to the explanation (or the answer). */
 export function StudyCards({ lead, sections }: { lead: string; sections: CardSection[] }) {
-  const [index, setIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
+  const [flipped, setFlipped] = useState<Set<number>>(new Set());
   const [asText, setAsText] = useState(false);
-  const swipeFrom = useRef<number | null>(null);
-  const go = (next: number) => { setIndex(Math.max(0, Math.min(sections.length - 1, next))); setFlipped(false); };
-  const card = sections[index];
-  const kind = cardKind(card.title);
-  const quiz = kind.key === "quiz" ? splitAnswer(card.body) : null;
+  const flip = (i: number) => setFlipped((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(i)) next.add(i);
+    return next;
+  });
 
   return (
     <div className="study-deck">
       <div className="study-deck-bar">
-        <span className="study-deck-count">{asText ? `${sections.length} sections` : `Card ${index + 1} of ${sections.length}`}</span>
+        <span className="study-deck-count">{asText ? `${sections.length} sections` : `${sections.length} cards · tap a card to flip it`}</span>
         <div className="study-deck-toggle" role="group" aria-label="Show answer as">
           <button type="button" aria-pressed={!asText} onClick={() => setAsText(false)}>Cards</button>
           <button type="button" aria-pressed={asText} onClick={() => setAsText(true)}>Full text</button>
@@ -72,43 +72,39 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
           <h4 className="reply-block-label">{section.title}</h4>
           <TutorMarkdown content={section.body} />
         </section>
-      )) : <>
-        <section className={`study-card kind-${kind.key}${flipped ? " flipped" : ""}`} aria-roledescription="card"
-          aria-label={`Card ${index + 1} of ${sections.length}: ${card.title}`}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowRight") go(index + 1);
-            if (event.key === "ArrowLeft") go(index - 1);
-          }} tabIndex={0}
-          // A sideways swipe on a phone moves between cards.
-          onPointerDown={(event) => { if (event.pointerType !== "mouse") swipeFrom.current = event.clientX; }}
-          onPointerUp={(event) => {
-            const from = swipeFrom.current;
-            swipeFrom.current = null;
-            if (from !== null && Math.abs(event.clientX - from) > 50) go(index + (event.clientX < from ? 1 : -1));
-          }}>
-          <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {kind.label}</span>
-          {card.title.toLowerCase() !== kind.label.toLowerCase() && <h3>{card.title}</h3>}
-          {quiz ? (
-            <div className="study-flip">
-              <div className="study-flip-face front" aria-hidden={flipped}><TutorMarkdown content={quiz.question} /></div>
-              <div className="study-flip-face back" aria-hidden={!flipped}><TutorMarkdown content={quiz.answer} /></div>
-              <button type="button" className="btn btn-secondary study-flip-btn" aria-pressed={flipped} onClick={() => setFlipped((value) => !value)}>
-                <Icon name="refresh" size={14} /> {flipped ? "Show the question" : "Flip to see the answer"}
-              </button>
-            </div>
-          ) : <div className="study-card-body"><TutorMarkdown content={card.body} /></div>}
-        </section>
-        <nav className="study-deck-nav" aria-label="Cards">
-          <button type="button" className="btn btn-ghost" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous card"><Icon name="back" size={15} /></button>
-          <span className="study-dots">
-            {sections.map((section, i) => (
-              <button key={i} type="button" className={`study-dot kind-${cardKind(section.title).key}${i === index ? " on" : ""}`}
-                aria-label={`Card ${i + 1}: ${section.title}`} aria-current={i === index ? "step" : undefined} onClick={() => go(i)} />
-            ))}
-          </span>
-          <button type="button" className="btn btn-primary" onClick={() => go(index + 1)} disabled={index === sections.length - 1} aria-label="Next card"><Icon name="arrow" size={15} /></button>
-        </nav>
-      </>}
+      )) : (
+        <div className="flip-grid">
+          {sections.map((card, i) => {
+            const kind = cardKind(card.title);
+            const quiz = kind.key === "quiz" ? splitAnswer(card.body) : null;
+            const on = flipped.has(i);
+            const named = card.title.toLowerCase() !== kind.label.toLowerCase();
+            return (
+              <div key={i} role="button" tabIndex={0} aria-pressed={on}
+                aria-label={`${kind.label}: ${card.title}. ${on ? "Showing the back" : "Tap to flip"}`}
+                className={`flip-card kind-${kind.key}${on ? " flipped" : ""}`}
+                // Links and copy buttons inside the back work without turning the card over.
+                onClick={(event) => { if (!(event.target as HTMLElement).closest("a, button")) flip(i); }}
+                onKeyDown={(event) => {
+                  if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); flip(i); }
+                }}>
+                <div className="flip-face front" aria-hidden={on}>
+                  <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {kind.label}</span>
+                  {named && <h3>{card.title}</h3>}
+                  {quiz && <div className="flip-question"><TutorMarkdown content={quiz.question} /></div>}
+                  <span className="flip-hint"><Icon name="refresh" size={13} /> {quiz ? "Tap to see the answer" : "Tap to read"}</span>
+                </div>
+                <div className="flip-face back" aria-hidden={!on}>
+                  <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {quiz ? "Answer" : kind.label}</span>
+                  {named && !quiz && <h3>{card.title}</h3>}
+                  <div className="flip-body"><TutorMarkdown content={quiz ? quiz.answer : card.body} /></div>
+                  <span className="flip-hint"><Icon name="refresh" size={13} /> Tap to turn back</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

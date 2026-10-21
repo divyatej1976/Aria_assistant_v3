@@ -9,7 +9,7 @@ from app.security.tokens import create_session_token
 
 
 def register(client: TestClient, email: str, *, device: str | None = None) -> dict[str, str]:
-    body = {"email": email, "password": "correct-horse", "display_name": "Learner"}
+    body = {"email": email, "password": "correct-horse-9", "display_name": "Learner"}
     if device:
         body["device_label"] = device
     response = client.post("/api/v1/auth/register", json=body)
@@ -18,7 +18,7 @@ def register(client: TestClient, email: str, *, device: str | None = None) -> di
 
 
 def login(client: TestClient, email: str, *, device: str | None = None) -> dict[str, str]:
-    body = {"email": email, "password": "correct-horse"}
+    body = {"email": email, "password": "correct-horse-9"}
     if device:
         body["device_label"] = device
     response = client.post("/api/v1/auth/login", json=body)
@@ -89,7 +89,7 @@ def test_password_change_revokes_other_sessions_keeps_current(client: TestClient
     changed = client.post(
         "/api/v1/auth/password",
         headers=headers(first["access_token"]),
-        json={"current_password": "correct-horse", "new_password": "new-horse-pass"},
+        json={"current_password": "correct-horse-9", "new_password": "new-horse-pass-9"},
     )
     assert changed.status_code == 200
 
@@ -98,12 +98,12 @@ def test_password_change_revokes_other_sessions_keeps_current(client: TestClient
 
     old_login = client.post(
         "/api/v1/auth/login",
-        json={"email": "passwd@example.com", "password": "correct-horse"},
+        json={"email": "passwd@example.com", "password": "correct-horse-9"},
     )
     assert old_login.status_code == 401
     new_login = client.post(
         "/api/v1/auth/login",
-        json={"email": "passwd@example.com", "password": "new-horse-pass"},
+        json={"email": "passwd@example.com", "password": "new-horse-pass-9"},
     )
     assert new_login.status_code == 200
 
@@ -165,7 +165,7 @@ def test_auth_failures_do_not_leak_details(client: TestClient) -> None:
 
     duplicate = client.post(
         "/api/v1/auth/register",
-        json={"email": "leak@example.com", "password": "correct-horse"},
+        json={"email": "leak@example.com", "password": "correct-horse-9"},
     )
     assert duplicate.status_code == 409
     assert duplicate.json()["detail"] == "Email already registered"

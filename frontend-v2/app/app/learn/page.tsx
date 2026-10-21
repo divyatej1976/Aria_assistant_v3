@@ -127,6 +127,8 @@ function ContextLearn() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  // Phones hide the chat list beside the conversation; this slides it in.
+  const [chatsOpen, setChatsOpen] = useState(false);
   const [replyError, setReplyError] = useState(false);
   const [replyErrorText, setReplyErrorText] = useState("");
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
@@ -570,6 +572,7 @@ function ContextLearn() {
   };
 
   const newChat = () => {
+    setChatsOpen(false);
     if (!context) return;
     ++conversationVersion.current;
     if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
@@ -588,6 +591,7 @@ function ContextLearn() {
   };
 
   const selectSession = async (sid: string) => {
+    setChatsOpen(false);
     const version = ++conversationVersion.current;
     if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     setRecording(false);
@@ -619,8 +623,9 @@ function ContextLearn() {
   }
 
   return (
-    <div className={`chat-sidebar-layout${focusMode ? " study-focus" : ""}`}>
-      <aside className="learn-side">
+    <div className={`chat-sidebar-layout${focusMode ? " study-focus" : ""}${chatsOpen ? " chats-open" : ""}`}>
+      {chatsOpen && <button type="button" className="chats-backdrop" aria-label="Close chats" onClick={() => setChatsOpen(false)} />}
+      <aside className="learn-side" id="learn-chats">
         <button className="btn btn-primary btn-block" onClick={newChat}>
           <Icon name="plus" size={16} /> New chat
         </button>
@@ -651,6 +656,7 @@ function ContextLearn() {
 
       <div className="chat-shell">
         <div className="chat-head">
+          <button type="button" className="icon-btn chats-toggle" aria-label="Your chats" aria-controls="learn-chats" aria-expanded={chatsOpen} onClick={() => setChatsOpen(true)}><Icon name="list" size={18} /></button>
           <div className="chat-title">
             <h1>{sessions.find((s) => s.id === activeId)?.title ?? "New chat"}</h1>
             <span className="chat-subject">{context?.title ?? "Learn"}</span>
@@ -691,16 +697,21 @@ function ContextLearn() {
                 Hey {firstName}, what do you want to learn?
               </h3>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                {/* Starters fill the box for the learner to finish: sent bare, the AI has to guess a topic. */}
                 {[
-                  "Explain a hard idea to me simply",
-                  "Quiz me with 3 questions",
-                  "Help me plan my study for this week",
-                  "Teach me something new in 5 minutes",
-                ].map((prompt, idx) => (
+                  ["Explain a hard idea to me simply", "Explain this to me simply: "],
+                  ["Quiz me with 3 questions", "Quiz me with 3 questions on "],
+                  ["Help me plan my study for this week", "Help me plan my study this week. My goal is "],
+                  ["Teach me something new in 5 minutes", "Teach me in 5 minutes about "],
+                ].map(([prompt, starter], idx) => (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => send(prompt)}
+                    onClick={() => {
+                      setInput(starter);
+                      const box = document.querySelector<HTMLInputElement>('input[placeholder="Ask ARIA anything…"]');
+                      box?.focus();
+                    }}
                     disabled={ctxLoading || loading || typing}
                     style={{
                       display: "inline-flex",
