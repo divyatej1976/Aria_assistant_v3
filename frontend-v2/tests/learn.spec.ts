@@ -145,7 +145,7 @@ test("a long answer becomes study cards: next, dots, a flip card and full text",
   await page.getByPlaceholder("Ask ARIA anything…").fill("Explain dynamic programming");
   await page.getByRole("button", { name: "Send", exact: true }).click();
 
-  await expect(page.locator(".study-deck-count")).toHaveText("5 cards · tap a card to flip it", { timeout: 20_000 });
+  await expect(page.locator(".study-deck-count")).toHaveText("1 / 5 · swipe for more, tap to open", { timeout: 20_000 });
   await expect(page.locator(".flip-card")).toHaveCount(5);
   await expect(page.locator(".flip-card").first().locator(".front .study-card-kind")).toContainText("Definition");
   const quiz = page.locator(".flip-card.kind-quiz");

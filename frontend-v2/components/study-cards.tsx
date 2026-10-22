@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { TutorMarkdown } from "@/components/tutor-markdown";
 
@@ -51,47 +51,53 @@ export function splitAnswer(body: string): { question: string; answer: string } 
 // Sections in learning order: what it is first, the recap last.
 const SECTION_ORDER = ["define", "concept", "how", "example", "warn", "quiz", "summary"];
 
+/** Center `child` inside the horizontally scrolling `box`. */
+function centerIn(box: HTMLElement | null, child: HTMLElement | null | undefined) {
+  if (!box || !child) return;
+  box.scrollTo({ left: child.offsetLeft - (box.clientWidth - child.offsetWidth) / 2, behavior: "smooth" });
+}
+
+/** A Deep answer as a swipeable row of flip cards (like a photo carousel), in learning order,
+ * with section tabs that keep the current section centered. */
 export function StudyCards({ lead, sections }: { lead: string; sections: CardSection[] }) {
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
   const [asText, setAsText] = useState(false);
-  const [active, setActive] = useState<string | null>(null);
-  const deckId = useId();
-  const groupRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [index, setIndex] = useState(0);
+  const trackRef = useRef<HTMLDivElement | null>(null);
   const tabsRef = useRef<HTMLElement | null>(null);
-  // While a tapped tab's smooth scroll runs, scrolling must not move the highlight elsewhere.
-  const jumping = useRef(false);
+  const springBack = useRef<number | undefined>(undefined);
   const flip = (i: number) => setFlipped((prev) => {
     const next = new Set(prev);
     if (!next.delete(i)) next.add(i);
     return next;
   });
-  const groups = SECTION_ORDER.map((key) => ({
-    key,
-    cards: sections.map((card, i) => ({ card, i, kind: cardKind(card.title) })).filter((c) => c.kind.key === key),
-  })).filter((group) => group.cards.length > 0);
-  const current = active ?? groups[0]?.key;
+  const ordered = SECTION_ORDER.flatMap((key) =>
+    sections.map((card, i) => ({ card, i, kind: cardKind(card.title) })).filter((c) => c.kind.key === key));
+  const groups = SECTION_ORDER.map((key) => ({ key, cards: ordered.filter((c) => c.kind.key === key) })).filter((g) => g.cards.length);
+  const currentKey = ordered[index]?.kind.key;
 
-  // The highlighted tab follows the section being read.
-  useEffect(() => {
-    if (asText) return;
-    const observer = new IntersectionObserver((entries) => {
-      const seen = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-      if (seen && !jumping.current) setActive((seen.target as HTMLElement).dataset.section ?? null);
-    }, { rootMargin: "-20% 0px -60% 0px" });
-    Object.values(groupRefs.current).forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
-  }, [asText, sections]);
+  const centerTab = () => centerIn(tabsRef.current, tabsRef.current?.querySelector<HTMLElement>(".deck-tab.active"));
+  // The current section's tab glides to the center as the cards move into it.
+  useEffect(() => { centerTab(); }, [currentKey, asText]);
+  useEffect(() => () => window.clearTimeout(springBack.current), []);
 
-  // Keep the highlighted tab in view on narrow screens.
-  useEffect(() => {
-    tabsRef.current?.querySelector(".deck-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [current]);
-
-  const jump = (key: string) => {
-    jumping.current = true;
-    window.setTimeout(() => { jumping.current = false; }, 1200);
-    setActive(key);
-    groupRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const goTo = (n: number) => centerIn(trackRef.current, trackRef.current?.children[Math.max(0, Math.min(ordered.length - 1, n))] as HTMLElement | undefined);
+  // The card nearest the middle of the row is the current one.
+  const onTrackScroll = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const middle = track.scrollLeft + track.clientWidth / 2;
+    const distance = (el: Element) => {
+      const card = el as HTMLElement;
+      return Math.abs(card.offsetLeft + card.offsetWidth / 2 - middle);
+    };
+    const cards = Array.from(track.children);
+    setIndex(cards.reduce((best, el, n) => (distance(el) < distance(cards[best]) ? n : best), 0));
+  };
+  // Tabs pushed aside by hand spring back to the current section after a moment, like a rubber band.
+  const onTabsScroll = () => {
+    window.clearTimeout(springBack.current);
+    springBack.current = window.setTimeout(centerTab, 1200);
   };
 
   const renderCard = ({ card, i, kind }: { card: CardSection; i: number; kind: Kind }) => {
@@ -126,7 +132,7 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
   return (
     <div className="study-deck">
       <div className="study-deck-bar">
-        <span className="study-deck-count">{asText ? `${sections.length} sections` : `${sections.length} cards · tap a card to flip it`}</span>
+        <span className="study-deck-count">{asText ? `${sections.length} sections` : `${index + 1} / ${ordered.length} · swipe for more, tap to open`}</span>
         <div className="study-deck-toggle" role="group" aria-label="Show answer as">
           <button type="button" aria-pressed={!asText} onClick={() => setAsText(false)}>Cards</button>
           <button type="button" aria-pressed={asText} onClick={() => setAsText(true)}>Full text</button>
@@ -140,21 +146,26 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
         </section>
       )) : <>
         {groups.length > 1 && (
-          <nav ref={tabsRef} className="deck-tabs" aria-label="Card sections">
+          <nav ref={tabsRef} className="deck-tabs" aria-label="Card sections" onScroll={onTabsScroll}>
             {groups.map(({ key, cards }) => (
-              <button key={key} type="button" className={`deck-tab kind-${key}${current === key ? " active" : ""}`}
-                aria-current={current === key ? "true" : undefined} onClick={() => jump(key)}>
+              <button key={key} type="button" className={`deck-tab kind-${key}${currentKey === key ? " active" : ""}`}
+                aria-current={currentKey === key ? "true" : undefined} onClick={() => goTo(ordered.indexOf(cards[0]))}>
                 <Icon name={cards[0].kind.icon} size={14} /> {cards[0].kind.label} <small>{cards.length}</small>
               </button>
             ))}
           </nav>
         )}
-        {groups.map(({ key, cards }) => (
-          <section key={key} id={`${deckId}-${key}`} data-section={key} className="deck-section"
-            ref={(el) => { groupRefs.current[key] = el; }} aria-label={cards[0].kind.label}>
-            <div className="flip-grid">{cards.map(renderCard)}</div>
-          </section>
-        ))}
+        <div className="deck-carousel">
+          <div ref={trackRef} className="deck-track" onScroll={onTrackScroll} role="group" aria-label="Study cards" tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowRight") { event.preventDefault(); goTo(index + 1); }
+              if (event.key === "ArrowLeft") { event.preventDefault(); goTo(index - 1); }
+            }}>
+            {ordered.map(renderCard)}
+          </div>
+          <button type="button" className="deck-arrow prev" aria-label="Previous card" disabled={index === 0} onClick={() => goTo(index - 1)}><Icon name="back" size={16} /></button>
+          <button type="button" className="deck-arrow next" aria-label="Next card" disabled={index === ordered.length - 1} onClick={() => goTo(index + 1)}><Icon name="arrow" size={16} /></button>
+        </div>
       </>}
     </div>
   );

@@ -2777,7 +2777,7 @@ select option:disabled { color: var(--text-3); }
 @media (max-width: 640px) { .pg-overview { grid-template-columns: 1fr; } }
 
 /* Deep answers as study cards (components/study-cards.tsx) */
-.study-deck { display: grid; gap: 12px; margin-top: 4px; }
+.study-deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 4px; }
 .study-deck-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .study-deck-count { font-size: 12px; font-weight: 700; color: var(--text-3); }
 .study-deck-toggle { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: 99px; background: var(--bg-1); }
@@ -2785,7 +2785,6 @@ select option:disabled { color: var(--text-3); }
 .study-deck-toggle button[aria-pressed="true"] { background: var(--bg-2); color: var(--text-1); }
 .study-card-kind { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 4px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
   color: var(--kind); background: color-mix(in srgb, var(--kind) 14%, transparent); }
-.flip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .flip-card { --kind: var(--accent-strong, #6366f1); display: grid; perspective: 1200px; cursor: pointer; border-radius: 18px; outline: none; animation: card-in .28s var(--motion-ease, ease); }
 .flip-card:focus-visible { outline: 2px solid var(--kind); outline-offset: 3px; }
 .flip-face { display: flex; flex-direction: column; gap: 10px; min-height: 150px; padding: 18px; border: 1px solid var(--border-hi); border-top: 4px solid var(--kind); border-radius: 18px;
@@ -2829,12 +2828,12 @@ select option:disabled { color: var(--text-3); }
 .nav-more-menu a:hover, .nav-more-menu a[aria-current="page"] { background: var(--bg-2); }
 .mobile-nav button { font-family: inherit; border: 0; background: transparent; cursor: pointer; }
 
-/* Section tabs above a deck of study cards: tap to jump, the active one follows scrolling. */
-.deck-tabs { position: sticky; top: 0; z-index: 4; display: flex; gap: 6px; overflow-x: auto; padding: 6px; border: 1px solid var(--border); border-radius: 99px;
-  background: color-mix(in srgb, var(--bg-1) 92%, transparent); backdrop-filter: blur(10px); scrollbar-width: none; }
+/* Section tabs above a deck of study cards: the current section stays centered. */
+.deck-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 6px; border: 1px solid var(--border); border-radius: 99px;
+  background: color-mix(in srgb, var(--bg-1) 92%, transparent); scrollbar-width: none; }
 .deck-tabs::-webkit-scrollbar { display: none; }
 .deck-tab { --kind: var(--accent-strong, #6366f1); display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 7px 12px; border: 0; border-radius: 99px;
-  background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s ease, color .2s ease; }
 .deck-tab small { font-size: 11px; opacity: .7; }
 .deck-tab:hover { color: var(--text-1); }
 .deck-tab.active { color: var(--kind); background: color-mix(in srgb, var(--kind) 14%, transparent); }
@@ -2844,4 +2843,16 @@ select option:disabled { color: var(--text-3); }
 .deck-tab.kind-warn { --kind: #e0564f; }
 .deck-tab.kind-summary { --kind: #2f9e55; }
 .deck-tab.kind-quiz { --kind: #a95bdc; }
-.deck-section { scroll-margin-top: 64px; }
+/* Cards swipe sideways like photos: one centered, the neighbours peeking in. */
+.deck-carousel { position: relative; }
+.deck-track { display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 7% 10px;
+  overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
+.deck-track::-webkit-scrollbar { display: none; }
+.deck-track > .flip-card { flex: 0 0 86%; scroll-snap-align: center; scroll-snap-stop: always; }
+@media (min-width: 900px) { .deck-track > .flip-card { flex-basis: 62%; } }
+.deck-arrow { display: none; position: absolute; top: 70px; z-index: 2; width: 36px; height: 36px; padding: 0; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--bg-1); color: var(--text-1); box-shadow: var(--shadow-1); cursor: pointer; }
+.deck-arrow.prev { left: 2px; }
+.deck-arrow.next { right: 2px; }
+.deck-arrow:disabled { opacity: 0; pointer-events: none; }
+@media (hover: hover) and (pointer: fine) { .deck-arrow { display: inline-flex; } }
