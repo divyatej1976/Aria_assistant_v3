@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { TutorMarkdown } from "@/components/tutor-markdown";
 
@@ -48,14 +48,80 @@ export function splitAnswer(body: string): { question: string; answer: string } 
 
 /** A Deep answer as flip cards, all visible at once: the front names the idea (or asks the
  * quiz question), a tap turns the card over to the explanation (or the answer). */
+// Sections in learning order: what it is first, the recap last.
+const SECTION_ORDER = ["define", "concept", "how", "example", "warn", "quiz", "summary"];
+
 export function StudyCards({ lead, sections }: { lead: string; sections: CardSection[] }) {
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
   const [asText, setAsText] = useState(false);
+  const [active, setActive] = useState<string | null>(null);
+  const deckId = useId();
+  const groupRefs = useRef<Record<string, HTMLElement | null>>({});
+  const tabsRef = useRef<HTMLElement | null>(null);
+  // While a tapped tab's smooth scroll runs, scrolling must not move the highlight elsewhere.
+  const jumping = useRef(false);
   const flip = (i: number) => setFlipped((prev) => {
     const next = new Set(prev);
     if (!next.delete(i)) next.add(i);
     return next;
   });
+  const groups = SECTION_ORDER.map((key) => ({
+    key,
+    cards: sections.map((card, i) => ({ card, i, kind: cardKind(card.title) })).filter((c) => c.kind.key === key),
+  })).filter((group) => group.cards.length > 0);
+  const current = active ?? groups[0]?.key;
+
+  // The highlighted tab follows the section being read.
+  useEffect(() => {
+    if (asText) return;
+    const observer = new IntersectionObserver((entries) => {
+      const seen = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (seen && !jumping.current) setActive((seen.target as HTMLElement).dataset.section ?? null);
+    }, { rootMargin: "-20% 0px -60% 0px" });
+    Object.values(groupRefs.current).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [asText, sections]);
+
+  // Keep the highlighted tab in view on narrow screens.
+  useEffect(() => {
+    tabsRef.current?.querySelector(".deck-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [current]);
+
+  const jump = (key: string) => {
+    jumping.current = true;
+    window.setTimeout(() => { jumping.current = false; }, 1200);
+    setActive(key);
+    groupRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const renderCard = ({ card, i, kind }: { card: CardSection; i: number; kind: Kind }) => {
+    const quiz = kind.key === "quiz" ? splitAnswer(card.body) : null;
+    const on = flipped.has(i);
+    const named = card.title.toLowerCase() !== kind.label.toLowerCase();
+    return (
+      <div key={i} role="button" tabIndex={0} aria-pressed={on}
+        aria-label={`${kind.label}: ${card.title}. ${on ? "Showing the back" : "Tap to flip"}`}
+        className={`flip-card kind-${kind.key}${on ? " flipped" : ""}`}
+        // Links and copy buttons inside the back work without turning the card over.
+        onClick={(event) => { if (!(event.target as HTMLElement).closest("a, button")) flip(i); }}
+        onKeyDown={(event) => {
+          if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); flip(i); }
+        }}>
+        <div className="flip-face front" aria-hidden={on}>
+          <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {kind.label}</span>
+          {named && <h3>{card.title}</h3>}
+          {quiz && <div className="flip-question"><TutorMarkdown content={quiz.question} /></div>}
+          <span className="flip-hint"><Icon name="refresh" size={13} /> {quiz ? "Tap to see the answer" : "Tap to read"}</span>
+        </div>
+        <div className="flip-face back" aria-hidden={!on}>
+          <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {quiz ? "Answer" : kind.label}</span>
+          {named && !quiz && <h3>{card.title}</h3>}
+          <div className="flip-body"><TutorMarkdown content={quiz ? quiz.answer : card.body} /></div>
+          <span className="flip-hint"><Icon name="refresh" size={13} /> Tap to turn back</span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="study-deck">
@@ -72,39 +138,24 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
           <h4 className="reply-block-label">{section.title}</h4>
           <TutorMarkdown content={section.body} />
         </section>
-      )) : (
-        <div className="flip-grid">
-          {sections.map((card, i) => {
-            const kind = cardKind(card.title);
-            const quiz = kind.key === "quiz" ? splitAnswer(card.body) : null;
-            const on = flipped.has(i);
-            const named = card.title.toLowerCase() !== kind.label.toLowerCase();
-            return (
-              <div key={i} role="button" tabIndex={0} aria-pressed={on}
-                aria-label={`${kind.label}: ${card.title}. ${on ? "Showing the back" : "Tap to flip"}`}
-                className={`flip-card kind-${kind.key}${on ? " flipped" : ""}`}
-                // Links and copy buttons inside the back work without turning the card over.
-                onClick={(event) => { if (!(event.target as HTMLElement).closest("a, button")) flip(i); }}
-                onKeyDown={(event) => {
-                  if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); flip(i); }
-                }}>
-                <div className="flip-face front" aria-hidden={on}>
-                  <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {kind.label}</span>
-                  {named && <h3>{card.title}</h3>}
-                  {quiz && <div className="flip-question"><TutorMarkdown content={quiz.question} /></div>}
-                  <span className="flip-hint"><Icon name="refresh" size={13} /> {quiz ? "Tap to see the answer" : "Tap to read"}</span>
-                </div>
-                <div className="flip-face back" aria-hidden={!on}>
-                  <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {quiz ? "Answer" : kind.label}</span>
-                  {named && !quiz && <h3>{card.title}</h3>}
-                  <div className="flip-body"><TutorMarkdown content={quiz ? quiz.answer : card.body} /></div>
-                  <span className="flip-hint"><Icon name="refresh" size={13} /> Tap to turn back</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      )) : <>
+        {groups.length > 1 && (
+          <nav ref={tabsRef} className="deck-tabs" aria-label="Card sections">
+            {groups.map(({ key, cards }) => (
+              <button key={key} type="button" className={`deck-tab kind-${key}${current === key ? " active" : ""}`}
+                aria-current={current === key ? "true" : undefined} onClick={() => jump(key)}>
+                <Icon name={cards[0].kind.icon} size={14} /> {cards[0].kind.label} <small>{cards.length}</small>
+              </button>
+            ))}
+          </nav>
+        )}
+        {groups.map(({ key, cards }) => (
+          <section key={key} id={`${deckId}-${key}`} data-section={key} className="deck-section"
+            ref={(el) => { groupRefs.current[key] = el; }} aria-label={cards[0].kind.label}>
+            <div className="flip-grid">{cards.map(renderCard)}</div>
+          </section>
+        ))}
+      </>}
     </div>
   );
 }
