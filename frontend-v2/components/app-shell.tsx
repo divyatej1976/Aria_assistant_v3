@@ -65,7 +65,8 @@ function relTime(iso: string): string {
 
 // Seven destinations. Where two pages serve one job they share a destination
 // and switch with tabs, so the sidebar stays short.
-const PHONE_TABS = ["/app", "/app/learn", "/app/audio", "/app/assess"];
+// The bar shows only the everyday places; the rest sit under "More" so a new learner is not overwhelmed.
+const MAIN_TABS = ["/app", "/app/learn", "/app/assess"];
 
 const NAV: NavItem[] = [
   { href: "/app", label: "Home", icon: "home", pages: [{ href: "/app", label: "Home" }] },
@@ -99,6 +100,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const moreRef = useRef<HTMLDetailsElement>(null);
+  // "More" closes when you click anywhere else.
+  useEffect(() => {
+    const close = (event: MouseEvent) => { if (!moreRef.current?.contains(event.target as Node)) moreRef.current?.removeAttribute("open"); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   // Dismissal persists per browser so the verify banner doesn't reappear on
@@ -212,7 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={`shell${isChat ? " shell-chat" : ""}`}>
       <div className="shell-main">
-        {/* One bar on every page: brand, the seven sections, then alerts and profile. */}
+        {/* One bar on every page: brand, the main sections and More, then alerts and profile. */}
         <header className="shell-top">
           <div className="top-left">
             <button className="btn btn-secondary mobile-menu-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>
@@ -223,7 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <LayoutGroup id="workspace-navigation">
           <nav className="top-nav" aria-label="Workspace">
-            {NAV.map((item) => {
+            {NAV.filter((item) => MAIN_TABS.includes(item.href)).map((item) => {
               const active = current === item;
               return (
                 <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`nav-link${active ? " active" : ""}`}>
@@ -233,6 +241,20 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
+            <details ref={moreRef} className="nav-more">
+              <summary className={`nav-link${current && !MAIN_TABS.includes(current.href) ? " active" : ""}`}>
+                <Icon name="menu" size={16} />
+                <span>{current && !MAIN_TABS.includes(current.href) ? current.label : "More"}</span>
+              </summary>
+              <div className="nav-more-menu">
+                {NAV.filter((item) => !MAIN_TABS.includes(item.href)).map((item) => (
+                  <Link key={item.href} href={item.href} aria-current={current === item ? "page" : undefined}
+                    onClick={() => moreRef.current?.removeAttribute("open")}>
+                    <Icon name={item.icon} size={16} /><span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </details>
           </nav>
           </LayoutGroup>
           <div ref={ref} className="top-right">
@@ -344,8 +366,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {!isChat && (
             <LayoutGroup id="mobile-workspace-navigation">
             <nav className="mobile-nav" aria-label="Primary">
-              {/* Phones get the four everyday places; the rest stay in the menu (☰). */}
-              {NAV.filter((item) => PHONE_TABS.includes(item.href) || item === current).map((item) => {
+              {NAV.filter((item) => MAIN_TABS.includes(item.href)).map((item) => {
                 const active = current === item;
                 return (
                   <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : undefined}>
@@ -355,6 +376,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </Link>
                 );
               })}
+              <button type="button" className={current && !MAIN_TABS.includes(current.href) ? "active" : undefined} onClick={() => setMobileMenuOpen(true)}>
+                <Icon name="menu" size={20} />
+                <span>{current && !MAIN_TABS.includes(current.href) ? current.label : "More"}</span>
+              </button>
             </nav>
             </LayoutGroup>
           )}

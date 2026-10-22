@@ -2095,7 +2095,7 @@ body {
   .mobile-nav::-webkit-scrollbar {
     display: none;
   }
-  .mobile-nav a {
+  .mobile-nav a, .mobile-nav button {
     position: relative;
     isolation: isolate;
     flex-shrink: 0;
@@ -2108,7 +2108,7 @@ body {
     border: 1px solid var(--border-hi);
     background: var(--bg-2);
   }
-  .mobile-nav a.active {
+  .mobile-nav a.active, .mobile-nav button.active {
     color: var(--text-1);
   }
   .mobile-active-surface {
@@ -2415,12 +2415,12 @@ body:has(.chat-sidebar-layout) #toasts { bottom:calc(100px + env(safe-area-inset
     border-bottom: 1px solid var(--border); border-top: none;
     background: var(--bg-1); overflow: visible;
   }
-  .mobile-nav a {
+  .mobile-nav a, .mobile-nav button {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     min-height: 48px; padding: 6px 2px; font-size: 10.5px; font-weight: 700;
     border: none; border-radius: 12px; background: transparent; color: var(--text-2);
   }
-  .mobile-nav a.active { color: var(--accent-strong, var(--accent)); }
+  .mobile-nav a.active, .mobile-nav button.active { color: var(--accent-strong, var(--accent)); }
   .mobile-active-surface { inset: 2px 6px; border: none; border-radius: 12px; }
 }
 
@@ -2819,3 +2819,12 @@ select option:disabled { color: var(--text-3); }
     padding: 20px 16px; overflow-y: auto; background: var(--bg-1); box-shadow: var(--shadow-2, 0 10px 40px rgba(0,0,0,.25)); }
   .chats-backdrop { display: block; position: fixed; inset: 62px 0 0 0; z-index: 159; border: 0; background: rgba(0, 0, 0, .35); }
 }
+
+/* "More" in the top bar: the sections that are not everyday tabs. */
+.nav-more { position: relative; }
+.nav-more > summary { list-style: none; cursor: pointer; }
+.nav-more > summary::-webkit-details-marker { display: none; }
+.nav-more-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; display: grid; min-width: 190px; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-1); box-shadow: var(--shadow-2, 0 10px 30px rgba(0,0,0,.18)); }
+.nav-more-menu a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; color: var(--text-1); font-size: 14px; font-weight: 600; text-decoration: none; }
+.nav-more-menu a:hover, .nav-more-menu a[aria-current="page"] { background: var(--bg-2); }
+.mobile-nav button { font-family: inherit; border: 0; background: transparent; cursor: pointer; }

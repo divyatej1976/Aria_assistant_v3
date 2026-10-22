@@ -201,12 +201,13 @@ test("mobile layouts and live reduced motion keep the dashboard usable", async (
   await expect(page.locator(".ambient canvas")).toHaveCount(0);
   await page.setViewportSize({ width: 375, height: 900 });
   const navigation = page.getByRole("navigation", { name: "Primary", exact: true });
-  await navigation.getByRole("link", { name: "Progress", exact: true }).click();
+  // Progress lives under More: the menu opens the full list.
+  await navigation.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("navigation", { name: "Mobile workspace" }).getByRole("link", { name: "Progress", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/progress$/);
   await page.getByRole("navigation", { name: "Progress sections" }).getByRole("link", { name: "Topic map" }).click();
   await expect(page).toHaveURL(/\/app\/map$/);
-  await expect(navigation.getByRole("link", { name: "Progress", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(navigation.locator(".mobile-active-surface")).toHaveCount(1);
+  await expect(navigation.getByRole("button", { name: "Progress", exact: true })).toHaveClass(/active/);
   await expect(navigation.getByRole("link", { name: "Home", exact: true })).not.toHaveAttribute("aria-current", "page");
 });
 
@@ -395,7 +396,9 @@ test("dashboard stays interactive under CPU throttling and repeated workspace na
   expect(elapsed).toBeLessThan(20_000);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   for (let cycle = 0; cycle < 3; cycle++) {
-    await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Progress", exact: true }).click();
+    const workspace = page.getByRole("navigation", { name: "Workspace", exact: true });
+    await workspace.locator(".nav-more > summary").click();
+    await workspace.getByRole("link", { name: "Progress", exact: true }).click();
     await page.getByRole("navigation", { name: "Progress sections" }).getByRole("link", { name: "Topic map" }).click();
     await expect(page.locator(".constellation")).toBeVisible();
     await page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Home", exact: true }).click();
