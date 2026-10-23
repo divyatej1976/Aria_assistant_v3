@@ -10,12 +10,12 @@ type Step = { target: string; title: string; body: string };
 /** First-visit tour for each screen: one control at a time, "Got it" at the end. */
 const GUIDES = {
   home: [
-    { target: ".top-nav", title: "Everything is up here", body: "Learn to chat with your tutor, Library for files and notes, Audio to listen, Practice for quizzes, Plan for roadmaps, Progress to see how you're doing." },
+    { target: ".top-nav", title: "Everything is up here", body: "Learn to chat with your tutor, Practice for quizzes. More has your Library, Audio lessons, study Plan and Progress." },
     { target: ".home-ask-box", title: "Ask from anywhere", body: "Type a question here and ARIA opens a new chat with it." },
     { target: ".home-stats", title: "Your progress at a glance", body: "Your streak, how many topics are strong, your chats and the quizzes you've taken." },
   ],
   learn: [
-    { target: ".learn-side .btn", title: "New chat", body: "Start a fresh chat any time. Every chat is saved under Recents with a short topic name." },
+    { target: ".learn-side .btn, .chats-toggle", title: "New chat", body: "Start a fresh chat any time. Every chat is saved under Recents with a short topic name (on a phone, tap the list button to see them)." },
     { target: ".chat-input-row .bar", title: "Ask anything", body: "Type a question and press Enter. While ARIA replies, Send turns into Stop so you can cut it short." },
     { target: ".attach-wrap > button", title: "Add files with +", body: "Add PDFs or photos, or take a picture. They wait in the bar until you press Send, then ARIA reads them in this chat." },
     { target: 'button[aria-label="Speak question"]', title: "Talk instead of typing", body: "Tap the mic, speak, tap again. ARIA turns your voice into text." },
@@ -25,7 +25,7 @@ const GUIDES = {
   practice: [
     { target: '[data-tour="create-quiz"]', title: "Create a quiz", body: "Choose what to be quizzed on: a chat, your library files, a topic, or your weak spots." },
     { target: ".assessment-list", title: "Your quizzes", body: "Open one to take it full screen. Afterwards you see your score and what to review." },
-    { target: '.top-nav a[href="/app/progress"]', title: "It counts", body: "Every answer updates Progress, so topics turn Strong only when you've shown it." },
+    { target: ".nav-more > summary", title: "It counts", body: "Every answer updates Progress (under More), so topics turn Strong only when you've shown it." },
   ],
   plan: [
     { target: '[data-tour="create-roadmap"]', title: "Create a roadmap", body: "Turn a goal into milestones, each with sub-topics you tick off as you learn them." },
@@ -49,12 +49,13 @@ const GUIDES = {
 
 type Box = { top: number; left: number; width: number; height: number };
 
+/** Where the first visible match of `selector` is (a phone hides some desktop-only targets). */
 function boxOf(selector: string): Box | null {
-  const element = document.querySelector(selector);
-  if (!element) return null;
-  const rect = element.getBoundingClientRect();
-  if (!rect.width && !rect.height) return null;
-  return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+  for (const element of document.querySelectorAll(selector)) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width || rect.height) return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+  }
+  return null;
 }
 
 export function PageGuide({ page, hidden = false }: { page: keyof typeof GUIDES; hidden?: boolean }) {
@@ -87,8 +88,11 @@ export function PageGuide({ page, hidden = false }: { page: keyof typeof GUIDES;
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") dismiss(); };
+    // A tap anywhere outside the guide card closes it (and still reaches what was tapped).
+    const onTap = (event: PointerEvent) => { if (!(event.target as Element).closest?.(".tour-card")) dismiss(); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onTap, true);
+    return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onTap, true); };
   }, [open, dismiss]);
 
   if (!open || !step) return null;

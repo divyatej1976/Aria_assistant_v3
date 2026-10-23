@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
 import { Icon } from "@/components/icons";
-import { toast } from "@/lib/toast";
 import { api, ApiError } from "@/lib/api";
 import { deviceName } from "@/lib/device-name";
 import { emailOk, passwordOk, PasswordRules } from "@/lib/password-rules";
@@ -43,7 +42,6 @@ export default function SignUpPage() {
       });
       const me = await api<AuthUser & { display_name?: string | null }>("/api/v1/auth/me");
       setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false });
-      toast("Account created");
       router.push("/onboarding");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Unable to create account";

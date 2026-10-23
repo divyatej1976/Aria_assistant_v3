@@ -325,7 +325,7 @@ function AudioPageWorkspace() {
       </div>
       <PageGuide page="audio" />
 
-      <p className="banner" role="status" style={{ marginBottom: 16 }}>
+      <p className="banner" role="status" style={{ marginBottom: 16, fontSize: 13.5, lineHeight: 1.5 }}>
         {speechSetup === true
           ? "Choose a source to create an audio episode. If a voice service is unavailable, we’ll help you try again."
           : speechSetup === false

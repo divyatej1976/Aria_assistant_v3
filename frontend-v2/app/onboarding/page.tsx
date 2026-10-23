@@ -63,7 +63,7 @@ export default function OnboardingPage() {
         <div>
           <label className="field-label" htmlFor="ob-vec">What are you studying?</label>
           <input id="ob-vec" className="input" value={subject} disabled={busy} maxLength={255}
-            placeholder="e.g. Python, databases, or linear algebra" onChange={(e) => { setSubject(e.target.value); setError(""); }} />
+            placeholder="e.g. Python or databases" onChange={(e) => { setSubject(e.target.value); setError(""); }} />
           <p className="field-help">A course, exam or skill. Each subject keeps its own chats, quizzes and plan.</p>
           <div className="quiz-choice-row">
             {SUBJECTS.map((s) => (

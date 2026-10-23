@@ -48,6 +48,12 @@ export function splitAnswer(body: string): { question: string; answer: string } 
 
 /** A Deep answer as flip cards, all visible at once: the front names the idea (or asks the
  * quiz question), a tap turns the card over to the explanation (or the answer). */
+/** The first words of a card's body as plain text, for its front. */
+function preview(body: string) {
+  const text = body.replace(/```[\s\S]*?```/g, " ").replace(/\$\$[\s\S]*?\$\$/g, " ").replace(/[#*_`>|$]|\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim();
+  return text.length > 150 ? `${text.slice(0, 150).replace(/\s\S*$/, "")}…` : text;
+}
+
 // Sections in learning order: what it is first, the recap last.
 const SECTION_ORDER = ["define", "concept", "how", "example", "warn", "quiz", "summary"];
 
@@ -117,6 +123,7 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
           <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {kind.label}</span>
           {named && <h3>{card.title}</h3>}
           {quiz && <div className="flip-question"><TutorMarkdown content={quiz.question} /></div>}
+          {!quiz && <p className="flip-preview">{preview(card.body)}</p>}
           <span className="flip-hint"><Icon name="refresh" size={13} /> {quiz ? "Tap to see the answer" : "Tap to read"}</span>
         </div>
         <div className="flip-face back" aria-hidden={!on}>
@@ -132,7 +139,7 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
   return (
     <div className="study-deck">
       <div className="study-deck-bar">
-        <span className="study-deck-count">{asText ? `${sections.length} sections` : `${index + 1} / ${ordered.length} · swipe for more, tap to open`}</span>
+        <span className="study-deck-count">{asText ? `${sections.length} sections` : `${ordered.length} cards · swipe or use the arrows, tap a card to open it`}</span>
         <div className="study-deck-toggle" role="group" aria-label="Show answer as">
           <button type="button" aria-pressed={!asText} onClick={() => setAsText(false)}>Cards</button>
           <button type="button" aria-pressed={asText} onClick={() => setAsText(true)}>Full text</button>
@@ -163,8 +170,11 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
             }}>
             {ordered.map(renderCard)}
           </div>
-          <button type="button" className="deck-arrow prev" aria-label="Previous card" disabled={index === 0} onClick={() => goTo(index - 1)}><Icon name="back" size={16} /></button>
-          <button type="button" className="deck-arrow next" aria-label="Next card" disabled={index === ordered.length - 1} onClick={() => goTo(index + 1)}><Icon name="arrow" size={16} /></button>
+        </div>
+        <div className="deck-pager">
+          <button type="button" className="deck-arrow" aria-label="Previous card" disabled={index === 0} onClick={() => goTo(index - 1)}><Icon name="back" size={16} /></button>
+          <span className="deck-position" aria-live="polite">{index + 1} / {ordered.length}</span>
+          <button type="button" className="deck-arrow" aria-label="Next card" disabled={index === ordered.length - 1} onClick={() => goTo(index + 1)}><Icon name="arrow" size={16} /></button>
         </div>
       </>}
     </div>

@@ -1140,6 +1140,12 @@ body {
   box-shadow: var(--shadow-3);
   padding: 40px;
 }
+/* The logo and theme button are pinned to the top corners; keep the card clear of them. */
+.auth-wrap { padding-top: 96px; }
+@media (max-width: 640px) {
+  .auth-wrap { align-items: flex-start; padding: 92px 16px 32px; }
+  .auth-card { padding: 26px 22px; }
+}
 
 /* ---------- App shell ---------- */
 .shell {
@@ -1187,14 +1193,15 @@ body {
   flex: 1;
   padding: 34px 36px 90px;
 }
-.shell-banner { margin: 18px 36px 0; }
+.banner.shell-banner { margin: 18px 36px 0; }
 @media (max-width: 640px) {
   .shell-top { padding: 0 18px; }
   .shell-content { padding: 22px 18px 90px; }
-  .shell-banner { margin: 14px 18px 0; padding: 10px 12px; flex-wrap: nowrap; align-items: center; gap: 10px; }
+  .banner.shell-banner { margin: 12px 16px 0; padding: 8px 10px 8px 12px; flex-wrap: nowrap; align-items: center; gap: 10px; }
+  .banner.shell-banner b { font-size: 13px; }
   /* One compact row on phones: the heading alone says what to do. */
   .shell-banner p { display: none; }
-  .shell-banner .btn { padding: 8px 12px; font-size: 12px; white-space: nowrap; }
+  .banner.shell-banner .btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
 }
 .nav-sec {
   font-size: 10px;
@@ -1732,6 +1739,11 @@ body {
 .kv .v {
   font-weight: 700;
 }
+/* Phones: a long label (a device name, a chip) gets its own line instead of squeezing the value. */
+@media (max-width: 640px) {
+  .kv { flex-wrap: wrap; gap: 6px 12px; }
+  .kv .k { flex-wrap: wrap; }
+}
 
 /* ---------- Heatmap wrap + badge + sparkline ---------- */
 .heat-wrap {
@@ -1992,6 +2004,7 @@ body {
   color: var(--text-2);
   margin-top: 2px;
 }
+.empty-state > svg { margin: 0 auto; }
 .empty-state {
   text-align: center;
   padding: 54px 24px;
@@ -2407,10 +2420,10 @@ body:has(.chat-sidebar-layout) #toasts { bottom:calc(100px + env(safe-area-inset
 .section-tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 900px) {
-  /* A tab bar under the top bar: seven icons with labels, kept in view while scrolling. */
+  /* A tab bar under the top bar: the main places spread evenly, kept in view while scrolling. */
   .mobile-nav {
     position: sticky; top: 0; z-index: 80;
-    display: grid; grid-template-columns: repeat(7, 1fr); gap: 0;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0;
     margin: -22px -18px 18px; padding: 6px 4px;
     border-bottom: 1px solid var(--border); border-top: none;
     background: var(--bg-1); overflow: visible;
@@ -2843,16 +2856,22 @@ select option:disabled { color: var(--text-3); }
 .deck-tab.kind-warn { --kind: #e0564f; }
 .deck-tab.kind-summary { --kind: #2f9e55; }
 .deck-tab.kind-quiz { --kind: #a95bdc; }
-/* Cards swipe sideways like photos: one centered, the neighbours peeking in. */
-.deck-carousel { position: relative; }
-.deck-track { display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 7% 10px;
-  overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
+/* Cards swipe sideways like photos: one full-width card at a time, exactly under the tabs and
+   always the same height, so nothing jumps when a card is flipped or the next one comes in. */
+.deck-carousel { --card-h: 340px; }
+@media (max-width: 640px) { .deck-carousel { --card-h: 340px; } }
+.deck-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
 .deck-track::-webkit-scrollbar { display: none; }
-.deck-track > .flip-card { flex: 0 0 86%; scroll-snap-align: center; scroll-snap-stop: always; }
-@media (min-width: 900px) { .deck-track > .flip-card { flex-basis: 62%; } }
-.deck-arrow { display: none; position: absolute; top: 70px; z-index: 2; width: 36px; height: 36px; padding: 0; align-items: center; justify-content: center;
-  border: 1px solid var(--border); border-radius: 50%; background: var(--bg-1); color: var(--text-1); box-shadow: var(--shadow-1); cursor: pointer; }
-.deck-arrow.prev { left: 2px; }
-.deck-arrow.next { right: 2px; }
-.deck-arrow:disabled { opacity: 0; pointer-events: none; }
-@media (hover: hover) and (pointer: fine) { .deck-arrow { display: inline-flex; } }
+.deck-track > .flip-card { flex: 0 0 100%; height: var(--card-h); scroll-snap-align: start; scroll-snap-stop: always; animation: none; }
+.deck-track > .flip-card .flip-face { height: 100%; min-height: 0; overflow: hidden; }
+.deck-track > .flip-card .flip-face.front { justify-content: center; text-align: left; }
+.deck-track > .flip-card .flip-face.front h3 { font-size: 21px; line-height: 1.3; }
+.deck-track > .flip-card .flip-face.front .flip-hint { margin-top: 8px; }
+.flip-preview { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.deck-track > .flip-card .flip-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.deck-track > .flip-card .flip-face.back .flip-hint { margin-top: 0; }
+.deck-pager { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.deck-arrow { display: inline-flex; width: 36px; height: 36px; padding: 0; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--bg-1); color: var(--text-1); cursor: pointer; }
+.deck-arrow:disabled { opacity: .35; cursor: default; }
+.deck-position { min-width: 56px; text-align: center; font-size: 13px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
