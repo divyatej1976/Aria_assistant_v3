@@ -54,6 +54,8 @@ class LearnerResponse(BaseModel):
     email: str
     display_name: str | None
     verified: bool = False
+    # False while the server cannot send email: the app then stops asking learners to verify.
+    email_delivery: bool = False
 
 
 class ProfileUpdateRequest(BaseModel):

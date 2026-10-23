@@ -59,6 +59,7 @@ def learner_response(learner: Learner) -> LearnerResponse:
         email=learner.email,
         display_name=learner.display_name,
         verified=learner.verified_at is not None,
+        email_delivery=bool(get_settings().smtp_host),
     )
 
 

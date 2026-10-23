@@ -114,11 +114,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useDismissed(`aria.verifyBannerDismissed:${user?.id ?? "anonymous"}`);
   // The reminder shows for a few seconds per visit; the avatar dot keeps reminding after that.
   const [bannerTimedOut, setBannerTimedOut] = useState(false);
+  // Only ask for verification when the server can actually send the email.
+  const askToVerify = !!user && !user.verified && user.email_delivery !== false;
   useEffect(() => {
-    if (!user || user.verified) return;
+    if (!askToVerify) return;
     const timer = window.setTimeout(() => setBannerTimedOut(true), 8000);
     return () => window.clearTimeout(timer);
-  }, [user]);
+  }, [askToVerify]);
   const ref = useRef<HTMLDivElement>(null);
   const bellTrigger = useRef<HTMLButtonElement>(null);
   const profileTrigger = useRef<HTMLButtonElement>(null);
@@ -277,7 +279,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <PaletteSwitcher />
             <button ref={profileTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="avatar-btn" onClick={(e) => { e.stopPropagation(); setProfileOpen((o) => !o); setBellOpen(false); }} aria-label="Profile" aria-expanded={profileOpen}>
               {initials}
-              {user && !user.verified && <span className="attention-dot" title="Email not verified" />}
+              {askToVerify && <span className="attention-dot" title="Email not verified" />}
             </button>
 
             <AnimatePresence>
@@ -327,7 +329,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 14 }}>{user?.display_name ?? "Learner"}</div>
                     <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email ?? ""}</div>
-                    <span className={`pop-status${user?.verified ? " ok" : ""}`}>{user?.verified ? "Email verified" : "Email not verified"}</span>
+                    {(user?.verified || askToVerify) && <span className={`pop-status${user?.verified ? " ok" : ""}`}>{user?.verified ? "Email verified" : "Email not verified"}</span>}
                   </div>
                 </div>
                 <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & settings</Link>
@@ -337,7 +339,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </AnimatePresence>
           </div>
         </header>
-        {!isChat && user && !user.verified && !bannerDismissed && !bannerTimedOut && (
+        {!isChat && askToVerify && !bannerDismissed && !bannerTimedOut && (
           <div className="banner shell-banner" role="status">
             <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name="alert" size={18} /></span>
             <div style={{ flex: 1 }}>

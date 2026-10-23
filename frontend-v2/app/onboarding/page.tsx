@@ -31,10 +31,10 @@ export default function OnboardingPage() {
     try {
       const preferred = name.trim();
       if (preferred && preferred !== (user?.display_name ?? "")) {
-        const updated = await api<{ id: string; email: string; display_name: string | null; verified: boolean }>(
+        const updated = await api<{ id: string; email: string; display_name: string | null; verified: boolean; email_delivery?: boolean }>(
           "/api/v1/auth/profile", { method: "PATCH", body: JSON.stringify({ display_name: preferred }) },
         );
-        setUser({ id: updated.id, email: updated.email, display_name: updated.display_name, verified: updated.verified });
+        setUser({ id: updated.id, email: updated.email, display_name: updated.display_name, verified: updated.verified, email_delivery: updated.email_delivery });
       }
       await createContext({ title, masteryLevel: "Beginner" });
       router.push("/app");

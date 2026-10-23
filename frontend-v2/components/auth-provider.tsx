@@ -5,7 +5,8 @@ import { api, ApiError } from "@/lib/api";
 import { clearLearnerDrafts } from "@/lib/assessment-drafts";
 import { toast } from "@/lib/toast";
 
-export type AuthUser = { id: string; email: string; display_name: string | null; verified: boolean };
+// email_delivery: false while the server cannot send email, so nobody is asked to verify.
+export type AuthUser = { id: string; email: string; display_name: string | null; verified: boolean; email_delivery?: boolean };
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -18,7 +19,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-type MeResponse = { id: string; email: string; display_name?: string | null; verified?: boolean };
+type MeResponse = { id: string; email: string; display_name?: string | null; verified?: boolean; email_delivery?: boolean };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null);
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: me.email,
           display_name: me.display_name ?? null,
           verified: me.verified ?? false,
+          email_delivery: me.email_delivery,
         });
       })
       .catch((err: unknown) => {

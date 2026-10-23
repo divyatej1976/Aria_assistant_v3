@@ -115,8 +115,26 @@ export async function apiStream(path: string, body: unknown, onEvent: (event: Re
   }
 }
 
+// Reads are retried briefly after a server or network hiccup (a cold start after idle);
+// writes never are, so nothing is saved or sent twice.
+const READ_RETRY_DELAYS_MS = [600, 1500];
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = init.method ?? "GET";
+  for (const delay of method === "GET" ? READ_RETRY_DELAYS_MS : []) {
+    try {
+      return await requestOnce<T>(path, init, method);
+    } catch (err) {
+      const retryable = err instanceof ApiError && !init.signal?.aborted
+        && (err.status >= 500 || (err.status === 0 && !err.message.startsWith("Request timed out")));
+      if (!retryable) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  return requestOnce<T>(path, init, method);
+}
+
+async function requestOnce<T>(path: string, init: RequestInit, method: string): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {

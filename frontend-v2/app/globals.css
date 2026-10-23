@@ -2888,3 +2888,12 @@ select option:disabled { color: var(--text-3); }
   border: 1px solid var(--border); border-radius: 50%; background: var(--bg-1); color: var(--text-1); cursor: pointer; }
 .deck-arrow:disabled { opacity: .35; cursor: default; }
 .deck-position { min-width: 56px; text-align: center; font-size: 13px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* Phones: "Everything in ARIA" as small two-column tiles (icon and name), not six tall cards. */
+@media (max-width: 640px) {
+  .learning-tools { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+  .learning-tool { flex-direction: row !important; align-items: center !important; gap: 10px !important; min-height: 0 !important; padding: 12px !important; }
+  .learning-tool .tool-icon { width: 36px; height: 36px; flex-shrink: 0; }
+  .learning-tool h3 { margin: 0 !important; font-size: 14.5px !important; }
+  .learning-tool p, .learning-tool .tool-open { display: none !important; }
+}

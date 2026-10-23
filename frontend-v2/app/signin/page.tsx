@@ -42,7 +42,7 @@ export default function SignInPage() {
       });
       // cookies are set by the backend; fetch current learner
       const me = await api<AuthUser & { display_name?: string | null }>("/api/v1/auth/me");
-      setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false });
+      setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false, email_delivery: me.email_delivery });
       toast("Welcome back, " + (me.display_name ?? me.email));
       // route by whether the learner has a context yet
       const contexts = await api<{ id: string }[]>("/api/v1/contexts");

@@ -12,7 +12,7 @@ import { toast } from "@/lib/toast";
 import { passwordOk, PasswordRules } from "@/lib/password-rules";
 import { ErrorState, Loading } from "@/components/states";
 
-type Me = { id: string; email: string; display_name: string | null; verified: boolean };
+type Me = { id: string; email: string; display_name: string | null; verified: boolean; email_delivery?: boolean };
 type Preference = { key: string; value: string };
 type SessionRecord = { id: string; device_label: string | null; is_current: boolean; created_at: string };
 type LlmKeyStatus = { configured: boolean; usable?: boolean; issue?: string | null; provider: string | null; model: string | null; hint: string | null };
@@ -155,7 +155,7 @@ export default function AccountPage() {
       setMe(updated);
       setName(updated.display_name ?? "");
       setEmail(updated.email);
-      setUser({ id: updated.id, email: updated.email, display_name: updated.display_name, verified: updated.verified });
+      setUser({ id: updated.id, email: updated.email, display_name: updated.display_name, verified: updated.verified, email_delivery: updated.email_delivery });
       toast("Profile updated.");
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not update your profile.", "error");

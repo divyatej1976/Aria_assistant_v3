@@ -41,7 +41,7 @@ export default function SignUpPage() {
         body: JSON.stringify({ email, password, display_name: name, device_label: deviceName() }),
       });
       const me = await api<AuthUser & { display_name?: string | null }>("/api/v1/auth/me");
-      setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false });
+      setUser({ id: me.id, email: me.email, display_name: me.display_name ?? null, verified: me.verified ?? false, email_delivery: me.email_delivery });
       router.push("/onboarding");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Unable to create account";
