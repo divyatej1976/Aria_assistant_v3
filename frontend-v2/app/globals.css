@@ -2860,7 +2860,7 @@ select option:disabled { color: var(--text-3); }
    always the same height, so nothing jumps when a card is flipped or the next one comes in. */
 .deck-carousel { --card-h: 340px; }
 @media (max-width: 640px) { .deck-carousel { --card-h: 340px; } }
-.deck-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
+.deck-track { position: relative; display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
 .deck-track::-webkit-scrollbar { display: none; }
 .deck-track > .flip-card { flex: 0 0 100%; height: var(--card-h); scroll-snap-align: start; scroll-snap-stop: always; animation: none; }
 .deck-track > .flip-card .flip-face { height: 100%; min-height: 0; overflow: hidden; }
@@ -2870,6 +2870,19 @@ select option:disabled { color: var(--text-3); }
 .flip-preview { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .deck-track > .flip-card .flip-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
 .deck-track > .flip-card .flip-face.back .flip-hint { margin-top: 0; }
+/* Laptops and up: three compact cards side by side, so a section's cards sit together. */
+@media (min-width: 900px) {
+  .deck-carousel { --card-h: 250px; }
+  .deck-track > .flip-card { flex-basis: calc((100% - 24px) / 3); }
+  .deck-track > .flip-card .flip-face { padding: 14px 15px; gap: 8px; }
+  .deck-track > .flip-card .flip-face.front { justify-content: flex-start; }
+  .deck-track > .flip-card .flip-face.front h3 { font-size: 15.5px; }
+  .deck-track > .flip-card .flip-face h3 { font-size: 15.5px; }
+  .deck-track > .flip-card .flip-preview { font-size: 13px; -webkit-line-clamp: 5; }
+  .deck-track > .flip-card .flip-body { font-size: 13px; }
+  .deck-track > .flip-card .study-card-kind { font-size: 10.5px; padding: 3px 8px; }
+  .deck-track > .flip-card .flip-hint { margin-top: auto !important; font-size: 11.5px; }
+}
 .deck-pager { display: flex; align-items: center; justify-content: center; gap: 14px; }
 .deck-arrow { display: inline-flex; width: 36px; height: 36px; padding: 0; align-items: center; justify-content: center;
   border: 1px solid var(--border); border-radius: 50%; background: var(--bg-1); color: var(--text-1); cursor: pointer; }

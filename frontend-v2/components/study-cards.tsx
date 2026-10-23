@@ -69,6 +69,8 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
   const [asText, setAsText] = useState(false);
   const [index, setIndex] = useState(0);
+  // Cards in view at once: one on phones, three side by side on wider screens.
+  const [perView, setPerView] = useState(1);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const tabsRef = useRef<HTMLElement | null>(null);
   const springBack = useRef<number | undefined>(undefined);
@@ -87,19 +89,28 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
   useEffect(() => { centerTab(); }, [currentKey, asText]);
   useEffect(() => () => window.clearTimeout(springBack.current), []);
 
-  const goTo = (n: number) => centerIn(trackRef.current, trackRef.current?.children[Math.max(0, Math.min(ordered.length - 1, n))] as HTMLElement | undefined);
-  // The card nearest the middle of the row is the current one.
+  const lastStart = Math.max(0, ordered.length - perView);
+  const goTo = (n: number) => {
+    const track = trackRef.current;
+    const card = track?.children[Math.max(0, Math.min(lastStart, n))] as HTMLElement | undefined;
+    if (track && card) track.scrollTo({ left: card.offsetLeft, behavior: "smooth" });
+  };
+  // The leftmost card in view is the current one.
   const onTrackScroll = () => {
     const track = trackRef.current;
-    if (!track) return;
-    const middle = track.scrollLeft + track.clientWidth / 2;
-    const distance = (el: Element) => {
-      const card = el as HTMLElement;
-      return Math.abs(card.offsetLeft + card.offsetWidth / 2 - middle);
-    };
-    const cards = Array.from(track.children);
-    setIndex(cards.reduce((best, el, n) => (distance(el) < distance(cards[best]) ? n : best), 0));
+    const first = track?.children[0] as HTMLElement | undefined;
+    if (!track || !first) return;
+    const cards = Array.from(track.children) as HTMLElement[];
+    const distance = (card: HTMLElement) => Math.abs(card.offsetLeft - track.scrollLeft);
+    setIndex(cards.reduce((best, card, n) => (distance(card) < distance(cards[best]) ? n : best), 0));
+    setPerView(Math.max(1, Math.round((track.clientWidth + 12) / (first.offsetWidth + 12))));
   };
+  // Count the cards in view on load and whenever the window is resized.
+  useEffect(() => {
+    onTrackScroll();
+    window.addEventListener("resize", onTrackScroll);
+    return () => window.removeEventListener("resize", onTrackScroll);
+  });
   // Tabs pushed aside by hand spring back to the current section after a moment, like a rubber band.
   const onTabsScroll = () => {
     window.clearTimeout(springBack.current);
@@ -173,8 +184,10 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
         </div>
         <div className="deck-pager">
           <button type="button" className="deck-arrow" aria-label="Previous card" disabled={index === 0} onClick={() => goTo(index - 1)}><Icon name="back" size={16} /></button>
-          <span className="deck-position" aria-live="polite">{index + 1} / {ordered.length}</span>
-          <button type="button" className="deck-arrow" aria-label="Next card" disabled={index === ordered.length - 1} onClick={() => goTo(index + 1)}><Icon name="arrow" size={16} /></button>
+          <span className="deck-position" aria-live="polite">
+            {perView > 1 ? `${index + 1}–${Math.min(ordered.length, index + perView)}` : index + 1} / {ordered.length}
+          </span>
+          <button type="button" className="deck-arrow" aria-label="Next card" disabled={index >= lastStart} onClick={() => goTo(index + 1)}><Icon name="arrow" size={16} /></button>
         </div>
       </>}
     </div>
