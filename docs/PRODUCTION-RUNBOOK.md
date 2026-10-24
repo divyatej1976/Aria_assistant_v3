@@ -44,7 +44,11 @@ Production" (instant rollback). Then fix calmly.
 | Bill / credits run out | All AI fails at once | Provider email; every request falls back | Top up; the backup provider carries traffic meanwhile | Billing alerts at 50/80/100% of budget; auto-recharge |
 | Cost spike (abuse or a loop) | Unexpected invoice | Langfuse / provider usage graph | Disable the offending feature flag or account | Per-user daily budgets (`ARIA_LLM_PER_USER_BUDGET_USD`); bot protection on sign-up |
 | Wrong or invented answers | Thumbs-down "wrong" | `feedback` ratings; user reports | Improve the prompt; add a test question | Answer-quality test set run before each release |
-| Outdated current-affairs answers | Thumbs-down "outdated" | Ratings with reason `outdated` | Check the web search ran (Sources list present) | Tune the "needs fresh info" detector; 20-question current-affairs test set |
+| Outdated current-affairs answers | Thumbs-down "outdated" | Ratings with reason `outdated` | Check the Sources list is present (search ran) | Tune the time-word detector and the tutor's search rule; 20-question current-affairs test set |
+| Search not triggered when needed | Confident but stale answer, no Sources | Thumbs-down "outdated"; spot checks | Add the missing cue to the detector | Weekly review of answers without sources on news-like questions |
+| Searching too often | Slow answers (~8 s) on ordinary questions; higher search bill | Logs count "Searching the web" per answer; provider usage | Narrow the detector words | Per-user daily search limit; cache popular searches for a few minutes |
+| Search provider down or quota hit | Answer says it could not verify the latest information | Logs: `web search failed` | Switch provider (OpenAI ↔ Gemini) by key | Keep both providers funded; alert on failure rate |
+| Unreliable or biased sources | Users question a source | Feedback reports | Remove/deny a domain | Domain allow/deny list; prefer official and major news sites |
 | Model retired by the provider | Errors after a provider announcement | Sentry spike; provider deprecation email | Set `LLM_MODEL` to the replacement (no code change) | Track deprecation notices; pin models in settings |
 
 ## 3. Background jobs (audio, long-file digests)
@@ -81,7 +85,8 @@ Production" (instant rollback). Then fix calmly.
 |---|---|---|---|---|
 | Layout broken on a phone size | Overlapping or cut-off screens | Feedback with page + browser | Fix the CSS, deploy | Phone screenshots in the release checklist |
 | Old app version cached | User sees an old screen after a deploy | Feedback mentions missing features | Ask user to refresh / reinstall the home-screen app | Version check that prompts "New version, reload" |
-| Can't find a page | "How do I get back?" | Feedback | Bottom tab bar on phones (done), back buttons on detail views | Usability test with 5 new users per release |
+| Can't find a page | "How do I get back?" | Feedback | Bottom tab bar on every phone screen and labeled Exit focus (done); back buttons on detail views | Usability test with 5 new users per release |
+| Feedback prompt annoys users | Low ratings mentioning popups | Ratings comments | Lengthen the interval (2 weeks today) | Ask only after positive moments; A/B the timing |
 | Device voice silent | Play does nothing on some phones | Feedback with the browser name | Suggest Chrome / Safari | Paid cloud voices so device voice is rarely needed |
 
 ---

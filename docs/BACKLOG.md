@@ -13,12 +13,11 @@ What can go wrong in production, how we notice and how we fix it: [PRODUCTION-RU
 | AI providers | ✅ code ready, ⏳ OpenAI key | OpenAI main + Gemini backup is built; today the live site still runs on Groq until the OpenAI key is added |
 | Image reading | ✅ | OpenAI vision → Gemini vision → Tesseract |
 | Voices / voice-to-text | ✅ code ready | OpenAI first when its key exists; device-voice fallback always works |
-| Current affairs (web search) | ✅ | Time-sensitive questions (or the 🌐 button) search the web; detailed Sources list under the answer |
+| Current affairs (web search) | ✅ | Automatic: time-sensitive questions search first, and the tutor itself asks for a search when unsure its knowledge is current; detailed Sources list under the answer |
 | Storage | ✅ | Uploaded originals in Blob, not the database; unused vectors not stored; 300-file cap per account; old jobs cleaned |
-| Feedback | ✅ | "Send feedback" + thumbs on answers, stored and triaged in the `feedback` table |
+| Feedback | ✅ | "Send feedback" (profile menu, phone menu, floating button on laptops), thumbs on answers, 1–5 star "How's ARIA?" prompt after a quiz, the 5th answer and at sign-out (once per 2 weeks) |
 | Monitoring | ✅ built, ⏳ Sentry keys | Sentry (web + API), `/api/v1/health`, GitHub uptime check every 10 min |
-| Mobile | ✅ installable (PWA) | Manifest + home-screen icons; bottom tab bar on every phone screen; native store apps are P2 |
-| Email | ⏳ | Needs Gmail app password or a Resend key |
+| Mobile / navigation | ✅ installable (PWA) | Manifest + home-screen icons; bottom tab bar on every phone screen (Learn too); labeled Exit focus; native store apps are P2 |
 | Hosting plans | ⏳ | Vercel Hobby + Supabase Free; upgrade before real users (P0 #6) |
 
 ---
@@ -52,18 +51,20 @@ Groq can be removed once OpenAI is live (keep `GROQ_API_KEY` only if you want a 
 - Router check for questions needing fresh information (dates, "latest", "today", "news", "2026",
   prices, scores, people in the news); only those use search (slower, costs more).
 - **OpenAI web search tool** when `OPENAI_API_KEY` is set, Google Search grounding via Gemini until then.
+- **Automatic, no button:** obviously time-sensitive questions search first; for anything else the
+  tutor answers from its own knowledge, or replies with a hidden search signal when it is unsure that
+  knowledge is current, and ARIA searches and answers again.
 - Under the answer: "Sources · web searched <date>", numbered like the answer's [1] [2], each with the
   exact page address (Google's redirect links are resolved) and the website; links open in a new tab.
 - "Searching the web…" shows while it searches (about 8 seconds per answer).
 - Prompt rule: never guess current facts; say so if search fails.
 - ⬜ Next: a 20-question current-affairs test set; per-user daily search limit before launch.
 
-### 3. Email ⏳
-- Gmail app password (lines already in `.env.deploy`) for a pilot, or Resend (~3k emails/month free).
-- **Effort:** 30 minutes once the key exists.
-
-### 4. Feedback ✅
-- Profile menu → **Send feedback** (text + page + browser attached).
+### 3. Feedback ✅
+- **Send feedback** from the profile menu, the phone menu (☰) or the floating button on laptops
+  (text + page + browser attached).
+- **"How's ARIA so far?"** 1–5 stars + comment, after a finished quiz, the 5th tutor answer and at
+  sign-out; at most once every two weeks. Low ratings (1–2) alert like problem reports.
 - 👍/👎 under every saved answer; 👎 asks what was wrong (wrong, too long, too short, outdated,
   ignored my file, other).
 - Stored in the `feedback` table (status new → in_progress → fixed); with Sentry on, every report
@@ -156,7 +157,7 @@ older uploads out of the database (only new uploads go to Blob).
 ## Suggested order from here
 
 1. ⏳ Add `OPENAI_API_KEY` → switch `ARIA_LLM_PROVIDER=openai` (P0 #1)
-2. ⏳ Sentry keys (P0 #5) and email (P0 #3)
+2. ⏳ Sentry keys (P0 #5)
 3. ✅ Web search for current affairs (P0 #2)
 4. ⏳ Vercel Pro + Supabase Pro before real users (P0 #6)
 5. ⬜ Capacitor store apps (P2)
