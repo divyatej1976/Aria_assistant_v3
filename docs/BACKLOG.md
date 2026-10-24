@@ -5,6 +5,7 @@ Prices are approximate and change often; check each provider's pricing page befo
 accounts) · ⬜ to do.
 
 What can go wrong in production, how we notice and how we fix it: [PRODUCTION-RUNBOOK.md](PRODUCTION-RUNBOOK.md).
+How ARIA grows from 1k to 1M users, phase by phase: [SCALING-PLAN.md](SCALING-PLAN.md).
 
 ## Where ARIA stands (24 Oct 2026)
 
@@ -161,4 +162,4 @@ older uploads out of the database (only new uploads go to Blob).
 3. ✅ Web search for current affairs (P0 #2)
 4. ⏳ Vercel Pro + Supabase Pro before real users (P0 #6)
 5. ⬜ Capacitor store apps (P2)
-6. ⬜ Load test → transaction pooler → Redis → managed queue (P1)
+6. ⬜ Scaling Phase 0 now (load tests, staging, dashboards), then Phases 1–3 by trigger: see SCALING-PLAN.md
