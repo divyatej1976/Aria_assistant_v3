@@ -4,6 +4,8 @@ Prices are approximate and change often; check each provider's pricing page befo
 "Effort" is for one developer working with Claude Code. Status: ✅ done · ⏳ waiting on you (keys,
 accounts) · ⬜ to do.
 
+What can go wrong in production, how we notice and how we fix it: [PRODUCTION-RUNBOOK.md](PRODUCTION-RUNBOOK.md).
+
 ## Where ARIA stands (24 Oct 2026)
 
 | Area | Status | Notes |
@@ -15,7 +17,7 @@ accounts) · ⬜ to do.
 | Storage | ✅ | Uploaded originals in Blob, not the database; unused vectors not stored; 300-file cap per account; old jobs cleaned |
 | Feedback | ✅ | "Send feedback" + thumbs on answers, stored and triaged in the `feedback` table |
 | Monitoring | ✅ built, ⏳ Sentry keys | Sentry (web + API), `/api/v1/health`, GitHub uptime check every 10 min |
-| Mobile | ✅ installable (PWA) | Manifest + home-screen icons; native store apps are P2 |
+| Mobile | ✅ installable (PWA) | Manifest + home-screen icons; bottom tab bar on every phone screen; native store apps are P2 |
 | Email | ⏳ | Needs Gmail app password or a Resend key |
 | Hosting plans | ⏳ | Vercel Hobby + Supabase Free; upgrade before real users (P0 #6) |
 

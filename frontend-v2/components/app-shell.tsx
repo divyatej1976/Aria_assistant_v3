@@ -369,8 +369,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
         <main className={`shell-content${isChat ? " shell-content-flush" : ""}`}>
-          {!isChat && (
-            <LayoutGroup id="mobile-workspace-navigation">
+          {/* Phones: a bottom tab bar on every page (Learn too), like a phone app. */}
+          <LayoutGroup id="mobile-workspace-navigation">
             <nav className="mobile-nav" aria-label="Primary">
               {NAV.filter((item) => MAIN_TABS.includes(item.href)).map((item) => {
                 const active = current === item;
@@ -387,8 +387,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <span>{current && !MAIN_TABS.includes(current.href) ? current.label : "More"}</span>
               </button>
             </nav>
-            </LayoutGroup>
-          )}
+          </LayoutGroup>
           {current && current.pages.length > 1 && (
             <nav className="section-tabs" aria-label={`${current.label} sections`}>
               {current.pages.map((page) => (

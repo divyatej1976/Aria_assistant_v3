@@ -672,7 +672,7 @@ function ContextLearn() {
             <span className="chat-subject">{context?.title ?? "Learn"}</span>
             <AssistantPresence state={recording ? "listening" : typing || transcribing ? "thinking" : replyError ? "error" : responding ? "responding" : "idle"} />
           </div>
-          <button className="icon-btn focus-toggle" aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Show the chat list and navigation again" : "Hide the chat list and navigation"} aria-pressed={focusMode} onClick={() => setFocusMode(value => !value)}><Icon name="target" size={17} /></button>
+          <button className="icon-btn focus-toggle" aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Show the chat list and navigation again" : "Hide the chat list and navigation"} aria-pressed={focusMode} onClick={() => setFocusMode(value => !value)}><Icon name="target" size={17} />{focusMode && <span>Exit focus</span>}</button>
         </div>
 
 

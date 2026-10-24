@@ -34,6 +34,8 @@ export const viewport: Viewport = {
   themeColor: "#0fa3a0",
   width: "device-width",
   initialScale: 1,
+  // Lets the bottom tab bar sit above the iPhone home indicator (env(safe-area-inset-bottom)).
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
