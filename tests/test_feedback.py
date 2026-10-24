@@ -38,3 +38,10 @@ def test_feedback_must_be_complete_and_signed_in(client) -> None:
 
 def test_health_is_reachable_under_api(client) -> None:
     assert client.get("/api/v1/health").json()["status"] == "ok"
+
+
+def test_learners_can_rate_aria_with_stars(client) -> None:
+    auth = {"Authorization": f"Bearer {_token(client)}"}
+    assert client.post("/api/v1/feedback", headers=auth, json={
+        "kind": "experience", "rating": "4", "message": "Cards are great"}).status_code == 201
+    assert client.post("/api/v1/feedback", headers=auth, json={"kind": "experience", "rating": "up"}).status_code == 422

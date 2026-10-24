@@ -637,6 +637,38 @@ async def _answer_small_talk(
     return StudyResult(content=answer, sources=sources, fallback_used=False)
 
 
+SEARCH_SIGNAL = "[[SEARCH]]"
+
+
+class _SearchSignalGate:
+    """Holds back the first characters of a streamed reply until it is clear whether the tutor
+    asked for a web search ([[SEARCH]]) instead of answering; a real answer passes straight on."""
+
+    def __init__(self, on_delta) -> None:
+        self.on_delta, self.buffer, self.decided, self.search = on_delta, "", False, False
+
+    def __call__(self, text: str) -> None:
+        if self.decided:
+            if not self.search and self.on_delta:
+                self.on_delta(text)
+            return
+        self.buffer += text
+        start = self.buffer.lstrip()
+        if len(start) >= len(SEARCH_SIGNAL) or (start and not SEARCH_SIGNAL.startswith(start)):
+            self._decide(start)
+
+    def _decide(self, start: str) -> None:
+        self.decided, self.search = True, start.startswith(SEARCH_SIGNAL)
+        if not self.search and self.on_delta and self.buffer:
+            self.on_delta(self.buffer)
+
+    def finish(self, answer: str | None) -> bool:
+        """True when the tutor asked for a search (whether or not it streamed)."""
+        if not self.decided:
+            self._decide((answer or self.buffer).lstrip())
+        return self.search or (answer or "").lstrip().startswith(SEARCH_SIGNAL)
+
+
 async def _web_findings(db: Session, question: str, *, web: bool | None, on_status=None):
     """(prompt section, sources) from a web search, when the question needs current facts or the
     learner asked (web=True); (None, []) otherwise or when the search fails."""
@@ -740,20 +772,27 @@ async def answer_question(
             sources=sources,
         )
         web_block, web_sources = await _web_findings(db, question, web=web, on_status=on_status)
-        system, user = build_prompt(question, package, style=style, web=web_block, **(
-            {"max_chars": whole_doc_chars(), "per_chunk": None} if whole_doc else {}))
-        try:
-            answer = await provider.generate_text(
-                system=system,
-                user=user,
-                prompt_version=get_prompt("study_answer").label(),
-                temperature=0.0,
-                **({"on_delta": on_delta} if on_delta else {}),
-            )
-        except TypeError:
-            answer = await provider.generate_text(
-                system=system, user=user, prompt_version=get_prompt("study_answer").label()
-            )
+
+        async def generate(web_section, deltas):
+            system, user = build_prompt(question, package, style=style, web=web_section, **(
+                {"max_chars": whole_doc_chars(), "per_chunk": None} if whole_doc else {}))
+            try:
+                return await provider.generate_text(
+                    system=system, user=user, prompt_version=get_prompt("study_answer").label(),
+                    temperature=0.0, **({"on_delta": deltas} if deltas else {}),
+                )
+            except TypeError:
+                return await provider.generate_text(
+                    system=system, user=user, prompt_version=get_prompt("study_answer").label()
+                )
+
+        # Without web results the tutor may answer "[[SEARCH]]" when it is unsure its knowledge is
+        # current; the gate keeps that signal off the screen, then ARIA searches and asks again.
+        gate = _SearchSignalGate(on_delta) if web_block is None and web is not False else None
+        answer = await generate(web_block, gate or on_delta)
+        if gate is not None and gate.finish(answer):
+            web_block, web_sources = await _web_findings(db, question, web=True, on_status=on_status)
+            answer = await generate(web_block or "Web results: the web search returned nothing usable.", on_delta)
         if not answer or not answer.strip():
             logger.warning("study llm returned an empty response; serving fallback")
             return StudyResult(

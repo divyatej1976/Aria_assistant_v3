@@ -1,5 +1,6 @@
 "use client";
 
+import { noteMilestone } from "@/components/experience-prompt";
 import { TopicList, type TopicState } from "@/components/topic-list";
 import { Modal } from "@/components/modal";
 import { PageGuide } from "@/components/page-guide";
@@ -283,6 +284,7 @@ function AssessPageWorkspace() {
         .then((s) => setReview((r) => (r ? { ...r, summary: s.summary } : r)))
         .catch(() => setReview((r) => (r ? { ...r, summary: null } : r)));
       void load(context.id);
+      window.setTimeout(() => noteMilestone("quiz"), 4000); // after they have seen the results
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not submit the assessment.", "error");
     } finally {

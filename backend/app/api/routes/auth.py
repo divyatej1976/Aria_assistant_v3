@@ -154,9 +154,16 @@ def signout(session: CurrentSession, response: Response, db: Db) -> dict[str, st
 
 @router.patch("/profile", response_model=LearnerResponse)
 def profile(request: ProfileUpdateRequest, learner: CurrentLearner, db: Db) -> LearnerResponse:
+    previous_email = learner.email
     updated = update_profile(
         db, learner, email=request.email, display_name=request.display_name
     )
+    if updated.email != previous_email:
+        # A changed address must be confirmed: send the link to the new inbox.
+        try:
+            request_email_verification(db, owner_id=updated.id)
+        except Exception:
+            logging.getLogger(__name__).exception("verification email for a changed address failed")
     return learner_response(updated)
 
 

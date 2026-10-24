@@ -2,6 +2,7 @@
 
 /* eslint-disable react-hooks/set-state-in-effect -- LearnPage must clear stale session state synchronously on context switch to prevent cross-context sends */
 
+import { noteMilestone } from "@/components/experience-prompt";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MicWaveform } from "@/components/mic-waveform";
 import { CameraCapture } from "@/components/camera-capture";
@@ -126,8 +127,6 @@ function ContextLearn() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
-  // 🌐: search the web for the next question (time-sensitive questions search on their own).
-  const [webOn, setWebOn] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   // Phones hide the chat list beside the conversation; this slides it in.
@@ -373,9 +372,8 @@ function ContextLearn() {
       let res: Msg | null = null;
       let streamed = false;
       setStatusText("");
-      setWebOn(false);
       await apiStream("/api/v1/study/sessions/" + sid + "/messages/stream",
-        { content, request_id: pending.requestId, depth: pending.depth, screen: screenSize(), ...(webOn ? { web: true } : {}) },
+        { content, request_id: pending.requestId, depth: pending.depth, screen: screenSize() },
         (event) => {
           if (version !== conversationVersion.current) return;
           if (event.type === "status") {
@@ -410,6 +408,7 @@ function ContextLearn() {
           sources: reply.sources, fallback_used: reply.fallback_used, depth: reply.depth, fresh: true, streaming: typed }];
       });
       setRetryRequest(null);
+      noteMilestone("reply");
       setResponding(true);
     } catch (error) {
       if (version !== conversationVersion.current || controller.signal.aborted) return;
@@ -846,13 +845,6 @@ function ContextLearn() {
               onKeyDown={(e) => { if (e.key === "Enter" && !replying) void send(input); }}
               disabled={ctxLoading || loading}
             />}
-            <button type="button" className={`btn web-toggle ${webOn ? "btn-primary" : "btn-secondary"}`} aria-pressed={webOn}
-              aria-label="Search the web" title={webOn ? "Web search on for your next question" : "Search the web for your next question"}
-              onClick={() => setWebOn((on) => !on)} disabled={ctxLoading || loading}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
-              </svg>
-            </button>
             <button
               type="button"
               className={`btn ${recording ? "btn-primary" : "btn-secondary"}`}

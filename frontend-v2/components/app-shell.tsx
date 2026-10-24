@@ -1,5 +1,6 @@
 "use client";
 
+import { ExperiencePrompt, askBeforeSignOut } from "@/components/experience-prompt";
 import { FeedbackDialog } from "@/components/feedback-dialog";
 import { LogoMark } from "@/components/logo-mark";
 import { useCallback, useEffect, useRef, useState, ViewTransition, type ReactNode, type CSSProperties, type MouseEventHandler } from "react";
@@ -337,7 +338,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
                 <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & settings</Link>
                 <button type="button" className="pop-link" onClick={() => { setProfileOpen(false); setFeedbackOpen(true); }}><Icon name="message" size={17} /> Send feedback</button>
-                <button type="button" className="pop-link signout" onClick={() => { signout().then(() => router.push("/")).catch(() => toast("Sign-out failed. Your session may still be active. Please retry.", "error")); }}><Icon name="logout" size={17} /> Sign Out</button>
+                <button type="button" className="pop-link signout" onClick={() => { setProfileOpen(false); askBeforeSignOut(() => signout().then(() => router.push("/")).catch(() => toast("Sign-out failed. Your session may still be active. Please retry.", "error"))); }}><Icon name="logout" size={17} /> Sign Out</button>
               </ShellPopover>
             )}
             </AnimatePresence>
@@ -405,6 +406,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      <ExperiencePrompt />
+      {/* Always within reach on laptops; phones have it in the menu (☰). */}
+      <button type="button" className="feedback-fab" onClick={() => setFeedbackOpen(true)} aria-label="Send feedback" title="Send feedback">
+        <Icon name="message" size={18} /><span>Feedback</span>
+      </button>
       <Modal open={mobileMenuOpen} title="Navigation" onClose={() => setMobileMenuOpen(false)}>
         <div className="modal mobile-workspace-drawer">
           <div className="section-head"><h2>Explore ARIA</h2><button className="btn btn-ghost" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)}><Icon name="x" /></button></div>
@@ -413,6 +419,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <nav aria-label="Mobile workspace">
             {[...NAV, { href: "/app/account", label: "Account", icon: "user" as IconName }].map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} onClick={() => setMobileMenuOpen(false)}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
           </nav>
+          <button type="button" className="btn btn-secondary btn-block ui-mt-16" onClick={() => { setMobileMenuOpen(false); setFeedbackOpen(true); }}>
+            <Icon name="message" size={16} /> Send feedback
+          </button>
         </div>
       </Modal>
     </div>

@@ -210,3 +210,16 @@ def test_changing_email_clears_verification(client: TestClient) -> None:
     me = client.get("/api/v1/auth/me", headers=headers(token)).json()
     assert me["email"] == "reverify-new@example.com"
     assert me["verified"] is False
+
+
+def test_changing_email_sends_a_verification_link_to_the_new_address(client, monkeypatch):
+    sent = []
+    monkeypatch.setattr("app.services.account_actions._send_email",
+                        lambda provider, *, recipient, **kwargs: sent.append(recipient))
+    token = client.post("/api/v1/auth/register", json={
+        "email": "old-address@example.com", "password": "correct-horse-9", "display_name": "L"}).json()["access_token"]
+    sent.clear()
+    response = client.patch("/api/v1/auth/profile", headers={"Authorization": f"Bearer {token}"},
+                            json={"email": "new-address@example.com"})
+    assert response.status_code == 200 and response.json()["verified"] is False
+    assert sent == ["new-address@example.com"]

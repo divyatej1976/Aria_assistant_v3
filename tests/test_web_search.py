@@ -106,3 +106,50 @@ def test_google_redirect_links_become_the_real_pages(monkeypatch):
                         lambda **kwargs: _RealClient(transport=httpx.MockTransport(handler), **kwargs))
     found = asyncio.run(web_search._gemini("Who is PM?", key="k", model="m"))
     assert found.sources == [("wikipedia.org", "https://en.wikipedia.org/wiki/Prime_Minister")]
+
+
+def test_tutor_asks_for_a_search_when_unsure_and_the_signal_never_reaches_the_screen(monkeypatch, session_factory):
+    from uuid import uuid4
+
+    from app.db.models import LearningContext
+    from app.services import study
+
+    prompts, shown = [], []
+
+    class Provider:
+        async def generate_text(self, *, system, user, on_delta=None, **kwargs):
+            prompts.append(user)
+            reply = "[[SEARCH]]" if "Web results" not in user else "According to [1], it launched on 3 Nov."
+            for piece in (reply[:4], reply[4:]):
+                if on_delta:
+                    on_delta(piece)
+            return reply
+
+    async def fake_search(question):
+        return WebFindings("- Launched 3 Nov 2026.", [("Space News", "https://space.example/x")], "24 October 2026")
+
+    monkeypatch.setattr(study, "get_llm_provider_for_owner", lambda db, owner_id: Provider())
+    monkeypatch.setattr(web_search, "search_web", fake_search)
+    with session_factory() as db:
+        owner = uuid4()
+        context = LearningContext(owner_id=owner, title="Space")
+        db.add(context)
+        db.commit()
+        statuses = []
+        # No time words: the tutor itself decides it needs the web.
+        result = asyncio.run(study.answer_question(db, owner_id=owner, context_id=context.id,
+                                                   question="What is the name of the Artemis IV commander?",
+                                                   on_delta=shown.append, on_status=statuses.append))
+    assert len(prompts) == 2 and "Web results" in prompts[1]
+    assert "".join(shown) == "According to [1], it launched on 3 Nov." and "[[SEARCH" not in "".join(shown)
+    assert statuses == ["Searching the web…"] and result.sources[0].url == "https://space.example/x"
+
+
+def test_ordinary_answers_stream_unchanged_through_the_gate():
+    from app.services.study import _SearchSignalGate
+
+    shown = []
+    gate = _SearchSignalGate(shown.append)
+    for piece in ["A ", "stack is ", "last in, first out."]:
+        gate(piece)
+    assert not gate.finish("A stack is last in, first out.") and "".join(shown) == "A stack is last in, first out."

@@ -22,7 +22,7 @@ def send_feedback(request: FeedbackRequest, learner: CurrentLearner, db: Db) -> 
     db.add(item)
     db.commit()
     logger.info("feedback received kind=%s rating=%s reason=%s", item.kind, item.rating, item.reason)
-    if item.kind == "report" or item.rating == "down":
+    if item.kind == "report" or item.rating in ("down", "1", "2"):
         # With Sentry on, each problem report or thumbs-down raises an alert linked to the user.
         try:
             import sentry_sdk
