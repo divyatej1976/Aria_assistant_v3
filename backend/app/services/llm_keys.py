@@ -246,8 +246,9 @@ def resolve_credential(
         if api_key:
             model = row.model or settings.llm_model
             return api_key, model, "learner"
-    route = (getattr(settings, "aria_llm_provider", None) or "groq").strip().lower()
-    global_key = getattr(settings, "aria_llm_api_key", None) or (settings.groq_api_key if route == "groq" else None)
+    from app.ai.registry import main_route, provider_key
+
+    global_key = provider_key(main_route())
     if global_key:
         return global_key, settings.llm_model, "global"
     return None, settings.llm_model, "none"
@@ -263,4 +264,7 @@ def get_llm_provider_for_owner(db: Session, *, owner_id: UUID):
     # Learner keys are Groq keys; the deployment's own key follows ARIA_LLM_PROVIDER.
     deployment = (getattr(get_settings(), "aria_llm_provider", None) or "groq").strip().lower()
     route = "groq" if source == "learner" else deployment
-    return LiteLLMGroqProvider(api_key=api_key, model=model, owner_id=owner_id, db=db, route=route)
+    from app.ai.registry import fallback_target
+
+    return LiteLLMGroqProvider(api_key=api_key, model=model, owner_id=owner_id, db=db, route=route,
+                               fallback=fallback_target(route) if source == "global" else None)

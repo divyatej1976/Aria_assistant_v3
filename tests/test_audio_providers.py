@@ -272,3 +272,17 @@ def test_gemini_daily_quota_is_told_to_the_learner_and_short_limits_are_waited_o
     with pytest.raises(VoiceQuotaExceeded, match="free daily voice limit.*16 h"):
         chain.generate(text="Hello there.")
     assert slept == [2.0]  # the per-minute limit is waited out; the daily one is not
+
+
+def test_openai_comes_first_for_voices_and_voice_to_text_when_its_key_is_set(monkeypatch) -> None:
+    from app.ai.providers import ChainedTTSProvider, CloudSTTProvider, CloudTTSProvider
+    from app.core.config import get_settings
+    from app.services.audio import get_stt_provider, get_tts_provider
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "gemini_api_key", "g-test")
+    tts = get_tts_provider()
+    assert isinstance(tts, ChainedTTSProvider) and isinstance(tts.providers[0], CloudTTSProvider)
+    assert tts.providers[0].learner_voice != tts.providers[0].voice  # two-voice episodes stay distinct
+    assert isinstance(get_stt_provider(), CloudSTTProvider)

@@ -106,8 +106,14 @@ def _serialize_export(row) -> dict:
             "included" if audio is not None else "unavailable" if row.status == "READY" else "not_generated"
         )
     if isinstance(row, Resource):
+        from app.services.resource_ingestion import original_bytes
+
+        # Originals live in file storage; the export still carries them.
+        original = original_bytes(row) if row.storage_key else row.raw_bytes
+        if original is not None:
+            out["raw_bytes"] = base64.b64encode(original).decode("ascii")
         out["original_bytes_status"] = (
-            "included" if row.raw_bytes is not None
+            "included" if original is not None
             else "not_applicable" if row.resource_type == "TEXT" else "unavailable"
         )
     return out
@@ -210,6 +216,7 @@ def delete_context_cascade(db: Session, *, owner_id: UUID, context_id: UUID) -> 
     # do NOT wrap in a second db.begin() — _owned_context lookup already opened
     # SQLAlchemy's autobegin transaction for this Session.
     try:
+        file_keys = list(db.scalars(select(Resource.storage_key).where(Resource.id.in_(resource_ids))))
         audio_keys = list(db.scalars(select(AudioArtifact.storage_key).where(
             AudioArtifact.owner_id == owner_id,
             or_(
@@ -300,6 +307,8 @@ def delete_context_cascade(db: Session, *, owner_id: UUID, context_id: UUID) -> 
         db.rollback()
         raise
     from app.services.audio import _remove_stored
+    from app.services.audio_storage import remove_files
 
     _remove_stored(audio_keys)
+    remove_files(file_keys)
     return True

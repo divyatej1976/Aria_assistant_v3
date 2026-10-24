@@ -78,15 +78,40 @@ def extract_text_from_image(image_bytes: bytes, mime_type: str | None = None) ->
     from app.core.config import get_settings
 
     settings = get_settings()
-    key = getattr(settings, "gemini_api_key", None)
-    if key:
+    readers = []
+    if getattr(settings, "openai_api_key", None):
+        readers.append(lambda: _openai_vision_text(image_bytes, mime_type, key=settings.openai_api_key,
+                                                   model=settings.aria_openai_vision_model))
+    if getattr(settings, "gemini_api_key", None):
+        readers.append(lambda: _vision_text(image_bytes, mime_type, key=settings.gemini_api_key,
+                                            model=settings.aria_vision_model))
+    for read in readers:
         try:
-            text = _vision_text(image_bytes, mime_type, key=key, model=settings.aria_vision_model)
+            text = read()
             if text:
                 return text
-        except Exception as exc:  # noqa: BLE001 - fall back to local OCR on any vision failure
-            logger.warning("vision transcription failed, using OCR error_type=%s", type(exc).__name__)
+        except Exception as exc:  # noqa: BLE001 - try the next reader, then local OCR
+            logger.warning("vision transcription failed, trying the next reader error_type=%s", type(exc).__name__)
     return _tesseract_text(image_bytes, mime_type)
+
+
+def _openai_vision_text(image_bytes: bytes, mime_type: str, *, key: str, model: str) -> str:
+    import base64
+
+    import httpx
+
+    data_url = f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode()}"
+    response = httpx.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {key}"},
+        json={"model": model, "messages": [{"role": "user", "content": [
+            {"type": "text", "text": VISION_PROMPT},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]}]},
+        timeout=90,
+    )
+    response.raise_for_status()
+    return (response.json()["choices"][0]["message"].get("content") or "").strip()
 
 
 def _vision_text(image_bytes: bytes, mime_type: str, *, key: str, model: str) -> str:

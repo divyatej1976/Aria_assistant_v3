@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
 from app.db.base import Base
-from app.db.models import AudioArtifact, Learner, LearnerSession
+from app.db.models import AudioArtifact, Learner, LearnerSession, Resource
 from app.security.passwords import hash_password, verify_password
 
 _RESET_EXCLUDED_TABLES = {
@@ -103,6 +103,7 @@ def change_password(
 
 def reset_learner_data(db: Session, *, owner_id: UUID) -> None:
     keys = list(db.scalars(select(AudioArtifact.storage_key).where(AudioArtifact.owner_id == owner_id)))
+    file_keys = list(db.scalars(select(Resource.storage_key).where(Resource.owner_id == owner_id)))
     for table in _learner_data_tables():
         db.execute(table.delete().where(table.c.owner_id == owner_id))
     db.execute(
@@ -112,5 +113,7 @@ def reset_learner_data(db: Session, *, owner_id: UUID) -> None:
     )
     db.commit()
     from app.services.audio import _remove_stored
+    from app.services.audio_storage import remove_files
 
     _remove_stored(keys)
+    remove_files(file_keys)

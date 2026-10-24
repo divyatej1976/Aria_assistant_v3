@@ -119,3 +119,51 @@ def test_images_are_read_by_gemini_vision_when_configured_and_fall_back_to_ocr(m
 
     monkeypatch.setattr("httpx.post", failing_post)
     assert ocr.extract_text_from_image(b"\x89PNG\r\n\x1a\n...", "image/png") == "tesseract garbage"
+
+
+def test_uploaded_originals_live_in_file_storage_not_the_database(session_factory, monkeypatch, tmp_path):
+    import asyncio
+    from uuid import uuid4
+
+    from app.db.models import LearningContext
+    from app.services import resource_ingestion
+    from app.services.audio_storage import LocalAudioStorage
+
+    storage = LocalAudioStorage(tmp_path / "files")
+    monkeypatch.setattr(resource_ingestion, "get_file_storage", lambda: storage)
+    monkeypatch.setattr("app.services.audio_storage.get_file_storage", lambda: storage)
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 72), "Stacks are last in, first out.")
+    pdf = doc.tobytes()
+    with session_factory() as db:
+        owner = uuid4()
+        context = LearningContext(owner_id=owner, title="DS")
+        db.add(context)
+        db.commit()
+        resource = asyncio.run(resource_ingestion.create_pdf_resource(
+            db, owner_id=owner, context_id=context.id, title="Stacks", content=pdf))
+        assert resource.processing_status == "READY"
+        assert resource.raw_bytes is None and resource.storage_key
+        assert resource_ingestion.original_bytes(resource) == pdf
+        resource_ingestion.delete_resource(db, resource=resource)
+        assert storage.load(resource.storage_key) is None
+
+
+def test_an_account_cannot_save_more_than_the_file_limit(session_factory, monkeypatch):
+    import asyncio
+    from uuid import uuid4
+
+    from app.core.config import get_settings
+    from app.db.models import LearningContext
+    from app.services.resource_ingestion import create_text_resource
+
+    monkeypatch.setattr(get_settings(), "aria_max_files_per_user", 2)
+    with session_factory() as db:
+        owner = uuid4()
+        context = LearningContext(owner_id=owner, title="DS")
+        db.add(context)
+        db.commit()
+        for n in range(2):
+            asyncio.run(create_text_resource(db, owner_id=owner, context_id=context.id, title=f"T{n}", text="Stacks are LIFO."))
+        with pytest.raises(ValidationError, match="Delete some in the Library"):
+            asyncio.run(create_text_resource(db, owner_id=owner, context_id=context.id, title="T3", text="Queues are FIFO."))

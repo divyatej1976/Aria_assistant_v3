@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { PaletteProvider } from "@/components/palette-provider";
@@ -25,6 +25,15 @@ export const metadata: Metadata = {
   title: "ARIA — AI-Powered Personalized Learning System",
   description:
     "Your AI companion for your entire learning journey. Learn, assess, plan, listen, create and track.",
+  // Home-screen app on iPhone (Android reads app/manifest.ts).
+  appleWebApp: { capable: true, title: "ARIA", statusBarStyle: "default" },
+  icons: { apple: "/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0fa3a0",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

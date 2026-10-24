@@ -6,6 +6,7 @@ hidden behind the SQLite stand-in.
 """
 
 import os
+import tempfile
 from collections.abc import Generator
 
 import pytest
@@ -24,6 +25,9 @@ os.environ["GROQ_API_KEY"] = ""
 # The same for an OpenAI/Gemini key in keys.env.
 os.environ["ARIA_LLM_API_KEY"] = ""
 os.environ["BLOB_READ_WRITE_TOKEN"] = ""  # tests store audio on local disk
+# ...in a throwaway folder, so uploads and audio never land in the working tree.
+os.environ["ARIA_AUDIO_DIR"] = tempfile.mkdtemp(prefix="aria-test-storage-")
+os.environ["OPENAI_API_KEY"] = ""
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["ARIA_LLM_PROVIDER"] = "groq"
 os.environ["LLM_MODEL"] = "openai/gpt-oss-120b"

@@ -10,15 +10,45 @@ Returns None when no provider is configured so callers can fall back.
 from app.core.config import get_settings
 
 
+def main_route() -> str:
+    return (getattr(get_settings(), "aria_llm_provider", None) or "groq").strip().lower()
+
+
+def provider_key(route: str) -> str | None:
+    """The key for a provider: ARIA_LLM_API_KEY for the main one, else that provider's own key."""
+    settings = get_settings()
+    own = {"groq": settings.groq_api_key, "openai": getattr(settings, "openai_api_key", None),
+           "gemini": getattr(settings, "gemini_api_key", None)}.get(route)
+    if route == main_route():
+        return getattr(settings, "aria_llm_api_key", None) or own
+    return own
+
+
+def fallback_target(route: str) -> tuple[str, str, str] | None:
+    """(route, key, model) of the backup provider for `route`, or None."""
+    settings = get_settings()
+    choice = (getattr(settings, "aria_llm_fallback_provider", "auto") or "auto").strip().lower()
+    if choice == "none":
+        return None
+    backup = {"openai": "gemini", "gemini": "openai", "groq": "openai"}.get(route) if choice == "auto" else choice
+    if not backup or backup == route:
+        return None
+    key = provider_key(backup)
+    model = {"openai": getattr(settings, "aria_openai_fallback_model", "gpt-5-mini"),
+             "gemini": getattr(settings, "aria_gemini_fallback_model", "gemini-2.5-flash")}.get(backup)
+    return (backup, key, model) if key and model else None
+
+
 def get_llm_provider():
     settings = get_settings()
-    route = (getattr(settings, "aria_llm_provider", None) or "groq").strip().lower()
-    api_key = getattr(settings, "aria_llm_api_key", None) or (settings.groq_api_key if route == "groq" else None)
+    route = main_route()
+    api_key = provider_key(route)
     if not api_key:
         return None
     from app.ai.providers import LiteLLMGroqProvider
 
-    return LiteLLMGroqProvider(api_key=api_key, model=settings.llm_model, route=route)
+    return LiteLLMGroqProvider(api_key=api_key, model=settings.llm_model, route=route,
+                               fallback=fallback_target(route))
 
 
 def get_llm_provider_for_owner(db, *, owner_id):

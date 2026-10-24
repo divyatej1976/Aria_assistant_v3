@@ -22,6 +22,11 @@ _CONTENT_TYPE_EXTENSIONS = {
     "audio/webm": "webm",
     "audio/mp4": "m4a",
     "audio/ogg": "ogg",
+    # Uploaded originals (get_file_storage)
+    "application/pdf": "pdf",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
 }
 
 
@@ -142,22 +147,22 @@ class BlobAudioStorage:
 
     API = "https://blob.vercel-storage.com"
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, folder: str = "audio") -> None:
         self._headers = {"authorization": f"Bearer {token}", "x-api-version": "7"}
+        self._folder = folder
 
     def save(self, *, owner_id: UUID, artifact_id: UUID, content_type: str | None, data: bytes) -> str:
         import httpx
 
-        path = f"audio/{owner_id}/{artifact_id}.{_extension(content_type)}"
+        path = f"{self._folder}/{owner_id}/{artifact_id}.{_extension(content_type)}"
         response = httpx.put(f"{self.API}/{path}", content=data, timeout=120, headers={
             **self._headers, "x-content-type": content_type or "application/octet-stream",
             "x-add-random-suffix": "0", "x-allow-overwrite": "1"})
         response.raise_for_status()
         return response.json()["url"]
 
-    @staticmethod
-    def _ours(key: str) -> bool:
-        return key.startswith("https://") and ".public.blob.vercel-storage.com/audio/" in key
+    def _ours(self, key: str) -> bool:
+        return key.startswith("https://") and f".public.blob.vercel-storage.com/{self._folder}/" in key
 
     def load(self, key: str) -> bytes | None:
         import httpx
@@ -185,3 +190,25 @@ def get_audio_storage() -> AudioStorage:
     if settings.blob_read_write_token:
         return BlobAudioStorage(settings.blob_read_write_token)
     return LocalAudioStorage(settings.aria_audio_dir)
+
+
+def get_file_storage() -> AudioStorage:
+    """Where uploaded originals (PDFs, photos) live, so they stay out of the database."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if settings.blob_read_write_token:
+        return BlobAudioStorage(settings.blob_read_write_token, folder="files")
+    # Not a UUID name, so the audio orphan sweep (UUID folders only) never touches it.
+    return LocalAudioStorage(Path(settings.aria_audio_dir) / "files")
+
+
+def remove_files(keys: list[str | None]) -> None:
+    """Delete stored originals; a failure is logged and left for a later retry, never raised."""
+    storage = get_file_storage()
+    for key in keys:
+        if key:
+            try:
+                storage.delete(key)
+            except Exception:
+                logger.exception("file storage delete failed")

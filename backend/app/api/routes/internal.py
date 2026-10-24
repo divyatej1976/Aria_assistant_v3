@@ -60,6 +60,9 @@ def tick(db: Db, authorization: str | None = Header(default=None)) -> dict:
     for artifact in waiting:
         jobs.enqueue(db, kind="audio", owner_id=artifact.owner_id, target_id=artifact.id, start=False)
     db.execute(delete(UploadChunk).where(UploadChunk.created_at < datetime.now(UTC) - timedelta(days=1)))
+    # Finished jobs are only history; keep a week of it so the table stays small.
+    db.execute(delete(Job).where(Job.status.in_(["done", "failed"]),
+                                 Job.updated_at < datetime.now(UTC) - timedelta(days=7)))
     db.commit()
     pending = jobs.runnable_count(db)
     if pending:

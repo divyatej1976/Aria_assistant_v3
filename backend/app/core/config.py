@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # ARIA_LLM_API_KEY and an LLM_MODEL from that provider, e.g. gpt-4o-mini or gemini-2.5-flash.
     aria_llm_provider: str = "groq"
     aria_llm_api_key: str | None = Field(default=None, repr=False)
+    # Provider keys by name; ARIA_LLM_API_KEY, when set, overrides the main provider's key.
+    openai_api_key: str | None = Field(default=None, repr=False)
+    # The backup that retries a request the main provider failed (outage, rate limit, billing):
+    # "auto" picks Gemini behind OpenAI and OpenAI behind Gemini when that key exists; "none" turns it off.
+    aria_llm_fallback_provider: str = "auto"
+    aria_openai_fallback_model: str = "gpt-5-mini"
+    aria_gemini_fallback_model: str = "gemini-2.5-flash"
     # Background jobs. "thread" runs workers in this process (local); "http" starts each worker as
     # its own request to ARIA_PUBLIC_URL (serverless hosts, where threads stop with the request).
     aria_job_runner: str = "thread"
@@ -47,6 +54,12 @@ class Settings(BaseSettings):
     aria_gemini_tts_model: str = "gemini-2.5-flash-preview-tts"
     aria_gemini_tts_voice: str = "Kore"
     aria_gemini_tts_voice_2: str = "Puck"
+    # OpenAI voices and models, used first whenever OPENAI_API_KEY is set.
+    aria_openai_tts_model: str = "gpt-4o-mini-tts"
+    aria_openai_tts_voice: str = "nova"
+    aria_openai_tts_voice_2: str = "onyx"
+    aria_openai_stt_model: str = "gpt-4o-mini-transcribe"
+    aria_openai_vision_model: str = "gpt-5-mini"
     # Reads uploaded images (handwritten notes, photos of slides) when GEMINI_API_KEY is set.
     aria_vision_model: str = "gemini-2.5-flash"
     aria_brain_routing: bool = False
@@ -128,6 +141,8 @@ class Settings(BaseSettings):
     # S3-compatible backends implement AudioStorage later without migration:
     # artifacts carry a storage_key either way.
     aria_audio_dir: str = "audiofiles"
+    # Most saved files (library + chat attachments) one account may keep; 0 = no limit.
+    aria_max_files_per_user: int = 300
 
     @property
     def cors_origins(self) -> list[str]:

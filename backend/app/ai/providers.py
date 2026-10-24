@@ -149,10 +149,11 @@ class CloudEmbeddingProvider:
 
 
 class CloudTTSProvider:
-    def __init__(self, *, api_key: str, model: str = "tts-1", voice: str = "nova") -> None:
+    def __init__(self, *, api_key: str, model: str = "tts-1", voice: str = "nova", learner_voice: str = "onyx") -> None:
         self.api_key = api_key
         self.model = model
         self.voice = voice
+        self.learner_voice = learner_voice
 
     def generate(self, *, text: str, voice: str | None = None) -> tuple[bytes, str, int]:
         parts: list[bytes] = []
@@ -161,8 +162,8 @@ class CloudTTSProvider:
                 "https://api.openai.com/v1/audio/speech",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={
-                    # OpenAI has its own voice names; the Groq-specific second voice does not apply.
-                    "model": self.model, "voice": self.voice,
+                    # OpenAI has its own voice names: any `voice` asked for means the learner's line.
+                    "model": self.model, "voice": self.learner_voice if voice else self.voice,
                     "input": segment, "response_format": "wav",
                 },
                 timeout=60,
@@ -454,8 +455,11 @@ MAX_OUTPUT_TOKENS = 8192
 
 
 class LiteLLMGroqProvider:
-    def __init__(self, *, api_key: str, model: str, owner_id=None, db=None, route: str = "groq") -> None:
+    def __init__(self, *, api_key: str, model: str, owner_id=None, db=None, route: str = "groq",
+                 fallback: tuple[str, str, str] | None = None) -> None:
         self.api_key = api_key
+        # (route, key, model) that retries a request this provider failed; see registry.fallback_target.
+        self.fallback = fallback
         self.model = model
         # LiteLLM provider prefix: "groq", "openai" or "gemini" (learner keys are always Groq).
         self.route = route
@@ -464,6 +468,25 @@ class LiteLLMGroqProvider:
         self.db = db
 
     async def _acompletion(self, **kwargs):
+        try:
+            return await self._acompletion_once(**kwargs)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if not self.fallback:
+                raise
+            route, key, model = self.fallback
+            logger.warning("llm provider failed, using backup from=%s to=%s error_type=%s",
+                           self.route, route, type(exc).__name__)
+            backup = {**kwargs, "model": f"{route}/{model}", "api_key": key}
+            backup.pop("reasoning_effort", None)
+            if route == "gemini":
+                backup["reasoning_effort"] = "disable"
+            from litellm import acompletion
+
+            return await acompletion(**backup)
+
+    async def _acompletion_once(self, **kwargs):
         from litellm import RateLimitError, acompletion
 
         if self.db is not None:

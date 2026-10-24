@@ -289,3 +289,42 @@ def test_no_frontend_or_api_surface_exposes_groq_key() -> None:
     from app.core.config import Settings
 
     assert Settings.model_fields["groq_api_key"].repr is False
+
+
+def test_a_failed_request_is_retried_on_the_backup_provider(monkeypatch):
+    import asyncio
+
+    import litellm
+
+    from app.ai.providers import LiteLLMGroqProvider
+
+    calls = []
+
+    async def fake_acompletion(**kwargs):
+        calls.append((kwargs["model"], kwargs["api_key"], kwargs.get("reasoning_effort")))
+        if kwargs["model"].startswith("openai/"):
+            raise RuntimeError("openai is down")
+        return "backup answer"
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    provider = LiteLLMGroqProvider(api_key="sk-main", model="gpt-x", route="openai",
+                                   fallback=("gemini", "g-key", "gemini-2.5-flash"))
+    assert asyncio.run(provider._acompletion(model="openai/gpt-x", api_key="sk-main", messages=[])) == "backup answer"
+    assert calls == [("openai/gpt-x", "sk-main", None), ("gemini/gemini-2.5-flash", "g-key", "disable")]
+
+
+def test_backup_provider_is_chosen_from_the_keys_present(monkeypatch):
+    from app.ai import registry
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "aria_llm_provider", "openai")
+    monkeypatch.setattr(settings, "openai_api_key", "sk-main")
+    monkeypatch.setattr(settings, "gemini_api_key", "g-key")
+    assert registry.provider_key("openai") == "sk-main"
+    assert registry.fallback_target("openai") == ("gemini", "g-key", "gemini-2.5-flash")
+    monkeypatch.setattr(settings, "gemini_api_key", None)
+    assert registry.fallback_target("openai") is None
+    monkeypatch.setattr(settings, "gemini_api_key", "g-key")
+    monkeypatch.setattr(settings, "aria_llm_fallback_provider", "none")
+    assert registry.fallback_target("openai") is None

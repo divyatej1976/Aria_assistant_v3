@@ -1,7 +1,8 @@
+import logging
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import anyio.to_thread
 from sqlalchemy import String, cast, delete, select, update
@@ -11,6 +12,7 @@ from app.ai.registry import get_embedding_provider
 from app.core.errors import ValidationError
 from app.db.models import ConceptChunk, Resource, ResourceChunk
 from app.services.audio import delete_artifacts_for_source as delete_audio_artifacts
+from app.services.audio_storage import get_file_storage, remove_files
 from app.services.contexts import get_owned_context
 from app.services.ocr import (
     MAX_IMAGE_BYTES,
@@ -18,6 +20,8 @@ from app.services.ocr import (
     extract_text_from_image,
     extract_text_from_pdf,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _extraction_error(exc: Exception) -> str:
@@ -111,18 +115,25 @@ async def _process_resource(
         chunks = chunk_text(text)
         if not chunks:
             raise ValueError("No readable text could be extracted")
-        embeddings = await get_embedding_provider().embed(chunks)
+        from app.ai.providers import DeterministicEmbeddingProvider
         from app.core.config import get_settings
 
+        provider = get_embedding_provider()
+        # Hashed stand-in vectors are never used for search (study.semantic_scoring_available), so
+        # without a real embedding key nothing is stored: ~10 KB saved per chunk.
+        semantic = not isinstance(provider, DeterministicEmbeddingProvider)
+        embeddings = await provider.embed(chunks) if semantic else [None] * len(chunks)
+        # Postgres keeps the native vector only; the JSON copy is for SQLite, which has no vector type.
+        keep_json = db.get_bind().dialect.name != "postgresql"
         expected_dim = get_settings().aria_embedding_dim
         # Fully validate and stage the new version before deleting usable data.
         staged = []
         for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
-            if len(embedding) != expected_dim:
+            if embedding is not None and len(embedding) != expected_dim:
                 raise ValueError("Unexpected embedding dimensions")
             staged.append(ResourceChunk(
-                owner_id=resource.owner_id, resource_id=resource.id,
-                content=chunk, chunk_index=index, embedding_json=embedding, embedding=embedding,
+                owner_id=resource.owner_id, resource_id=resource.id, content=chunk, chunk_index=index,
+                embedding_json=embedding if keep_json else None, embedding=embedding,
                 metadata_json={"source": (replacements or {}).get("title", resource.title)},
             ))
     except Exception:
@@ -172,6 +183,7 @@ async def create_text_resource(
             return existing
     if not text.strip():
         raise ValidationError("Resource text cannot be empty")
+    _check_file_limit(db, owner_id)
     resource = Resource(
         **({"id": resource_id} if resource_id is not None else {}),
         owner_id=owner_id,
@@ -190,11 +202,44 @@ async def create_text_resource(
     return await _process_resource(db, resource, text)
 
 
+def _check_file_limit(db: Session, owner_id: UUID) -> None:
+    """One account cannot fill the shared storage: a cap on saved files (library and chat)."""
+    from sqlalchemy import func
+
+    from app.core.config import get_settings
+
+    limit = get_settings().aria_max_files_per_user
+    if limit and (db.scalar(select(func.count(Resource.id)).where(Resource.owner_id == owner_id)) or 0) >= limit:
+        raise ValidationError(f"You have {limit} saved files, the most an account can keep. "
+                              "Delete some in the Library to add more.")
+
+
+def _store_original(owner_id: UUID, content: bytes, content_type: str | None) -> dict:
+    """Keep an uploaded original in file storage (Blob), not the database: databases are
+    small and priced by size. If storage is unavailable, the bytes stay in the row."""
+    resource_id = uuid4()
+    try:
+        key = get_file_storage().save(owner_id=owner_id, artifact_id=resource_id,
+                                      content_type=content_type, data=content)
+        return {"id": resource_id, "storage_key": key, "raw_bytes": None}
+    except Exception:
+        logger.exception("file storage failed; keeping the original in the database")
+        return {"id": resource_id, "raw_bytes": content}
+
+
+def original_bytes(resource: Resource) -> bytes | None:
+    """An upload's original file, wherever it is kept."""
+    if resource.raw_bytes is not None:
+        return resource.raw_bytes
+    return get_file_storage().load(resource.storage_key) if resource.storage_key else None
+
+
 async def create_pdf_resource(
     db: Session, *, owner_id: UUID, context_id: UUID, title: str, content: bytes,
     study_session_id: UUID | None = None,
 ) -> Resource:
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    _check_file_limit(db, owner_id)
     try:
         import fitz  # noqa: F401
     except ImportError as exc:
@@ -207,8 +252,8 @@ async def create_pdf_resource(
         title=title,
         resource_type="PDF",
         processing_status="PROCESSING",
-        raw_bytes=content,
         study_session_id=study_session_id,
+        **_store_original(owner_id, content, "application/pdf"),
     )
     db.add(resource)
     db.flush()
@@ -244,6 +289,7 @@ async def create_image_resource(
 ) -> Resource:
     """Ingest an image study resource using OCR text extraction."""
     get_owned_context(db, owner_id=owner_id, context_id=context_id)
+    _check_file_limit(db, owner_id)
     try:
         mime = detect_image_mime(content) if not mime_type else mime_type
     except ValidationError as exc:
@@ -254,8 +300,8 @@ async def create_image_resource(
             resource_type="IMAGE",
             processing_status="UNSUPPORTED",
             error_detail=_extraction_error(exc),
-            raw_bytes=content,
             study_session_id=study_session_id,
+            **_store_original(owner_id, content, None),
         )
         db.add(resource)
         db.commit()
@@ -268,8 +314,8 @@ async def create_image_resource(
         title=title,
         resource_type="IMAGE",
         processing_status="PROCESSING",
-        raw_bytes=content,
         study_session_id=study_session_id,
+        **_store_original(owner_id, content, mime),
     )
     db.add(resource)
     db.flush()
@@ -298,12 +344,14 @@ def get_owned_resource(
 
 
 def delete_resource(db: Session, *, resource: Resource) -> None:
+    stored = resource.storage_key
     _delete_chunks_with_concept_links(db, resource=resource)
     delete_audio_artifacts(
         db, owner_id=resource.owner_id, source_type="RESOURCE", source_id=resource.id
     )
     db.delete(resource)
     db.commit()
+    remove_files([stored])
 
 
 async def reprocess_resource(
@@ -316,7 +364,7 @@ async def reprocess_resource(
         # source_text is set exactly once with the staged chunks.
         changes = {key: value for key, value in changes.items() if key != "source_text"}
     elif resource.resource_type in ("PDF", "IMAGE"):
-        content = changes.get("raw_bytes", resource.raw_bytes) or b""
+        content = changes.get("raw_bytes") or original_bytes(resource) or b""
         if resource.resource_type == "PDF" and not content.startswith(b"%PDF"):
             return _record_processing_failure(
                 db, resource, "Unsupported file type; upload a PDF", expected_version=expected_version

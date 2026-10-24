@@ -129,7 +129,8 @@ async def generate_session_audio(db: Session, *, owner_id: UUID, session_id: UUI
 
 
 def get_tts_provider():
-    """Provider chain: Groq TTS (GROQ_API_KEY) -> Gemini TTS (GEMINI_API_KEY) -> OpenAI TTS key -> local.
+    """Provider chain: OpenAI TTS (OPENAI_API_KEY) -> Groq TTS (GROQ_API_KEY) -> Gemini TTS
+    (GEMINI_API_KEY) -> OpenAI TTS (ARIA_TTS_API_KEY) -> local.
 
     'auto' keeps the local pyttsx3 fallback as the last resort so audio
     generation still works in containers without cloud access; 'cloud'
@@ -137,6 +138,11 @@ def get_tts_provider():
     """
     settings = get_settings()
     cloud: list = []
+    openai_key = getattr(settings, "openai_api_key", None)
+    if openai_key:
+        cloud.append(CloudTTSProvider(api_key=openai_key, model=settings.aria_openai_tts_model,
+                                      voice=settings.aria_openai_tts_voice,
+                                      learner_voice=settings.aria_openai_tts_voice_2))
     if settings.groq_api_key:
         cloud.append(
             GroqTTSProvider(
@@ -164,12 +170,15 @@ def get_tts_provider():
 
 def get_stt_provider():
     settings = get_settings()
+    if getattr(settings, "openai_api_key", None):
+        return CloudSTTProvider(api_key=settings.openai_api_key, model=settings.aria_openai_stt_model)
     if settings.groq_api_key:
         return GroqSTTProvider(api_key=settings.groq_api_key, model=settings.aria_stt_model)
     if settings.aria_stt_api_key:
         return CloudSTTProvider(api_key=settings.aria_stt_api_key)
     raise ValidationError(
-        "Speech-to-text is not configured. Set GROQ_API_KEY or ARIA_STT_API_KEY to enable voice questions."
+        "Speech-to-text is not configured. Set OPENAI_API_KEY, GROQ_API_KEY or ARIA_STT_API_KEY "
+        "to enable voice questions."
     )
 
 
