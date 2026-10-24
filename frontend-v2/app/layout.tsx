@@ -4,6 +4,7 @@ import "./globals.css";
 import { PaletteProvider } from "@/components/palette-provider";
 import { AmbientBackground } from "@/components/ambient-background";
 import { AuthProvider } from "@/components/auth-provider";
+import { ErrorMonitor } from "@/components/error-monitor";
 import { ActiveContextProvider } from "@/components/use-active-context";
 import { MotionProvider } from "@/components/motion-system";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className="antialiased">
         <PaletteProvider>
           <AuthProvider>
+            <ErrorMonitor />
           <ActiveContextProvider>
             <MotionProvider>
             <AmbientBackground />

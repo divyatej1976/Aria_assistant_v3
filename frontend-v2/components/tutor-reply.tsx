@@ -1,5 +1,6 @@
 "use client";
 
+import { AnswerRating } from "@/components/answer-rating";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { TutorMarkdown } from "@/components/tutor-markdown";
@@ -62,7 +63,7 @@ export function DepthBadge({ depth }: { depth: Depth }) {
 }
 
 export function TutorReply({
-  content, depth, sources, fallback, done = true, fresh, onDeeper, onShorter, quickCheckHref,
+  content, depth, sources, fallback, done = true, fresh, onDeeper, onShorter, quickCheckHref, answerId,
 }: {
   content: string;
   depth?: Depth | null;
@@ -73,6 +74,8 @@ export function TutorReply({
   onDeeper?: () => void;
   onShorter?: () => void;
   quickCheckHref?: string;
+  // The saved answer's id: shows the thumbs (unsaved or stopped replies have none).
+  answerId?: string;
 }) {
   const { lead, blocks } = splitBlocks(content);
   // A finished answer with several sections reads as a deck of study cards (never a Quick one).
@@ -106,6 +109,7 @@ export function TutorReply({
           {quickCheckHref && <Link className="reply-action" href={quickCheckHref}><Icon name="clipboard" size={13} /> Quick check</Link>}
         </div>
       )}
+      {done && answerId && <AnswerRating answerId={answerId} />}
     </article>
   );
 }

@@ -10,7 +10,8 @@ const CSP = [
   // Tutor answers may embed diagrams from Wikimedia only (see IMAGE_HOSTS in tutor-markdown.tsx).
   "img-src 'self' data: blob: https://upload.wikimedia.org",
   "media-src 'self' blob: data:",
-  `connect-src 'self' ${API_URL}`,
+  // Error reports go to Sentry (components/error-monitor.tsx) when it is configured.
+  `connect-src 'self' ${API_URL} https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -2915,3 +2915,13 @@ select option:disabled { color: var(--text-3); }
 .topic-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .topic-actions .btn { padding: 6px 10px; font-size: 12.5px; }
 .focus-next { margin: 0 0 20px; }
+
+/* Thumbs under a tutor answer (components/answer-rating.tsx). */
+.answer-rating { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; color: var(--text-3); font-size: 12.5px; }
+.answer-rating-label { margin-right: 2px; }
+.rate-btn { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--bg-1); color: var(--text-2); cursor: pointer; }
+.rate-btn:hover, .rate-btn.on { color: var(--text-1); border-color: var(--border-hi); background: var(--bg-2); }
+.rate-why { flex-basis: 100%; display: grid; gap: 8px; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-1); }
+.rate-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.rate-why .btn { justify-self: start; padding: 7px 14px; font-size: 13px; }
+.answer-rated { margin: 10px 0 0; font-size: 12.5px; color: var(--text-3); }

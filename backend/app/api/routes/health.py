@@ -17,6 +17,8 @@ Db = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/health")
+# Also under /api so it is reachable on Vercel, where only /api/* reaches this service.
+@router.get("/api/v1/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "aria-api"}
 

@@ -603,3 +603,20 @@ class UploadChunk(OwnedModel, Base):
     upload_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, nullable=False)
     seq: Mapped[int] = mapped_column(Integer, nullable=False)
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+
+class Feedback(OwnedModel, Base):
+    """A learner's report ("something is wrong") or their rating of one AI answer."""
+
+    __tablename__ = "feedback"
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    # report: free-text problem report; answer: thumbs on one tutor reply
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    rating: Mapped[str | None] = mapped_column(String(8))  # up | down (answers only)
+    reason: Mapped[str | None] = mapped_column(String(64))  # wrong, too_long, outdated, ...
+    message: Mapped[str | None] = mapped_column(Text)
+    page: Mapped[str | None] = mapped_column(String(300))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    answer_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), index=True)
+    # new, in_progress, fixed: for whoever triages the reports
+    status: Mapped[str] = mapped_column(String(16), default="new", server_default="new", index=True, nullable=False)

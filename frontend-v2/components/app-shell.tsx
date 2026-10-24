@@ -1,5 +1,6 @@
 "use client";
 
+import { FeedbackDialog } from "@/components/feedback-dialog";
 import { LogoMark } from "@/components/logo-mark";
 import { useCallback, useEffect, useRef, useState, ViewTransition, type ReactNode, type CSSProperties, type MouseEventHandler } from "react";
 import Link from "next/link";
@@ -101,6 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const moreRef = useRef<HTMLDetailsElement>(null);
   // "More" closes when you click anywhere else.
   useEffect(() => {
@@ -334,6 +336,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </div>
                 </div>
                 <Link href="/app/account" className="pop-link"><Icon name="user" size={17} /> Account & settings</Link>
+                <button type="button" className="pop-link" onClick={() => { setProfileOpen(false); setFeedbackOpen(true); }}><Icon name="message" size={17} /> Send feedback</button>
                 <button type="button" className="pop-link signout" onClick={() => { signout().then(() => router.push("/")).catch(() => toast("Sign-out failed. Your session may still be active. Please retry.", "error")); }}><Icon name="logout" size={17} /> Sign Out</button>
               </ShellPopover>
             )}
@@ -402,6 +405,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ViewTransition>
         </main>
       </div>
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <Modal open={mobileMenuOpen} title="Navigation" onClose={() => setMobileMenuOpen(false)}>
         <div className="modal mobile-workspace-drawer">
           <div className="section-head"><h2>Explore ARIA</h2><button className="btn btn-ghost" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)}><Icon name="x" /></button></div>

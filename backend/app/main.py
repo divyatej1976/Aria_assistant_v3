@@ -12,6 +12,7 @@ from app.api.routes.assessments import router as assessments_router
 from app.api.routes.audio import router as audio_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.contexts import router as contexts_router
+from app.api.routes.feedback import router as feedback_router
 from app.api.routes.health import router as health_router
 from app.api.routes.internal import router as internal_router
 from app.api.routes.memory import router as memory_router
@@ -127,6 +128,7 @@ app.include_router(settings_router)
 app.include_router(study_router)
 app.include_router(assessments_router)
 app.include_router(roadmaps_router)
+app.include_router(feedback_router)
 
 
 @app.get("/", tags=["system"])

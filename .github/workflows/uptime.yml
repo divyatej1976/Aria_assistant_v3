@@ -1,0 +1,30 @@
+# Uptime check: every 10 minutes, the live website and API must answer.
+# A failed run makes GitHub email the repository owner (Settings → Notifications → Actions).
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE: https://aria-study-os.vercel.app
+    steps:
+      - name: API health
+        run: |
+          for attempt in 1 2 3; do
+            body=$(curl -fsS --max-time 20 "$SITE/api/v1/health") && echo "$body" | grep -q '"ok"' && exit 0
+            echo "attempt $attempt failed; retrying (the first request after idle can be slow)"; sleep 15
+          done
+          echo "::error::API health check failed: $SITE/api/v1/health"; exit 1
+      - name: Website
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$SITE/signin")
+          echo "sign-in page: $code"
+          [ "$code" = "200" ] || { echo "::error::Website returned $code"; exit 1; }

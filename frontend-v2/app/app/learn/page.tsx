@@ -756,7 +756,7 @@ function ContextLearn() {
                     <TutorReply content={m.content} depth={m.depth} done={false} fresh={m.fresh} />
                     <p className="msg-stopped">You stopped this reply.</p>
                   </div>
-                ) : <TutorReply key={i} content={m.content} depth={m.depth} sources={m.sources} fallback={m.fallback_used} fresh={m.fresh}
+                ) : <TutorReply key={i} content={m.content} depth={m.depth} sources={m.sources} fallback={m.fallback_used} fresh={m.fresh} answerId={m.id}
                   onDeeper={i === lastReply && !typing ? () => void send("Explain that in more depth, with an example.", undefined, "deep") : undefined}
                   onShorter={i === lastReply && !typing ? () => void send("Give me a shorter version of that.", undefined, "quick") : undefined}
                   quickCheckHref={i === lastReply && !typing && activeId ? `/app/assess?${new URLSearchParams({ quiz_chat: activeId })}` : undefined} />
