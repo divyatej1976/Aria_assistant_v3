@@ -93,3 +93,29 @@ def test_api_upload_image_resource(client: TestClient):
     chunks = chunks_res.json()
     assert len(chunks) >= 1
     assert "Transport Layer" in chunks[0]["content"] or "TCP" in chunks[0]["content"]
+
+
+def test_images_are_read_by_gemini_vision_when_configured_and_fall_back_to_ocr(monkeypatch):
+    import httpx
+
+    from app.core.config import get_settings
+    from app.services import ocr
+
+    monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
+    sent = []
+
+    def fake_post(url, *, params, json, timeout):
+        sent.append(json["contents"][0]["parts"][0]["inline_data"]["mime_type"])
+        body = {"candidates": [{"content": {"parts": [{"text": "1. Kadane algorithm\n2. Two pointer"}]}}]}
+        return httpx.Response(200, json=body, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr("httpx.post", fake_post)
+    monkeypatch.setattr(ocr, "_tesseract_text", lambda *_: "tesseract garbage")
+    assert ocr.extract_text_from_image(b"\x89PNG\r\n\x1a\n...", "image/png") == "1. Kadane algorithm\n2. Two pointer"
+    assert sent == ["image/png"]
+
+    def failing_post(url, **_):
+        return httpx.Response(429, json={}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr("httpx.post", failing_post)
+    assert ocr.extract_text_from_image(b"\x89PNG\r\n\x1a\n...", "image/png") == "tesseract garbage"

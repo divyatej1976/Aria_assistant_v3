@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     aria_gemini_tts_model: str = "gemini-2.5-flash-preview-tts"
     aria_gemini_tts_voice: str = "Kore"
     aria_gemini_tts_voice_2: str = "Puck"
+    # Reads uploaded images (handwritten notes, photos of slides) when GEMINI_API_KEY is set.
+    aria_vision_model: str = "gemini-2.5-flash"
     aria_brain_routing: bool = False
     aria_brain_llm_routing: bool = False
     aria_brain_checkpoint_path: str = "aria-brain-checkpoints.db"

@@ -18,6 +18,8 @@ from app.ai.providers import (
     GroqSTTProvider,
     GroqTTSProvider,
     LocalTTSProvider,
+    VoiceQuotaExceeded,
+    VoicesUnavailable,
 )
 from app.core.config import get_settings
 from app.core.errors import ValidationError
@@ -368,6 +370,19 @@ def _speak(tts, turns) -> tuple[bytes, str, int]:
 PART_MARK = re.compile(r"^\[Part (\d+) of (\d+) · (\d+):(\d\d)\]$", re.M)
 
 
+# An episode with a script but no recording: the player reads it with the device's own voice.
+DEVICE_VOICE = "text/plain"
+
+
+def script_transcript(parts, *, conversation: bool) -> str:
+    """The episode script as the player shows (and the device voice reads) it."""
+    def turns_text(turns) -> str:
+        if conversation:
+            return "\n\n".join(f"{'Learner' if who == 'learner' else 'Tutor'}: {line}" for who, line in turns)
+        return "\n\n".join(line for _, line in turns)
+    return "\n\n".join(turns_text(turns) for turns in parts)
+
+
 def _speak_parts(tts, parts, *, conversation: bool, progress=None, owner_id: UUID | None = None,
                  job_id: UUID | None = None) -> tuple[bytes, str, int, str]:
     """Voice each part into one file; the transcript marks where each part starts.
@@ -580,9 +595,18 @@ def generate_audio(
                                       "Retry in a minute.")
             if parts is None and len(text) > MAX_AUDIO_CHARS:
                 raise ValidationError("The lesson script could not be written and this is too long to read aloud.")
-            audio_bytes, content_type, duration, spoken = _speak_parts(
-                provider or get_tts_provider(), parts or [[("tutor", text)]], conversation=style == "conversation",
-                progress=progress, owner_id=owner_id, job_id=job_id)
+            parts = parts or [[("tutor", text)]]
+            try:
+                audio_bytes, content_type, duration, spoken = _speak_parts(
+                    provider or get_tts_provider(), parts, conversation=style == "conversation",
+                    progress=progress, owner_id=owner_id, job_id=job_id)
+            except (VoiceQuotaExceeded, VoicesUnavailable) as exc:
+                # No cloud voice today (the free tier allows only a few a day): keep the written
+                # episode and let the learner's device read it aloud instead of failing it.
+                logger.info("cloud voices unavailable, episode uses the device voice reason=%s", type(exc).__name__)
+                spoken = script_transcript(parts, conversation=style == "conversation")
+                audio_bytes, content_type = None, DEVICE_VOICE
+                duration = max(1, round(len(spoken.split()) / 2.5))  # about 150 words a minute
         except Continue:
             # Out of time, not failed: hand the episode back so the next worker resumes it.
             db.rollback()
@@ -603,8 +627,8 @@ def generate_audio(
         else:
             try:
                 # A recovered/older worker cannot overwrite another generation's file.
-                new_key = get_audio_storage().save(owner_id=owner_id, artifact_id=token,
-                                                   content_type=content_type, data=audio_bytes)
+                new_key = None if audio_bytes is None else get_audio_storage().save(
+                    owner_id=owner_id, artifact_id=token, content_type=content_type, data=audio_bytes)
                 fallback_bytes = None
             except Exception:
                 logger.exception("audio storage failed; keeping bytes in DB")
@@ -729,7 +753,8 @@ def requeue_missing_audio(db: Session) -> int:
         AudioArtifact.status == "READY", AudioArtifact.audio_bytes.is_(None),
     ).execution_options(yield_per=100))
     for artifact in artifacts:
-        if load_audio_bytes(artifact) is not None:
+        # Device-voice episodes never had a file.
+        if artifact.content_type == DEVICE_VOICE or load_audio_bytes(artifact) is not None:
             continue
         result = db.execute(update(AudioArtifact).where(
             AudioArtifact.id == artifact.id, AudioArtifact.status == "READY",

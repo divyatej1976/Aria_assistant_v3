@@ -573,3 +573,26 @@ def test_audio_heartbeat_keeps_slow_work_out_of_recovery(
         artifact = generate_audio(db, owner_id=owner_id, source_type="NOTE",
                                   source_id=source_id, provider=SlowTTS())
         assert artifact.status == "READY"
+
+
+def test_episode_uses_the_device_voice_when_no_cloud_voice_is_available(engine, session_factory, tmp_audio_storage) -> None:
+    from app.ai.providers import ChainedTTSProvider, VoiceQuotaExceeded
+    from app.services.audio import DEVICE_VOICE
+
+    class OutOfQuota:
+        def generate(self, *, text, voice=None):
+            raise VoiceQuotaExceeded("The free daily voice limit is used up.")
+
+    with session_factory() as db:
+        owner_id = uuid4()
+        note = Note(id=uuid4(), owner_id=owner_id, context_id=_context(db, owner_id), title="N", body=MATERIAL)
+        db.add(note)
+        db.commit()
+        artifact = generate_audio(db, owner_id=owner_id, source_type="NOTE", source_id=note.id,
+                                  provider=ChainedTTSProvider([OutOfQuota()]))
+        # Not failed: the script is kept for the learner's device to read aloud.
+        assert artifact.status == "READY"
+        assert artifact.content_type == DEVICE_VOICE
+        assert artifact.storage_key is None and artifact.audio_bytes is None
+        assert "Locks" in artifact.text or MATERIAL[:20] in artifact.text
+        assert artifact.duration_seconds >= 1

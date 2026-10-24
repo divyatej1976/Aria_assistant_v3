@@ -63,11 +63,56 @@ def detect_image_mime(content: bytes) -> str:
     raise ValidationError("Unsupported file format. Please upload a PNG, JPEG, or WEBP image, or a PDF.")
 
 
+VISION_PROMPT = (
+    "Transcribe all the text in this image exactly, including handwriting, keeping its order, "
+    "numbering and line breaks. Write formulas in plain text. If there is a diagram or table, "
+    "describe it briefly in brackets. Output only the transcription."
+)
+
+
 def extract_text_from_image(image_bytes: bytes, mime_type: str | None = None) -> str:
-    """Extract text from an image using PyMuPDF native OCR."""
+    """Read an image's text: Gemini vision when configured (it reads handwriting and photos of
+    notes), else Tesseract OCR, which only manages clean printed text."""
     if not mime_type:
         mime_type = detect_image_mime(image_bytes)
+    from app.core.config import get_settings
 
+    settings = get_settings()
+    key = getattr(settings, "gemini_api_key", None)
+    if key:
+        try:
+            text = _vision_text(image_bytes, mime_type, key=key, model=settings.aria_vision_model)
+            if text:
+                return text
+        except Exception as exc:  # noqa: BLE001 - fall back to local OCR on any vision failure
+            logger.warning("vision transcription failed, using OCR error_type=%s", type(exc).__name__)
+    return _tesseract_text(image_bytes, mime_type)
+
+
+def _vision_text(image_bytes: bytes, mime_type: str, *, key: str, model: str) -> str:
+    import base64
+
+    import httpx
+
+    response = httpx.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        params={"key": key},
+        json={
+            "contents": [{"parts": [
+                {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(image_bytes).decode()}},
+                {"text": VISION_PROMPT},
+            ]}],
+            # No "thinking": a transcription needs none, and it would add most of a minute.
+            "generationConfig": {"temperature": 0, "thinkingConfig": {"thinkingBudget": 0}},
+        },
+        timeout=90,
+    )
+    response.raise_for_status()
+    parts = response.json()["candidates"][0]["content"].get("parts", [])
+    return "".join(part.get("text", "") for part in parts).strip()
+
+
+def _tesseract_text(image_bytes: bytes, mime_type: str) -> str:
     # Determine file extension for PyMuPDF
     ext = "png"
     if "jpeg" in mime_type or "jpg" in mime_type:

@@ -21,6 +21,7 @@ DEEP_RE = re.compile(
 )
 # The tutor's last message ended by asking the learner something.
 ASKED_RE = re.compile(r"\?[\s*\"”)]*$|reply with your answer|give it a try|try answering|your answer", re.IGNORECASE)
+EXPLAIN_RE = re.compile(r"\b(explain|describe|teach|walk me through|break (?:it|this) down)\b", re.I)
 QUICK_RE = re.compile(
     r"\b(quick(?:ly)?|briefly|short|tl;?dr|in one line|one[- ]liner|just tell me|"
     r"what(?:'s| is) (?:a|an|the)?\s*\w+\??$|define)\b",
@@ -108,7 +109,9 @@ def auto_depth(question: str) -> Depth:
     # "Summarize this" is short to type but asks for the whole document, not two lines.
     if DEEP_RE.search(text) or SUMMARY_RE.search(text):
         return "deep"
-    if QUICK_RE.search(text) or len(text.split()) <= 6:
+    # Short questions get short answers, but "explain this image" is short to type and asks
+    # for a real explanation.
+    if QUICK_RE.search(text) or (len(text.split()) <= 6 and not EXPLAIN_RE.search(text)):
         return "quick"
     return "balanced"
 

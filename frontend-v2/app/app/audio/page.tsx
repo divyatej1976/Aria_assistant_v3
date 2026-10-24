@@ -53,6 +53,33 @@ type AudioListItem = {
   step?: string | null;
 };
 
+// An episode with a script but no recording (no cloud voice was available): the device reads it.
+const DEVICE_VOICE = "text/plain";
+
+/** Read an episode script aloud with the device's built-in voice; a second voice for the learner. */
+function speakScript(text: string, onEnd: () => void) {
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const voices = synth.getVoices().filter((v) => v.lang.toLowerCase().startsWith("en"));
+  const tutor = voices.find((v) => /natural|online|google us|samantha|jenny|aria/i.test(v.name)) ?? voices[0];
+  const learner = voices.find((v) => v !== tutor && /male|guy|daniel|david|google uk/i.test(v.name))
+    ?? voices.find((v) => v !== tutor) ?? tutor;
+  const pieces: { text: string; voice?: SpeechSynthesisVoice }[] = [];
+  for (const line of text.replace(/^\[Part [^\]]*\]$/gm, "").split(/\n+/).map((l) => l.trim()).filter(Boolean)) {
+    const voice = /^Learner:/.test(line) ? learner : tutor;
+    const body = line.replace(/^(Tutor|Learner):\s*/, "");
+    // Some browsers cut long utterances short, so speak a sentence at a time.
+    for (const sentence of body.match(/[^.!?]+[.!?]*\s*/g) ?? [body]) pieces.push({ text: sentence, voice });
+  }
+  pieces.forEach((piece, index) => {
+    const utterance = new SpeechSynthesisUtterance(piece.text);
+    if (piece.voice) utterance.voice = piece.voice;
+    if (index === pieces.length - 1) utterance.onend = onEnd;
+    synth.speak(utterance);
+  });
+  if (!pieces.length) onEnd();
+}
+
 function fmtDur(seconds: number | null | undefined): string {
   if (!seconds) return "";
   const mins = Math.floor(seconds / 60);
@@ -122,6 +149,7 @@ function AudioPageWorkspace() {
       }
       for (const url of Object.values(urlsRef.current)) URL.revokeObjectURL(url);
       urlsRef.current = {};
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     };
   }, []);
 
@@ -241,7 +269,26 @@ function AudioPageWorkspace() {
   };
 
   const togglePlay = async (id: string) => {
-    if (artifacts.find(artifact => artifact.id === id)?.status !== "READY") return;
+    const artifact = artifacts.find(item => item.id === id);
+    if (artifact?.status !== "READY") return;
+    window.speechSynthesis?.cancel();
+    if (artifact.content_type === DEVICE_VOICE) {
+      if (playing === id) { setPlaying(null); return; }
+      if (!("speechSynthesis" in window)) { toast("This browser can't read aloud. Try Chrome, Edge or Safari.", "error"); return; }
+      try {
+        const detail = await api<Artifact>(`/api/v1/audio/${id}`);
+        if (!mountedRef.current) return;
+        setPlaying(id);
+        speakScript(detail.text, () => {
+          if (!mountedRef.current) return;
+          setPlaying((current) => (current === id ? null : current));
+          void saveProgress(id, 0, true);
+        });
+      } catch {
+        toast("Could not load this episode. Please retry.", "error");
+      }
+      return;
+    }
     if (playing && playing !== id) {
       await saveProgress(playing, timeRef.current[playing] ?? progress[playing]?.position_seconds ?? 0,
         progress[playing]?.completed ?? false);
@@ -366,7 +413,7 @@ function AudioPageWorkspace() {
                         : resources.find((r) => r.id === a.source_id)?.title ?? "Resource")}
                   </b>
                   <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-                    {({ PENDING: "Creating…", PROCESSING: "Creating…", READY: "Ready", FAILED: "Failed" } as Record<string, string>)[a.status] ?? a.status}{a.step && (a.status === "PENDING" || a.status === "PROCESSING") ? ` · ${a.step}` : ""}{a.status === "FAILED" && a.error_detail ? ` · ${a.error_detail}` : ""} {a.duration_seconds ? ` · ${fmtDur(a.duration_seconds)}` : ""}{" "}
+                    {({ PENDING: "Creating…", PROCESSING: "Creating…", READY: a.content_type === DEVICE_VOICE ? "Ready · device voice" : "Ready", FAILED: "Failed" } as Record<string, string>)[a.status] ?? a.status}{a.step && (a.status === "PENDING" || a.status === "PROCESSING") ? ` · ${a.step}` : ""}{a.status === "FAILED" && a.error_detail ? ` · ${a.error_detail}` : ""} {a.duration_seconds ? ` · ${fmtDur(a.duration_seconds)}` : ""}{" "}
                     {p.completed ? " · Complete" : p.position_seconds > 0 ? ` · Resume ${fmtDur(p.position_seconds)}` : ""}
                   </div>
                 </div>
@@ -400,7 +447,12 @@ function AudioPageWorkspace() {
                   <Icon name="message" size={15} /> Ask about this
                 </Link>
               )}
-              {isPlaying && a.status === "READY" && (
+              {isPlaying && a.status === "READY" && a.content_type === DEVICE_VOICE && (
+                <p className="ui-mt-16" style={{ fontSize: 13, color: "var(--text-2)" }} role="status">
+                  Reading aloud with your device&apos;s voice. Press pause to stop.
+                </p>
+              )}
+              {isPlaying && a.status === "READY" && a.content_type !== DEVICE_VOICE && (
                 <audio
                   ref={playerRef}
                   autoPlay

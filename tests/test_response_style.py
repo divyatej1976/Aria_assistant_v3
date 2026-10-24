@@ -126,3 +126,9 @@ def test_summaries_ask_for_structured_notes_of_the_whole_material() -> None:
     assert style.summary and style.depth == "deep"
     assert "Cover every section" in style.instruction()
     assert "Direct answer" not in style.instruction()
+
+
+@pytest.mark.parametrize("question", ["Explain what is in this image", "explain this", "describe these notes"])
+def test_short_requests_to_explain_get_a_real_explanation(question: str) -> None:
+    assert resolve_style(question).depth == "balanced"
+    assert resolve_style("briefly explain this").depth == "quick"

@@ -302,6 +302,10 @@ class VoiceQuotaExceeded(ValidationError):
     """A voice provider's quota is used up; the message is shown to the learner."""
 
 
+class VoicesUnavailable(RuntimeError):
+    """No cloud voice could speak the text (quota, terms or outage)."""
+
+
 def gemini_retry_seconds(response: httpx.Response) -> float:
     """Gemini's RetryInfo delay ("56698s") from a 429 body; 30 s when absent."""
     try:
@@ -411,7 +415,7 @@ class ChainedTTSProvider:
                 )
         if quota is not None:
             raise quota  # tell the learner why, instead of a generic failure
-        raise RuntimeError("all TTS providers failed")
+        raise VoicesUnavailable("all TTS providers failed")
 
 
 # Default completion limit (tokens) reserved before each owner-scoped
