@@ -1,5 +1,6 @@
 "use client";
 
+import { LogoMark } from "@/components/logo-mark";
 import { useCallback, useEffect, useRef, useState, ViewTransition, type ReactNode, type CSSProperties, type MouseEventHandler } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -227,7 +228,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="top-left">
             <button className="btn btn-secondary mobile-menu-toggle" disabled={!hydrated || authLoading || contextLoading} aria-label="Open navigation" onClick={() => setMobileMenuOpen(true)}><Icon name="menu" size={20} /></button>
             <Link href="/app" className="shell-brand" aria-label="ARIA dashboard">
-              <span className="brand-mark">A</span>
+              <LogoMark size={30} />
               <span className="brand-name">ARIA</span>
             </Link>
           </div>

@@ -54,7 +54,7 @@ _PROMPTS: dict[str, PromptVersion] = {
     ),
     "mcq_generation": PromptVersion(
         key="mcq_generation",
-        version=5,
+        version=6,
         system="You produce only valid JSON matching the schema.",
         template=(
             "Generate multiple-choice questions grounded only in the supplied study material. "
@@ -69,7 +69,12 @@ _PROMPTS: dict[str, PromptVersion] = {
             '{{"questions": [{{"prompt": "...", "options": ["...", "...", "...", "..."], '
             '"correct_option": "A", "explanation": "One sentence on why the answer is right.", '
             '"concept": "The topic it tests, 2-4 words, e.g. HAVING clause"}}]}}\n\n'
-            "Difficulty: {difficulty}. Produce {count} questions.\n\nStudy material:\n{material}"
+            "Difficulty: {difficulty}. Every question must match this level: "
+            "easy (Basic) = recall a definition or key fact; "
+            "medium = explain how or why something works, or apply it to a simple new example; "
+            "hard (Advanced) = multi-step problems, edge cases, comparing two ideas, or finding the "
+            "mistake in a short worked example, with distractors that are common misconceptions. "
+            "Produce {count} questions.\n\nStudy material:\n{material}"
         ),
     ),
     "roadmap_tree_generation": PromptVersion(

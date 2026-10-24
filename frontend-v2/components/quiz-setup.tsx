@@ -68,6 +68,8 @@ const PRESETS: Preset[] = [
   { name: "Mock exam", hint: "20 mixed questions, 30 minutes, answers at the end",
     values: { format: "mixed", count: 20, difficulty: "hard", timing: "total", minutes: 30, reveal: "exam" } },
 ];
+// Stored as easy / medium / hard; learners see Basic / Medium / Advanced.
+export const LEVEL_NAMES: Record<QuizSetupValues["difficulty"], string> = { easy: "Basic", medium: "Medium", hard: "Advanced" };
 const FORMAT_NAMES: Record<QuizSetupValues["format"], string> = {
   mcq: "Multiple choice", true_false: "True or false", short_answer: "Short answer", mixed: "Mixed questions",
 };
@@ -80,7 +82,7 @@ function matches(values: QuizSetupValues, preset: Preset): boolean {
 
 function summary(v: QuizSetupValues): string {
   const timer = v.timing === "total" ? `${v.minutes} min` : v.timing === "per_question" ? `${v.seconds}s per question` : "No timer";
-  const level = v.difficulty[0].toUpperCase() + v.difficulty.slice(1);
+  const level = LEVEL_NAMES[v.difficulty];
   return `${FORMAT_NAMES[v.format]} · ${v.count} questions · ${level} · ${timer} · ${v.reveal === "practice" ? "Answers as you go" : "Answers at the end"}`;
 }
 
@@ -233,7 +235,7 @@ export function QuizSetup({ contextId, values, onChange, libraryReady = null, li
       </div>
 
       <Choice label="Difficulty" value={values.difficulty} onChange={(v) => set("difficulty", v)} options={[
-        { value: "easy", label: "Easy" }, { value: "medium", label: "Medium" }, { value: "hard", label: "Hard" },
+        { value: "easy", label: "Basic" }, { value: "medium", label: "Medium" }, { value: "hard", label: "Advanced" },
       ]} />
 
       <Choice label="Timer" value={values.timing} onChange={(v) => set("timing", v)} options={[

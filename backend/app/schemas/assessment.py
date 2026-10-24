@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 DEFAULT_QUESTION_COUNT = 10
 MAX_QUESTION_COUNT = 50
@@ -13,7 +13,8 @@ class AssessmentCreateRequest(BaseModel):
     # mcq | true_false | short_answer | mixed
     format: str = Field(default="mcq", min_length=2, max_length=64)
     question_count: int = Field(default=DEFAULT_QUESTION_COUNT, ge=1, le=MAX_QUESTION_COUNT)
-    difficulty: str = Field(default="medium", max_length=32)
+    # Basic / Medium / Advanced in the app; stored as easy / medium / hard.
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
     mode: str = Field(default="BASELINE", max_length=32)
     concept_ids: list[UUID] = Field(default_factory=list)
     # What the quiz is about: the shared library, chosen chats, a typed topic, or weak spots.
@@ -24,6 +25,11 @@ class AssessmentCreateRequest(BaseModel):
     timing: Literal["none", "total", "per_question"] = "none"
     time_limit_seconds: int | None = Field(default=None, ge=10, le=4 * 60 * 60)
     reveal: Literal["practice", "exam"] = "practice"
+
+    @field_validator("difficulty", mode="before")
+    @classmethod
+    def level_names(cls, value: object) -> object:
+        return {"basic": "easy", "advanced": "hard"}.get(str(value).strip().lower(), str(value).strip().lower())
 
     @model_validator(mode="after")
     def timer_needs_a_limit(self) -> "AssessmentCreateRequest":

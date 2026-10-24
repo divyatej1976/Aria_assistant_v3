@@ -1,5 +1,6 @@
 "use client";
 
+import { LogoMark } from "@/components/logo-mark";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { PaletteSwitcher } from "@/components/palette-switcher";
@@ -31,9 +32,7 @@ export default function LandingPage() {
       <div className="wrap">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, fontWeight: 800 }}>
-            <div className="logo-mark" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--accent-grad)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>
-              A
-            </div>
+            <LogoMark size={38} />
             <div>
               <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-.5px", lineHeight: 1 }}>ARIA</div>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.6, color: "var(--text-3)" }}>AI Learning System</div>

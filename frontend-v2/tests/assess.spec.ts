@@ -56,7 +56,7 @@ test("create an assessment from real material, answer it, and see the real score
   // choose the quiz: hard, 5 multiple-choice questions, answers at the end
   const setup = page.getByRole("dialog", { name: "Create assessment" });
   await setup.getByText("Customize").click();
-  await setup.getByRole("radio", { name: "Hard" }).click();
+  await setup.getByRole("radio", { name: "Advanced" }).click();
   await setup.getByRole("button", { name: "5", exact: true }).click();
   await setup.getByRole("radio", { name: "At the end", exact: true }).click();
   await setup.getByRole("button", { name: "Start quiz" }).click();

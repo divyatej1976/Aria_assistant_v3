@@ -1,5 +1,6 @@
 "use client";
 
+import { LogoMark } from "./logo-mark";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PaletteSwitcher } from "./palette-switcher";
@@ -11,24 +12,7 @@ export function AuthShell({ children, title, subtitle }: { children: ReactNode; 
     <main className="auth-wrap">
       <div style={{ position: "absolute", top: 24, left: 28, display: "flex", alignItems: "center", gap: 12 }}>
         <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            className="logo-mark"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              background: "var(--accent-grad)",
-              color: "var(--on-accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 17,
-              fontWeight: 800,
-              boxShadow: "var(--shadow-2)",
-            }}
-          >
-            A
-          </div>
+          <LogoMark size={38} />
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-.5px", lineHeight: 1 }}>ARIA</div>
             <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.6, color: "var(--text-3)" }}>AI Learning System</div>

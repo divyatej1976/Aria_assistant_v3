@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ARIA logo: an A whose crossbar is a spark">
+  <defs>
+    <linearGradient id="g-spark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="0.5" stop-color="#0fa3a0"/>
+      <stop offset="1" stop-color="#7c6bf0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#g-spark)"/>
+  <!-- The A's legs, open at the bottom; a four-point spark takes the crossbar's place. -->
+  <path d="M17 50 L32 13 L47 50" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 29.5 C33.2 34.6 35.4 36.8 40.5 38 C35.4 39.2 33.2 41.4 32 46.5 C30.8 41.4 28.6 39.2 23.5 38 C28.6 36.8 30.8 34.6 32 29.5 Z" fill="#fff"/>
+</svg>

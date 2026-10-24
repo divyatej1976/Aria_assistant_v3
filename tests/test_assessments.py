@@ -685,3 +685,20 @@ def test_shuffle_options_moves_answer_and_keeps_it_correct():
     assert len(positions) > 1  # the answer no longer always sits first
     tf = GeneratedMCQ("Q?", ["True", "False"], "True", None, kind="true_false")
     assert shuffle_options(tf, rng) is tf
+
+
+def test_quiz_levels_are_basic_medium_advanced_and_defined_for_the_ai():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.ai.prompts import get_prompt
+    from app.schemas.assessment import AssessmentCreateRequest
+
+    cid = "00000000-0000-0000-0000-000000000001"
+    assert AssessmentCreateRequest(context_id=cid, difficulty="Basic").difficulty == "easy"
+    assert AssessmentCreateRequest(context_id=cid, difficulty="advanced").difficulty == "hard"
+    assert AssessmentCreateRequest(context_id=cid).difficulty == "medium"
+    with pytest.raises(ValidationError):
+        AssessmentCreateRequest(context_id=cid, difficulty="extreme")
+    prompt = get_prompt("mcq_generation").render(difficulty="hard", count=3, material="M")
+    assert "easy (Basic) = recall" in prompt and "hard (Advanced) = multi-step" in prompt
