@@ -36,7 +36,14 @@ export default function OnboardingPage() {
         );
         setUser({ id: updated.id, email: updated.email, display_name: updated.display_name, verified: updated.verified, email_delivery: updated.email_delivery });
       }
-      await createContext({ title, masteryLevel: "Beginner" });
+      const created = await createContext({ title, masteryLevel: "Beginner" });
+      if (title !== DEFAULT_SUBJECT) {
+        // A starter roadmap for the subject they named, built while they land on Home; Plan shows it.
+        void api("/api/v1/roadmaps", {
+          method: "POST",
+          body: JSON.stringify({ goal: `Learn ${title}`, level: "Beginner", context_id: created.id }),
+        }).catch(() => {});
+      }
       router.push("/app");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not finish setting up. Please try again.");

@@ -171,9 +171,9 @@ async def create_assessment(
     if not questions:
         raise ValidationError("Add ready study material before creating an assessment")
     questions = shape_questions(questions, definition.name, seed=str(uuid4()))
-    # Quizzes the learner chose (their chats, a topic) file answers under the AI's topic labels,
-    # so chat-only learners build up Progress; the automatic daily review stays as it was.
-    learner_chosen = source in ("chats", "topic")
+    # Quizzes the learner chose (their chats, a topic, their library) file answers under the AI's
+    # topic labels, so every quiz builds up Progress; the automatic daily review stays as it was.
+    learner_chosen = source in ("chats", "topic", "library") and mode != "DAILY_REVIEW"
     questions = _assign_question_concepts(
         db, owner_id=owner_id, context_id=context_id, questions=questions,
         allowed_ids=selected_ids if study_transcript is not None and not learner_chosen else None,

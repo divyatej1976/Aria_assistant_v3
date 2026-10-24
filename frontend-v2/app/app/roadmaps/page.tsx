@@ -2,6 +2,7 @@
 
 import { Modal } from "@/components/modal";
 import { PageGuide } from "@/components/page-guide";
+import { FocusNext } from "@/components/topic-list";
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -334,6 +335,7 @@ function RoadmapsPageWorkspace() {
         </button>
       </div>
       <PageGuide page="plan" />
+      {context && <FocusNext contextId={context.id} />}
 
       {activeRoadmapId === null && roadmapList.length > 0 ? (
         <section aria-labelledby="roadmap-list-title">

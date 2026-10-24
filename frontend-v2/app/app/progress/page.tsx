@@ -1,5 +1,6 @@
 "use client";
 
+import { TopicList, type TopicState } from "@/components/topic-list";
 import { useEffect, useState } from "react";
 import { PageGuide } from "@/components/page-guide";
 import { Icon, type IconName } from "@/components/icons";
@@ -18,7 +19,7 @@ type Consistency = {
 };
 type Badge = { code: string; label: string; earned: boolean; earned_at: string | null };
 type Activity = { id: string; activity_type: string; occurred_on: string };
-type ConceptState = { state: string };
+type ConceptState = TopicState;
 
 /** Topic states in teaching order, with the colour each one gets in the bar. */
 const STATE_META: { state: string; label: string; tone: string }[] = [
@@ -73,6 +74,7 @@ export default function ProgressPage() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [stateCounts, setStateCounts] = useState<Record<string, number> | null>(null);
+  const [topics, setTopics] = useState<TopicState[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +100,7 @@ export default function ProgressPage() {
               counts[key] = (counts[key] ?? 0) + 1;
             }
             setStateCounts(counts);
+            setTopics(s.states);
           }),
         );
       }
@@ -213,6 +216,12 @@ export default function ProgressPage() {
             </div>
           </section>
         </div>
+
+        {/* Which topics are weak or strong, named, from quiz answers. */}
+        <section className="pg-card pg-topics-list" aria-labelledby="pg-topics-list">
+          <p className="pg-card-eyebrow" id="pg-topics-list">Your topics</p>
+          <TopicList topics={topics} empty="Take a quiz: each topic it covers shows up here as Needs work, Getting there or Strong." />
+        </section>
       </Reveal>
 
       <Reveal delay={60}>

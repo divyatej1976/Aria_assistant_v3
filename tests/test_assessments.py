@@ -702,3 +702,31 @@ def test_quiz_levels_are_basic_medium_advanced_and_defined_for_the_ai():
         AssessmentCreateRequest(context_id=cid, difficulty="extreme")
     prompt = get_prompt("mcq_generation").render(difficulty="hard", count=3, material="M")
     assert "easy (Basic) = recall" in prompt and "hard (Advanced) = multi-step" in prompt
+
+
+def test_library_quiz_questions_keep_the_ai_topic_label():
+    import asyncio
+
+    from app.assessment import mcq
+    from app.assessment.schema import MCQItem, MCQSet
+
+    class Provider:
+        async def generate_structured(self, *, prompt, schema, prompt_version):
+            return MCQSet(questions=[MCQItem(prompt="Which structure is last in, first out?",
+                                             options=["Stack", "Queue", "Heap", "Tree"], correct_option="A",
+                                             concept="Stack basics")])
+
+    class Db:  # generate_mcqs_structured only reads material through the patched helpers
+        pass
+
+    import pytest
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(mcq, "_chunk_id_filter", lambda *a, **k: None)
+    monkeypatch.setattr(mcq, "_material_preview", lambda *a, **k: "Stacks are LIFO.")
+    monkeypatch.setattr(mcq, "get_llm_provider_for_owner", lambda *a, **k: Provider())
+    try:
+        questions = asyncio.run(mcq.generate_mcqs_structured(
+            Db(), owner_id=None, context_id=None, count=1, difficulty="easy"))
+    finally:
+        monkeypatch.undo()
+    assert questions[0].concept_name == "Stack basics"

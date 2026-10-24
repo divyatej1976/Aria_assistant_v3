@@ -249,6 +249,7 @@ async def generate_mcqs_structured(
             correct_option=item.correct_option,
             concept_id=None,
             explanation=item.explanation,
+            concept_name=item.concept,
         )
         for item in parsed.questions[:count]
     ]

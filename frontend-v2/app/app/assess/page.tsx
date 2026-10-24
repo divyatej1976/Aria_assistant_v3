@@ -1,5 +1,6 @@
 "use client";
 
+import { TopicList, type TopicState } from "@/components/topic-list";
 import { Modal } from "@/components/modal";
 import { PageGuide } from "@/components/page-guide";
 
@@ -85,7 +86,7 @@ function AssessPageWorkspace() {
   const [resumed, setResumed] = useState(false);
   const [draftWarning, setDraftWarning] = useState<string | null>(null);
 
-  const [review, setReview] = useState<{ score: number; total: number; details: ReviewDetail[]; focus: string; wrongConcepts: string[]; questions: Question[]; summary?: string | null } | null>(null);
+  const [review, setReview] = useState<{ score: number; total: number; details: ReviewDetail[]; focus: string; wrongConcepts: string[]; questions: Question[]; summary?: string | null; topics: TopicState[]; topicResults: Record<string, { correct: number; total: number }> } | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
 
   const readDraft = (): Draft | null => {
@@ -248,11 +249,22 @@ function AssessPageWorkspace() {
         },
       );
       let focus = "";
+      // This quiz's result per topic, and each topic's strength now that the answers are in.
+      const topicResults: Record<string, { correct: number; total: number }> = {};
+      for (const d of result.details) {
+        const concept = taking.questions.find((q) => q.id === d.question_id)?.concept_id;
+        if (!concept) continue;
+        const entry = (topicResults[concept] ??= { correct: 0, total: 0 });
+        entry.total += 1;
+        if (d.correct) entry.correct += 1;
+      }
+      let topics: TopicState[] = [];
       try {
-        const adaptation = await api<{ decisions: { decision_type: string; reason: string }[] }>(
+        const adaptation = await api<{ states: TopicState[]; decisions: { decision_type: string; reason: string }[] }>(
           `/api/v1/contexts/${context.id}/adaptation`,
         );
         focus = adaptation.decisions.find((d) => d.decision_type === "FOCUS_STUDY")?.reason ?? "";
+        topics = adaptation.states.filter((t) => topicResults[t.concept_id]);
       } catch {
         focus = "";
       }
@@ -264,7 +276,7 @@ function AssessPageWorkspace() {
       setTaking(null);
       writeDraft(null);
       setResumed(false);
-      setReview({ score: result.score, total: result.total, details: result.details, focus, wrongConcepts, questions: taking.questions });
+      setReview({ score: result.score, total: result.total, details: result.details, focus, wrongConcepts, questions: taking.questions, topics, topicResults });
       // The debrief is written after scoring so results never wait on it; null = could not be written.
       const attemptId = taking.attemptId;
       api<{ summary: string }>(`/api/v1/assessments/${taking.assessmentId}/attempts/${attemptId}/summary`, { method: "POST" })
@@ -439,6 +451,13 @@ function AssessPageWorkspace() {
                 <p style={{ marginTop: 2 }}>{reviewing.summary === undefined ? "Writing your feedback…" : reviewing.summary ?? reviewing.focus}</p>
               </div>
             </div>
+          )}
+          {reviewing.topics.length > 0 && (
+            <section className="quiz-topic-review" aria-labelledby="quiz-topics-title">
+              <h3 id="quiz-topics-title" style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Topic review</h3>
+              <p className="field-help" style={{ margin: "0 0 10px" }}>A topic turns Strong after two right answers in a row; a wrong answer sends it back to Needs work. See all topics in <Link href="/app/progress">Progress</Link>.</p>
+              <TopicList topics={reviewing.topics} results={reviewing.topicResults} />
+            </section>
           )}
           <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>Answer review</h3>
           <ol className="quiz-review">
