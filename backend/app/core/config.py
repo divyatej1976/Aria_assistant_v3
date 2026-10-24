@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     aria_openai_tts_voice_2: str = "onyx"
     aria_openai_stt_model: str = "gpt-4o-mini-transcribe"
     aria_openai_vision_model: str = "gpt-5-mini"
+    # Web search for current events (services/web_search.py): "auto" searches time-sensitive
+    # questions and when the learner asks; "off" never searches.
+    aria_web_search: str = "auto"
+    aria_openai_search_model: str = "gpt-5-mini"
+    aria_gemini_search_model: str = "gemini-2.5-flash"
     # Reads uploaded images (handwritten notes, photos of slides) when GEMINI_API_KEY is set.
     aria_vision_model: str = "gemini-2.5-flash"
     aria_brain_routing: bool = False

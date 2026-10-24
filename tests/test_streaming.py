@@ -98,3 +98,24 @@ def test_provider_streams_pieces_and_returns_the_full_text(monkeypatch):
 
     assert text == "Indexes speed up lookups by keeping keys sorted."
     assert len(pieces) > 1 and "".join(pieces) == text  # arrived in several pieces
+
+
+def test_a_web_search_status_does_not_end_the_stream_and_sources_keep_their_links(client, monkeypatch):
+    from app.ai.providers import RetrievedChunk
+
+    async def answer(*args, on_delta=None, on_status=None, web=None, **kwargs):
+        assert web is True  # the 🌐 button reached the answer
+        on_status("Searching the web…")
+        on_delta("According to [1], ")
+        on_delta("the launch moved.")
+        source = RetrievedChunk(chunk_id="web-1", resource_id="web:24 October 2026", content="",
+                                source_title="Space News", score=0.0, url="https://space.example/x")
+        return StudyResult("According to [1], the launch moved.", [source], False)
+    monkeypatch.setattr("app.services.study_requests.answer_question", answer)
+    token, session = setup_chat(client, "stream-web@example.com")
+    events = read_events(client.post(f"/api/v1/study/sessions/{session}/messages/stream", headers=headers(token),
+                                     json={"content": "Latest on the launch?", "request_id": str(uuid4()), "web": True}))
+    assert [e["type"] for e in events] == ["status", "delta", "delta", "done"]
+    assert events[-1]["message"]["sources"][0]["url"] == "https://space.example/x"
+    saved = client.get(f"/api/v1/study/sessions/{session}/messages", headers=headers(token)).json()
+    assert saved[-1]["sources"][0]["resource_id"] == "web:24 October 2026"

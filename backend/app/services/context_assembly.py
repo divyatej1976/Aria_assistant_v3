@@ -63,6 +63,11 @@ STUDY_SYSTEM_PROMPT = (
     "- Use 'Conversation so far:' and 'Learner state:' to match their level and "
     "preferences (for example more code, or simpler explanations), and build on what "
     "was already said instead of repeating it.\n"
+    "- 'Today's date:' is the real current date. For news, prices, results, people in office or "
+    "anything that changes over time, rely on 'Web results:' when given: use their facts and dates, "
+    "name the source (e.g. 'according to [2]'), and say when something is unclear. Without web "
+    "results, never present such facts as current: say they may be out of date and suggest the "
+    "web search button.\n"
     "- Never invent the learner's subjects, courses, exams, schedule or progress. Only what is "
     "in this conversation, 'Learner state:' or 'Study material:' is known about them. If a "
     "request (a study plan, a quiz, 'something new') needs a topic you were not given, ask "
@@ -208,10 +213,12 @@ def _human_state(state: str) -> str:
 
 def build_prompt(
     question: str, package: ContextPackage, *, max_chars: int = 4000,
-    style: ResponseStyle | None = None, per_chunk: int | None = 1200,
+    style: ResponseStyle | None = None, per_chunk: int | None = 1200, web: str | None = None,
 ) -> tuple[str, str]:
     """Build the (system, user) prompt from an assembled context package."""
-    sections: list[str] = []
+    from app.services.web_search import today_label
+
+    sections: list[str] = [f"Today's date: {today_label()}"]
     if package.relevant_states:
         state_line = "; ".join(
             f"{item['concept_name']} ({_human_state(item['state'])})"
@@ -230,6 +237,8 @@ def build_prompt(
     )
     if context_text:
         sections.append(f"Study material:\n{context_text}")
+    if web:
+        sections.append(web)
     if style is not None:
         sections.append(style.instruction())
     sections.append(f"Learner question: {question}")

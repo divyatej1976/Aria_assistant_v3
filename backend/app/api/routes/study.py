@@ -156,8 +156,9 @@ async def stream_message(
         try:
             response = await answer_and_save(
                 db, owner_id=learner.id, session=session, content=request.content,
-                request_id=request.request_id, depth=request.depth, screen=request.screen,
+                request_id=request.request_id, depth=request.depth, screen=request.screen, web=request.web,
                 on_delta=lambda text: queue.put_nowait({"type": "delta", "text": text}),
+                on_status=lambda text: queue.put_nowait({"type": "status", "text": text}),
             )
             record_activity(db, owner_id=learner.id, activity_type="study", source_id=session.id)
             queue.put_nowait({"type": "done", "message": response.model_dump()})
@@ -174,7 +175,8 @@ async def stream_message(
             while True:
                 event = await queue.get()
                 yield json.dumps(event) + "\n"
-                if event["type"] != "delta":
+                # Only the final event ends the stream; "delta" and "status" ("Searching the web…") do not.
+                if event["type"] in ("done", "error"):
                     break
         finally:
             # If the browser goes away, the reply still finishes and is saved (or discarded by Stop)
@@ -247,7 +249,7 @@ async def send_message(
         try:
             response = await answer_and_save(
                 db, owner_id=learner.id, session=session, content=request.content,
-                request_id=request.request_id, depth=request.depth, screen=request.screen,
+                request_id=request.request_id, depth=request.depth, screen=request.screen, web=request.web,
             )
         except (ReplyPending, ClaimLost, ReplyStopped) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -262,6 +264,7 @@ async def send_message(
         question=request.content,
         session_id=session.id,
         style=style,
+        web=request.web,
     )
     refs = [
         {
@@ -269,6 +272,7 @@ async def send_message(
             "chunk_id": source.chunk_id,
             "title": source.source_title,
             "score": source.score,
+            "url": source.url,
         }
         for source in result.sources
     ]
@@ -294,6 +298,7 @@ async def send_message(
                 chunk_id=source.chunk_id,
                 title=source.source_title,
                 score=source.score,
+                url=source.url,
             )
             for source in result.sources
         ],

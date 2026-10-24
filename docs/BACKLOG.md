@@ -11,7 +11,7 @@ accounts) · ⬜ to do.
 | AI providers | ✅ code ready, ⏳ OpenAI key | OpenAI main + Gemini backup is built; today the live site still runs on Groq until the OpenAI key is added |
 | Image reading | ✅ | OpenAI vision → Gemini vision → Tesseract |
 | Voices / voice-to-text | ✅ code ready | OpenAI first when its key exists; device-voice fallback always works |
-| Current affairs (web search) | ⬜ | Next big feature (P0 #2) |
+| Current affairs (web search) | ✅ | Time-sensitive questions (or the 🌐 button) search the web; detailed Sources list under the answer |
 | Storage | ✅ | Uploaded originals in Blob, not the database; unused vectors not stored; 300-file cap per account; old jobs cleaned |
 | Feedback | ✅ | "Send feedback" + thumbs on answers, stored and triaged in the `feedback` table |
 | Monitoring | ✅ built, ⏳ Sentry keys | Sentry (web + API), `/api/v1/health`, GitHub uptime check every 10 min |
@@ -46,12 +46,15 @@ What uses which key once both are set:
 
 Groq can be removed once OpenAI is live (keep `GROQ_API_KEY` only if you want a third fallback).
 
-### 2. Current affairs: web search in the tutor ⬜
+### 2. Current affairs: web search in the tutor ✅
 - Router check for questions needing fresh information (dates, "latest", "today", "news", "2026",
   prices, scores, people in the news); only those use search (slower, costs more).
-- **OpenAI web search tool**; sources shown as links under the answer ("From the web, 24 Oct 2026").
+- **OpenAI web search tool** when `OPENAI_API_KEY` is set, Google Search grounding via Gemini until then.
+- Under the answer: "Sources · web searched <date>", numbered like the answer's [1] [2], each with the
+  exact page address (Google's redirect links are resolved) and the website; links open in a new tab.
+- "Searching the web…" shows while it searches (about 8 seconds per answer).
 - Prompt rule: never guess current facts; say so if search fails.
-- **Effort:** 2–3 days. **Test:** 20 current-affairs questions with known answers.
+- ⬜ Next: a 20-question current-affairs test set; per-user daily search limit before launch.
 
 ### 3. Email ⏳
 - Gmail app password (lines already in `.env.deploy`) for a pilot, or Resend (~3k emails/month free).
@@ -152,7 +155,7 @@ older uploads out of the database (only new uploads go to Blob).
 
 1. ⏳ Add `OPENAI_API_KEY` → switch `ARIA_LLM_PROVIDER=openai` (P0 #1)
 2. ⏳ Sentry keys (P0 #5) and email (P0 #3)
-3. ⬜ Web search for current affairs (P0 #2)
+3. ✅ Web search for current affairs (P0 #2)
 4. ⏳ Vercel Pro + Supabase Pro before real users (P0 #6)
 5. ⬜ Capacitor store apps (P2)
 6. ⬜ Load test → transaction pooler → Redis → managed queue (P1)

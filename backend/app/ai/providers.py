@@ -43,6 +43,7 @@ class RetrievedChunk:
     content: str
     source_title: str
     score: float
+    url: str | None = None  # set for web results; file excerpts have none
 
 
 class LLMProvider(Protocol):

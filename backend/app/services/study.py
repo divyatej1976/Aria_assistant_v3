@@ -637,6 +637,29 @@ async def _answer_small_talk(
     return StudyResult(content=answer, sources=sources, fallback_used=False)
 
 
+async def _web_findings(db: Session, question: str, *, web: bool | None, on_status=None):
+    """(prompt section, sources) from a web search, when the question needs current facts or the
+    learner asked (web=True); (None, []) otherwise or when the search fails."""
+    from app.core.config import get_settings
+    from app.services.web_search import findings_block, needs_fresh_info, search_web
+
+    if getattr(get_settings(), "aria_web_search", "auto") == "off" or web is False:
+        return None, []
+    if not (web or needs_fresh_info(question)):
+        return None, []
+    if on_status is not None:
+        on_status("Searching the web…")
+    release_connection(db)  # the search takes seconds; do not hold a database connection
+    findings = await search_web(question)
+    if findings is None:
+        return None, []
+    # resource_id carries the search date, so a reloaded chat still says when the web was checked.
+    sources = [RetrievedChunk(chunk_id=f"web-{n}", resource_id=f"web:{findings.searched_on}", content="",
+                              source_title=title, score=0.0, url=url)
+               for n, (title, url) in enumerate(findings.sources, start=1)]
+    return findings_block(findings), sources
+
+
 async def answer_question(
     db: Session,
     *,
@@ -646,6 +669,8 @@ async def answer_question(
     session_id: UUID | None = None,
     style: ResponseStyle | None = None,
     on_delta=None,
+    web: bool | None = None,
+    on_status=None,
 ) -> StudyResult:
     try:
         sources = await retrieve_chunks(
@@ -714,7 +739,8 @@ async def answer_question(
             session_id=session_id,
             sources=sources,
         )
-        system, user = build_prompt(question, package, style=style, **(
+        web_block, web_sources = await _web_findings(db, question, web=web, on_status=on_status)
+        system, user = build_prompt(question, package, style=style, web=web_block, **(
             {"max_chars": whole_doc_chars(), "per_chunk": None} if whole_doc else {}))
         try:
             answer = await provider.generate_text(
@@ -738,7 +764,7 @@ async def answer_question(
                 sources=sources,
                 fallback_used=True,
             )
-        return StudyResult(content=answer, sources=sources, fallback_used=False)
+        return StudyResult(content=answer, sources=[*sources, *web_sources], fallback_used=False)
     except Exception:
         # Intentionally generic on the wire: never echo provider errors, keys,
         # or prompts. The full exception goes to server logs only.

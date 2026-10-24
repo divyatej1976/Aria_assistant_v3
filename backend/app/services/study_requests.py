@@ -75,6 +75,7 @@ def stop_reply(*, session_id: UUID, request_id: UUID) -> None:
 async def answer_and_save(
     db: Session, *, owner_id: UUID, session: StudySession, content: str, request_id: UUID | None,
     depth: RequestedDepth = "auto", screen: Screen = "regular", on_delta=None,
+    web: bool | None = None, on_status=None,
 ) -> StudyMessageResponse:
     scope = "study:reply"
     key = f"{session.id}:{request_id}" if request_id is not None else None
@@ -127,7 +128,8 @@ async def answer_and_save(
                 except ValidationError as exc:
                     return StudyResult(str(exc), [], False), None
             return await answer_question(db, owner_id=owner_id, context_id=session.context_id,
-                question=content, session_id=session.id, style=style, on_delta=on_delta), None
+                question=content, session_id=session.id, style=style, on_delta=on_delta,
+                web=web, on_status=on_status), None
         if key is not None:
             with idempotency.keep_claim_alive(db, owner_id=owner_id, scope=scope, key=key, claim_id=claim_id):
                 result, action = await respond()
@@ -142,7 +144,7 @@ async def answer_and_save(
             session_id=str(session.id), content=result.content, fallback_used=result.fallback_used,
             depth=None if action else style.depth,
             sources=[SourceReference(resource_id=ref.resource_id, chunk_id=ref.chunk_id,
-                                     title=ref.source_title, score=ref.score) for ref in result.sources],
+                                     title=ref.source_title, score=ref.score, url=ref.url) for ref in result.sources],
         )
         def checkpoint():
             if action is not None:

@@ -126,6 +126,9 @@ function ContextLearn() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
+  // 🌐: search the web for the next question (time-sensitive questions search on their own).
+  const [webOn, setWebOn] = useState(false);
+  const [statusText, setStatusText] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   // Phones hide the chat list beside the conversation; this slides it in.
   const [chatsOpen, setChatsOpen] = useState(false);
@@ -369,11 +372,18 @@ function ContextLearn() {
       // The reply streams in as ARIA writes it, like ChatGPT or Claude.
       let res: Msg | null = null;
       let streamed = false;
+      setStatusText("");
+      setWebOn(false);
       await apiStream("/api/v1/study/sessions/" + sid + "/messages/stream",
-        { content, request_id: pending.requestId, depth: pending.depth, screen: screenSize() },
+        { content, request_id: pending.requestId, depth: pending.depth, screen: screenSize(), ...(webOn ? { web: true } : {}) },
         (event) => {
           if (version !== conversationVersion.current) return;
+          if (event.type === "status") {
+            setStatusText(String(event.text ?? ""));
+            return;
+          }
           if (event.type === "delta") {
+            setStatusText("");
             const piece = String(event.text ?? "");
             const first = !streamed; // read now: React may run the update after `streamed` changes
             setMsgs((m) => !first
@@ -775,7 +785,7 @@ function ContextLearn() {
           )}
           {replyError && retryRequest && <ErrorState inline title="Reply unavailable" message={replyErrorText}
             retryLabel="Retry reply" retryDisabled={typing} onRetry={() => void send(retryRequest.content, retryRequest)} />}
-          {typing && !writing && <RequestStatus label={attaching ? `Reading ${attachingName || "your file"}…` : "ARIA is thinking…"} />}
+          {typing && !writing && <RequestStatus label={attaching ? `Reading ${attachingName || "your file"}…` : statusText || "ARIA is thinking…"} />}
         </div>
 
         {awayFromLatest && <button type="button" className="jump-latest" aria-label="Scroll to the latest message" title="Latest message" onClick={() => {
@@ -836,6 +846,13 @@ function ContextLearn() {
               onKeyDown={(e) => { if (e.key === "Enter" && !replying) void send(input); }}
               disabled={ctxLoading || loading}
             />}
+            <button type="button" className={`btn web-toggle ${webOn ? "btn-primary" : "btn-secondary"}`} aria-pressed={webOn}
+              aria-label="Search the web" title={webOn ? "Web search on for your next question" : "Search the web for your next question"}
+              onClick={() => setWebOn((on) => !on)} disabled={ctxLoading || loading}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+              </svg>
+            </button>
             <button
               type="button"
               className={`btn ${recording ? "btn-primary" : "btn-secondary"}`}

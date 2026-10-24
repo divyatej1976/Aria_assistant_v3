@@ -8,7 +8,8 @@ import { StudyCards, splitSections } from "@/components/study-cards";
 
 export type Depth = "quick" | "balanced" | "deep";
 export type RequestedDepth = "auto" | Depth;
-export type Source = { resource_id: string; chunk_id: string; title: string; score: number };
+// Web results carry a url, and resource_id "web:<date searched>".
+export type Source = { resource_id: string; chunk_id: string; title: string; score: number; url?: string | null };
 
 export const DEPTH_LABEL: Record<Depth, string> = { quick: "Quick", balanced: "Balanced", deep: "Deep" };
 const DEPTH_LEVEL: Record<Depth, number> = { quick: 1, balanced: 2, deep: 3 };
@@ -81,7 +82,8 @@ export function TutorReply({
   // A finished answer with several sections reads as a deck of study cards (never a Quick one).
   const deck = done && depth !== "quick" ? splitSections(content) : null;
   const asCards = deck !== null && deck.sections.length >= 3;
-  const titles = [...new Set((sources ?? []).map((s) => s.title))];
+  const webSources = (sources ?? []).filter((s) => s.url);
+  const titles = [...new Set((sources ?? []).filter((s) => !s.url).map((s) => s.title))];
   return (
     <article className={`msg msg-aria${fresh ? " message-arrival" : ""}`}>
       <header className="mh">
@@ -92,7 +94,9 @@ export function TutorReply({
       <p className="reply-sources">
         {titles.length > 0
           ? <><Icon name="file" size={12} /> From your material {titles.map((title) => <span key={title} className="source-chip">{title}</span>)}</>
-          : <span className="reply-note"><Icon name="sparkles" size={12} /> From ARIA&apos;s general knowledge{fallback ? " · add files in Library for answers from your documents" : ""}</span>}
+          : webSources.length > 0
+            ? <span className="reply-note"><Icon name="sparkles" size={12} /> From the web: {webSources.length} source{webSources.length === 1 ? "" : "s"} listed below</span>
+            : <span className="reply-note"><Icon name="sparkles" size={12} /> From ARIA&apos;s general knowledge{fallback ? " · add files in Library for answers from your documents" : ""}</span>}
       </p>
       {asCards && <StudyCards lead={deck.lead} sections={deck.sections} />}
       {!asCards && lead && <div className="reply-lead"><TutorMarkdown content={lead} /></div>}
@@ -102,6 +106,7 @@ export function TutorReply({
           <TutorMarkdown content={block.body} />
         </section>
       ))}
+      {webSources.length > 0 && <WebSources sources={webSources} />}
       {done && (onDeeper || onShorter || quickCheckHref) && (
         <div className="reply-actions">
           {onDeeper && depth !== "deep" && <button type="button" className="reply-action" onClick={onDeeper}><Icon name="chevron-down" size={13} /> Go deeper</button>}
@@ -111,5 +116,47 @@ export function TutorReply({
       )}
       {done && answerId && <AnswerRating answerId={answerId} />}
     </article>
+  );
+}
+
+/** "en.wikipedia.org/wiki/Prime Minister of the United Kingdom": website plus the page, readable. */
+function pageLabel(url: string): { site: string; page: string } {
+  try {
+    const parsed = new URL(url);
+    const site = parsed.hostname.replace(/^www\./, "");
+    if (site.endsWith("vertexaisearch.cloud.google.com")) return { site: "", page: "" };
+    const path = decodeURIComponent(parsed.pathname).replace(/[_+]/g, " ").replace(/\/$/, "");
+    return { site, page: path && path !== "/" ? `${site}${path}` : site };
+  } catch {
+    return { site: "", page: "" };
+  }
+}
+
+/** Every web page the answer drew on, numbered like the answer's [1] [2], with when the web was searched. */
+function WebSources({ sources }: { sources: Source[] }) {
+  const searched = sources[0]?.resource_id.startsWith("web:") ? sources[0].resource_id.slice(4) : "";
+  return (
+    <section className="web-sources" aria-label="Sources">
+      <h4>Sources{searched ? <span> · web searched {searched}</span> : null}</h4>
+      <ol>
+        {sources.map((source, index) => {
+          const { site, page } = pageLabel(source.url ?? "");
+          // Search results name the website as their title; the page address says what was read.
+          const titleIsSite = !source.title || site.endsWith(source.title.replace(/^www\./, ""));
+          return (
+            <li key={source.chunk_id || index}>
+              <span className="web-source-num">[{index + 1}]</span>
+              <div>
+                <a href={source.url ?? "#"} target="_blank" rel="noopener noreferrer">
+                  {titleIsSite ? (page || source.title) : source.title}
+                </a>
+                <small>{titleIsSite ? site || source.title : page || site}</small>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="web-sources-note">Facts come from these pages as of the search date; open them to check the details.</p>
+    </section>
   );
 }

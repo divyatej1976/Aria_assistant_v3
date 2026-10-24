@@ -30,6 +30,8 @@ class StudyMessageCreate(BaseModel):
     # "auto" reads the question's tone; the screen size keeps phone replies short.
     depth: Literal["auto", "quick", "balanced", "deep"] = "auto"
     screen: Literal["compact", "regular", "wide"] = "regular"
+    # Web search: None = when the question needs current information; True = always (the 🌐 button).
+    web: bool | None = None
 
 
 class SourceReference(BaseModel):
@@ -37,6 +39,7 @@ class SourceReference(BaseModel):
     chunk_id: str
     title: str
     score: float
+    url: str | None = None  # web sources only
 
 
 class StudyMessageResponse(BaseModel):
