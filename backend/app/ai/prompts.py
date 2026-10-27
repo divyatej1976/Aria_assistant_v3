@@ -26,9 +26,10 @@ _PROMPTS: dict[str, PromptVersion] = {
     "study_answer": PromptVersion(
         key="study_answer",
         # v5: short labelled blocks, per-message depth and tone ("Response style:"),
-        # no sources footer. The live text is STUDY_SYSTEM_PROMPT in
-        # app/services/context_assembly.py; this entry versions it for logs.
-        version=5,
+        # no sources footer. v6: ARIA identity, on-topic guardrail, chat references over material.
+        # The live text is STUDY_SYSTEM_PROMPT in app/services/context_assembly.py; this entry
+        # versions it for logs.
+        version=6,
         system="See app.services.context_assembly.STUDY_SYSTEM_PROMPT.",
         template="Context:\n{context}\n\nQuestion: {question}",
     ),

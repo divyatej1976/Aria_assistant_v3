@@ -58,8 +58,8 @@ const DEVICE_VOICE = "text/plain";
 
 /** Read an episode script aloud with the device's built-in voice; a second voice for the learner. */
 function speakScript(text: string, onEnd: () => void) {
+  // No cancel() here: Safari drops speech queued right after a cancel, and the caller already cancelled.
   const synth = window.speechSynthesis;
-  synth.cancel();
   const voices = synth.getVoices().filter((v) => v.lang.toLowerCase().startsWith("en"));
   const tutor = voices.find((v) => /natural|online|google us|samantha|jenny|aria/i.test(v.name)) ?? voices[0];
   const learner = voices.find((v) => v !== tutor && /male|guy|daniel|david|google uk/i.test(v.name))
@@ -275,6 +275,8 @@ function AudioPageWorkspace() {
     if (artifact.content_type === DEVICE_VOICE) {
       if (playing === id) { setPlaying(null); return; }
       if (!("speechSynthesis" in window)) { toast("This browser can't read aloud. Try Chrome, Edge or Safari.", "error"); return; }
+      // iOS Safari only speaks inside the tap itself; this silent line unlocks speech before the fetch below.
+      window.speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(" "), { volume: 0 }));
       try {
         const detail = await api<Artifact>(`/api/v1/audio/${id}`);
         if (!mountedRef.current) return;

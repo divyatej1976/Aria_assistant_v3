@@ -54,6 +54,16 @@ function preview(body: string) {
   return text.length > 150 ? `${text.slice(0, 150).replace(/\s\S*$/, "")}…` : text;
 }
 
+/** Up to three short points for a card's back: its own bullets, else its first sentences. */
+export function summaryPoints(body: string): string[] {
+  const bullets = body.split("\n").filter((line) => /^\s*([-*+]|\d+[.)])\s+/.test(line))
+    .map((line) => preview(line.replace(/^\s*([-*+]|\d+[.)])\s+/, "")));
+  const points = bullets.length >= 2 ? bullets
+    : preview(body.replace(/^\s*([-*+]|\d+[.)])\s+/gm, "")).replace(/…$/, "").split(/(?<=[.!?])\s+/);
+  return points.filter((point) => point.length > 3).slice(0, 3)
+    .map((point) => (point.length > 110 ? `${point.slice(0, 110).replace(/\s\S*$/, "")}…` : point));
+}
+
 // Sections in learning order: what it is first, the recap last.
 const SECTION_ORDER = ["define", "concept", "how", "example", "warn", "quiz", "summary"];
 
@@ -67,6 +77,7 @@ function centerIn(box: HTMLElement | null, child: HTMLElement | null | undefined
  * with section tabs that keep the current section centered. */
 export function StudyCards({ lead, sections }: { lead: string; sections: CardSection[] }) {
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
+  const [detailed, setDetailed] = useState<Set<number>>(new Set());
   const [asText, setAsText] = useState(false);
   const [index, setIndex] = useState(0);
   // Cards in view at once: one on phones, three side by side on wider screens.
@@ -134,13 +145,24 @@ export function StudyCards({ lead, sections }: { lead: string; sections: CardSec
           <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {kind.label}</span>
           {named && <h3>{card.title}</h3>}
           {quiz && <div className="flip-question"><TutorMarkdown content={quiz.question} /></div>}
-          {!quiz && <p className="flip-preview">{preview(card.body)}</p>}
+          {/* A titled card's front is just its title, so the back never repeats it. */}
+          {!quiz && !named && <p className="flip-preview">{preview(card.body)}</p>}
           <span className="flip-hint"><Icon name="refresh" size={13} /> {quiz ? "Tap to see the answer" : "Tap to read"}</span>
         </div>
         <div className="flip-face back" aria-hidden={!on}>
           <span className="study-card-kind"><Icon name={kind.icon} size={14} /> {quiz ? "Answer" : kind.label}</span>
           {named && !quiz && <h3>{card.title}</h3>}
-          <div className="flip-body"><TutorMarkdown content={quiz ? quiz.answer : card.body} /></div>
+          <div className="flip-body">
+            {quiz || detailed.has(i) ? <TutorMarkdown content={quiz ? quiz.answer : card.body} /> : (
+              <ul className="flip-summary">{summaryPoints(card.body).map((point, n) => <li key={n}>{point}</li>)}</ul>
+            )}
+            {!quiz && (
+              <button type="button" className="flip-more" aria-expanded={detailed.has(i)}
+                onClick={() => setDetailed((prev) => { const next = new Set(prev); if (!next.delete(i)) next.add(i); return next; })}>
+                {detailed.has(i) ? "Show summary" : "Read the full explanation"}
+              </button>
+            )}
+          </div>
           <span className="flip-hint"><Icon name="refresh" size={13} /> Tap to turn back</span>
         </div>
       </div>

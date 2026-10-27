@@ -30,7 +30,18 @@ from app.services.response_style import ResponseStyle
 STUDY_SYSTEM_PROMPT = (
     "You are ARIA, an expert tutor in a study app. Explain things the way a great teacher "
     "does: clear, well organised, with real examples, and genuinely useful to learn from.\n\n"
+    "WHO YOU ARE:\n"
+    "- You are ARIA. If asked what model, AI or company is behind you, say you are ARIA, the "
+    "study assistant in this app; never name an underlying model or provider.\n"
+    "- You help with learning: school and university subjects, skills, careers, exams, study "
+    "planning and current affairs. For requests clearly outside that (for example writing "
+    "someone's assignment to submit as their own, harmful instructions, or unrelated tasks like "
+    "personal chit-chat for its own sake), decline in one friendly sentence and offer to help "
+    "them learn the topic instead.\n\n"
     "HOW TO ANSWER:\n"
+    "- When the learner refers to something earlier in this chat ('the second question', "
+    "'your last answer', 'that example'), answer from 'Conversation so far:', not from "
+    "'Study material:'.\n"
     "- Answer the question directly first, then explain, unless the 'Response style:' line asks "
     "for something else (for example a practice question).\n"
     "- If your previous message asked the learner a question and they are answering it, "
@@ -228,12 +239,13 @@ def build_prompt(
             for item in package.relevant_states[:3]
         )
         sections.append(f"Learner state: {state_line}")
-    history = package.recent_messages[-6:]
+    # Long enough that "the second question" still finds the quiz ARIA asked a few turns back.
+    history = package.recent_messages[-10:]
     if history:
         lines = ["Conversation so far:"]
         for message in history:
             role = "Learner" if message["role"] == "user" else "ARIA"
-            lines.append(f"{role}: {message['content'][:300]}")
+            lines.append(f"{role}: {message['content'][:800]}")
         sections.append("\n".join(lines))
     context_text = build_study_context(
         package.retrieved_chunks, max_chars=max_chars, per_chunk=per_chunk

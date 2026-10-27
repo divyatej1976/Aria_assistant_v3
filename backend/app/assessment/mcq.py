@@ -17,6 +17,10 @@ from app.services.concepts import chunk_ids_for_concepts, concept_id_for_chunk
 
 logger = logging.getLogger(__name__)
 
+# About 3k tokens: a whole PDF in one call overran the provider's token limit and every quiz failed.
+MATERIAL_CHAR_BUDGET = 12_000
+_JUNK = re.compile(r"https?:|www\.|\.com\b|\w+/[\w-]{6,}")
+
 
 @dataclass(frozen=True)
 class GeneratedMCQ:
@@ -31,7 +35,8 @@ class GeneratedMCQ:
 
 def _sentences(content: str) -> list[str]:
     parts = content.replace("\n", " ").split(".")
-    return [part.strip() for part in parts if len(part.strip()) > 20]
+    # Links and citations from PDFs are not facts to quiz on.
+    return [part.strip() for part in parts if len(part.strip()) > 20 and not _JUNK.search(part)]
 
 
 def _chunk_id_filter(
@@ -212,7 +217,17 @@ def _material_preview(
     else:
         query = query.where(Resource.study_session_id.is_(None))
     rows = db.execute(query).scalars().all()
-    return "\n\n".join(f"[{index + 1}] {chunk.content[:400]}" for index, chunk in enumerate(rows))
+    # A fresh random pick each time, so retaking a quiz covers other parts of the material.
+    picked, used = [], 0
+    for chunk in random.sample(rows, len(rows)):
+        if _JUNK.search(chunk.content[:400]) and len(_sentences(chunk.content)) < 2:
+            continue
+        if used + 400 > MATERIAL_CHAR_BUDGET:
+            break
+        picked.append(chunk)
+        used += len(chunk.content[:400])
+    picked.sort(key=lambda chunk: chunk.chunk_index)
+    return "\n\n".join(f"[{index + 1}] {chunk.content[:400]}" for index, chunk in enumerate(picked))
 
 
 async def generate_mcqs_structured(

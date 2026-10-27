@@ -730,3 +730,23 @@ def test_library_quiz_questions_keep_the_ai_topic_label():
     finally:
         monkeypatch.undo()
     assert questions[0].concept_name == "Stack basics"
+
+
+def test_library_quiz_material_fits_the_token_budget_and_skips_links():
+    from types import SimpleNamespace
+
+    from app.assessment import mcq
+
+    chunks = [SimpleNamespace(chunk_index=i, content=f"Stratified sampling keeps class ratios {i}. " * 12)
+              for i in range(100)]
+    chunks.append(SimpleNamespace(chunk_index=100, content="https://www.example.com/smote-in-python-a-guide s/ 39"))
+
+    class Db:
+        def execute(self, _query):
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: chunks))
+
+    material = mcq._material_preview(Db(), owner_id=uuid4(), context_id=uuid4())
+    assert 0 < len(material) <= mcq.MATERIAL_CHAR_BUDGET + 2000  # chunk labels and separators
+    assert "example.com" not in material
+    assert mcq._sentences("See https://www.example.com/smote-guide. Cluster sampling picks whole groups.") \
+        == ["Cluster sampling picks whole groups"]

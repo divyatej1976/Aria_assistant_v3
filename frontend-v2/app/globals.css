@@ -2869,6 +2869,8 @@ select option:disabled { color: var(--text-3); }
 .deck-track > .flip-card .flip-face.front .flip-hint { margin-top: 8px; }
 .flip-preview { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .deck-track > .flip-card .flip-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.flip-summary { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; font-size: 14.5px; line-height: 1.5; }
+.flip-more { margin-top: 10px; padding: 6px 0; min-height: 32px; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; font-size: 13.5px; cursor: pointer; }
 .deck-track > .flip-card .flip-face.back .flip-hint { margin-top: 0; }
 /* Laptops and up: three compact cards side by side, so a section's cards sit together. */
 @media (min-width: 900px) {

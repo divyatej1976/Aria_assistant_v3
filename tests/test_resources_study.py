@@ -439,3 +439,13 @@ def test_pdf_upload_over_size_limit_is_rejected(client: TestClient) -> None:
         content=b"%PDF" + b"\x00" * (MAX_UPLOAD_BYTES + 1),
     )
     assert response.status_code == 413
+
+
+def test_material_attaches_only_when_it_shares_the_subject():
+    from app.services.study import _on_topic, content_terms
+
+    sampling = "Stratified sampling keeps each class proportion; cluster sampling picks whole data groups."
+    terms = lambda q: {t for t in content_terms(q) if len(t) > 2}  # noqa: E731
+    assert not _on_topic(terms("Quiz me with 3 questions on data structures"), sampling)
+    assert not _on_topic(terms("What is the second question"), sampling)
+    assert _on_topic(terms("Explain stratified sampling"), sampling)

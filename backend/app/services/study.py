@@ -566,7 +566,29 @@ async def retrieve_chunks(
         named = [r for r in resources.values() if r.title and r.title.casefold() in lowered]
         chosen = max(named or list(resources.values()), key=lambda resource: resource.created_at)
         return _in_reading_order([(c, r) for c, r in rows if r.id == chosen.id])
-    return ranked[:5]
+    return [item for item in ranked if _on_topic(query_terms, item.content)][:5]
+
+
+# Words about the chat itself, not a subject: "quiz me on X", "the second question", "explain more".
+CHAT_WORDS = {
+    "quiz", "question", "questions", "answer", "answers", "explain", "explanation", "deeper",
+    "more", "again", "example", "examples", "give", "tell", "show", "me", "my", "you", "your",
+    "please", "first", "second", "third", "last", "next", "previous", "one", "two", "three",
+    "mean", "means", "meaning", "simple", "simply", "detail", "details", "detailed", "brief",
+    "short", "about", "like", "know", "want", "need", "help", "ok", "okay", "thanks", "thank",
+}
+
+
+def _on_topic(query_terms: set[str], content: str) -> bool:
+    """Material counts only if it shares most of the question's subject words.
+
+    shortcut: lexical only, so a chunk that matches by meaning but not by words is dropped;
+    add a cosine-similarity floor once embeddings are on in production.
+    """
+    topical = {term for term in query_terms if term not in CHAT_WORDS and not term.isdigit()}
+    if not topical:
+        return False
+    return 2 * len(topical & content_terms(content)) > len(topical)
 
 
 LONG_FILE_NOTE = ("[Only the beginning of this long file fits here; a condensed version of the whole file is "

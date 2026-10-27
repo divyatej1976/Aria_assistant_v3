@@ -150,15 +150,12 @@ async def create_assessment(
                 difficulty=difficulty,
                 concept_ids=concept_ids,
             )
-        except Exception:
-            questions = generate_mcqs_deterministic(
-                db,
-                owner_id=owner_id,
-                context_id=context_id,
-                count=question_count,
-                difficulty=difficulty,
-                concept_ids=concept_ids,
-            )
+        except ValidationError:
+            raise
+        except Exception as exc:
+            # Quotation drills from raw PDF text read as broken questions; an honest retry beats them.
+            logger.warning("library quiz generation failed", exc_info=True)
+            raise ValidationError("ARIA couldn't write your questions just now. Please try again.") from exc
     else:
         questions = generate_mcqs_deterministic(
             db,
