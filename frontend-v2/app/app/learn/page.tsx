@@ -171,7 +171,8 @@ function ContextLearn() {
     if (!context || topicPrefilled.current) return;
     const query = new URLSearchParams(window.location.search);
     // "Explain this in chat" from a quiz result arrives with the exact question to ask.
-    const ask = query.get("ask")?.trim().slice(0, 2000);
+    // 6000 fits a full "Revise what I missed" request from a 20-question mock exam (REVISE_MAX in assess).
+    const ask = query.get("ask")?.trim().slice(0, 6000);
     if (ask) {
       topicPrefilled.current = true;
       // A question typed on Home is sent straight away; a quiz follow-up waits for review.

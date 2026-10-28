@@ -22,6 +22,9 @@ import { AssessmentScoreTrend, type AssessmentScore } from "@/components/assessm
 import { QuizPlayer, DONT_KNOW, type QuizQuestion, type QuizSettings } from "@/components/quiz-player";
 import { QuizSetup, rememberSetup, savedSetup, setupProblem, setupRequest, DEFAULT_SETUP, type QuizSetupValues } from "@/components/quiz-setup";
 
+// The chat accepts this much from ?ask= (app/app/learn/page.tsx); the API allows 10,000 per message.
+const REVISE_MAX = 6000;
+
 type Summary = {
   id: string;
   context_id: string;
@@ -488,10 +491,18 @@ function AssessPageWorkspace() {
               const missed = reviewing.details.filter((d) => !d.correct);
               if (!missed.length) return <Link href="/app/learn" className="btn btn-primary"><Icon name="message" /> Keep learning</Link>;
               // One lesson covering every miss, then a check per topic, so a wrong answer leads straight into revision.
-              const ask = "Help me revise what I got wrong in my quiz. For each topic below, teach it briefly with an example, "
-                + "then ask me one practice question on it, one topic at a time.\n\n"
-                + missed.map((d, n) => `${n + 1}. ${reviewing.questions.find((q) => q.id === d.question_id)?.prompt ?? ""}\nCorrect answer: ${d.correct_answer ?? d.correct_option}`).join("\n\n");
-              return <Link href={`/app/learn?ask=${encodeURIComponent(ask.slice(0, 1500))}`} className="btn btn-primary"><Icon name="lightbulb" /> Revise what I missed</Link>;
+              let ask = "Help me revise what I got wrong in my quiz. For each topic below, teach it briefly with an example, "
+                + "then ask me one practice question on it, one topic at a time.";
+              const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
+              for (const [n, d] of missed.entries()) {
+                const prompt = reviewing.questions.find((q) => q.id === d.question_id)?.prompt ?? "";
+                const item = `\n\n${n + 1}. ${clip(prompt, 240)}\nCorrect answer: ${clip(d.correct_answer ?? d.correct_option, 160)}`;
+                // Stays inside REVISE_MAX (the chat's ?ask= limit) and says so instead of silently dropping misses.
+                if (ask.length + item.length > REVISE_MAX - 60) { ask += `\n\n(I also missed ${missed.length - n} more.)`; break; }
+                ask += item;
+              }
+              // autosend: the one-line chat box would strip the numbered list's line breaks.
+              return <Link href={`/app/learn?autosend=1&ask=${encodeURIComponent(ask)}`} className="btn btn-primary"><Icon name="lightbulb" /> Revise what I missed</Link>;
             })()}
           </div>
         </div>
