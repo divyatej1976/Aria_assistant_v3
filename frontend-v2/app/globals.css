@@ -435,7 +435,8 @@ html[data-theme="noir"] .play-btn,
 html[data-theme="noir"] .msg-user,
 html[data-theme="noir"] .splash-mono,
 html[data-theme="noir"] .org-head,
-html[data-theme="noir"] .chip-selected {
+html[data-theme="noir"] .chip-selected,
+html[data-theme="noir"] .chat-fab {
   color: #0a0a0a;
 }
 html[data-theme="noir"] .tag-chip-selected { color:#0a0a0a; }
@@ -1389,6 +1390,11 @@ body {
   box-shadow: var(--shadow-1);
   font-family: inherit;
 }
+.streak-chip {
+  height: 40px; padding: 0 12px; border-radius: 99px; background: var(--bg-2); box-shadow: var(--shadow-1);
+  display: inline-flex; align-items: center; gap: 5px; color: var(--text-3); font-weight: 800; font-size: 14px; text-decoration: none;
+}
+.streak-chip.lit { color: var(--streak); }
 .bell-btn .badge {
   position: absolute;
   top: -4px;
@@ -2958,6 +2964,29 @@ select option:disabled { color: var(--text-3); }
   .shell:has(.study-focus) .chat-sidebar-layout { height: 100dvh; }
 }
 .focus-toggle span { margin-left: 6px; font-weight: 700; white-space: nowrap; }
+/* The "Ask ARIA" launcher floats bottom-right on every page but the chat, above the phone tab bar. */
+.chat-fab {
+  /* Laptops: stacked above the Feedback pill (bottom 20px, ~40px tall). */
+  position: fixed; right: 20px; bottom: 72px; z-index: 85; width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; color: #fff; background: var(--accent-grad, var(--accent));
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .22); transition: transform .15s ease;
+}
+.chat-fab:hover { transform: scale(1.06); }
+.chat-fab:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 900px) { .chat-fab { right: 16px; bottom: calc(var(--tab-h) + 16px + env(safe-area-inset-bottom)); width: 52px; height: 52px; } }
+.shell:has(.quiz-focus) .chat-fab, .shell:has(.study-focus) .chat-fab { display: none; }
+.landing-section { margin-top: 64px; }
+.landing-section h2 { font-size: clamp(22px, 3.4vw, 30px); font-weight: 800; letter-spacing: -.5px; margin: 8px 0 20px; }
+.landing-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; }
+.landing-steps li { position: relative; color: var(--accent); }
+.landing-steps h3 { color: var(--text-1); font-size: 16px; font-weight: 800; margin: 10px 0 6px; }
+.landing-steps p { color: var(--text-2); font-size: 13.5px; margin: 0; }
+.landing-step-n { position: absolute; top: 14px; right: 16px; font-size: 28px; font-weight: 800; color: var(--text-3); opacity: .35; }
+.landing-faq { display: grid; gap: 10px; }
+.landing-faq summary { cursor: pointer; font-weight: 800; font-size: 15px; }
+.landing-faq p { color: var(--text-2); font-size: 14px; margin: 10px 0 0; }
+.landing-cta { text-align: center; padding: 40px 16px 56px; }
+.landing-cta p { color: var(--text-2); margin: 0 0 22px; }
 .focus-toggle { white-space: nowrap; }
 
 /* Feedback: floating button on laptops, star rating prompt (components/experience-prompt.tsx). */

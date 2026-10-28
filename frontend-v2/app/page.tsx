@@ -17,6 +17,19 @@ const CAPABILITIES = [
   { icon: "activity" as const, title: "Track", text: "26-week heatmap, streaks, and milestone badges." },
 ];
 
+const STEPS = [
+  { icon: "file" as const, title: "Add your material", text: "Upload a PDF, a photo of your notes, or just name a topic." },
+  { icon: "message" as const, title: "Learn with ARIA", text: "Ask anything. Answers come from your material first, with sources." },
+  { icon: "clipboard" as const, title: "Test yourself", text: "Quick practice, topic tests or a timed mock exam built from what you study." },
+  { icon: "target" as const, title: "Fix the gaps", text: "Wrong answers turn into a revision lesson and your weak spots get reviewed again." },
+];
+
+const FAQ = [
+  { q: "What can I upload?", a: "PDFs, text and photos of notes or slides. ARIA reads them and uses them to answer and quiz you." },
+  { q: "Does ARIA only use my notes?", a: "It answers from your material first and says clearly when it adds something from beyond it. For current events it searches the web and lists its sources." },
+  { q: "Will it work on my phone?", a: "Yes. ARIA runs in the browser on phones, tablets and laptops, no install needed." },
+];
+
 const CAPTIONS = [
   "Learn smarter. Learn your way.",
   "Your goals. Your pace. Your learning journey.",
@@ -115,6 +128,40 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+
+        <section className="landing-section" aria-labelledby="how-title">
+          <p className="eyebrow">HOW IT WORKS</p>
+          <h2 id="how-title">From your notes to exam-ready, in four steps.</h2>
+          <ol className="landing-steps">
+            {STEPS.map((s, i) => (
+              <li className="card card-pad" key={s.title}>
+                <span className="landing-step-n">{i + 1}</span>
+                <Icon name={s.icon} size={20} />
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="landing-section" aria-labelledby="faq-title">
+          <p className="eyebrow">QUESTIONS</p>
+          <h2 id="faq-title">Good to know</h2>
+          <div className="landing-faq">
+            {FAQ.map((f) => (
+              <details className="card card-pad" key={f.q}>
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section landing-cta">
+          <h2>Ready to study smarter?</h2>
+          <p>Bring your first PDF and take a quiz on it in under a minute.</p>
+          <Link href="/signup" className="btn btn-primary btn-lg"><span className="shine" />Get started <Icon name="arrow" /></Link>
+        </section>
       </div>
     </main>
   );

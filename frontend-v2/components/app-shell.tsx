@@ -148,6 +148,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     refreshCount();
   }, [refreshCount]);
 
+  // Refetched per page so a study session started elsewhere lights today's flame.
+  const [streak, setStreak] = useState<{ current_streak: number; today_active: boolean } | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    api<{ current_streak: number; today_active: boolean }>("/api/v1/progress/consistency")
+      .then(setStreak)
+      .catch(() => {});
+  }, [user, pathname]);
+
   // Streaks, "today" and dates are computed server-side in the learner's timezone; tell it ours once per session.
   useEffect(() => {
     if (!user) return;
@@ -275,6 +284,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <option key={c.id} value={c.id}>{c.title}</option>
                 ))}
               </select>
+            )}
+            {streak && (
+              <Link href="/app/progress" className={`streak-chip${streak.today_active ? " lit" : ""}`}
+                aria-label={`${streak.current_streak}-day streak${streak.today_active ? ", studied today" : ", study today to keep it"}`}
+                title={streak.today_active ? "Studied today" : "Study today to keep your streak"}>
+                <Icon name="flame" size={17} /> {streak.current_streak}
+              </Link>
             )}
             <button ref={bellTrigger} disabled={!hydrated || authLoading || contextLoading} type="button" className="bell-btn" onClick={(e) => { e.stopPropagation(); openBell(); }} aria-label="Notifications" aria-expanded={bellOpen}>
               <Icon name="bell" size={19} />
@@ -405,6 +421,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ViewTransition>
         </main>
       </div>
+      {!isChat && <Link href="/app/learn" className="chat-fab" aria-label="Ask ARIA" title="Ask ARIA"><Icon name="message" size={24} /></Link>}
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <ExperiencePrompt />
       {/* Always within reach on laptops; phones have it in the menu (☰). */}

@@ -484,9 +484,15 @@ function AssessPageWorkspace() {
                 <Icon name="target" /> Retry missed ({reviewing.wrongConcepts.length} concept{reviewing.wrongConcepts.length === 1 ? "" : "s"})
               </button>
             )}
-            <Link href="/app/learn" className="btn btn-primary">
-              <Icon name="message" /> Keep learning
-            </Link>
+            {(() => {
+              const missed = reviewing.details.filter((d) => !d.correct);
+              if (!missed.length) return <Link href="/app/learn" className="btn btn-primary"><Icon name="message" /> Keep learning</Link>;
+              // One lesson covering every miss, then a check per topic, so a wrong answer leads straight into revision.
+              const ask = "Help me revise what I got wrong in my quiz. For each topic below, teach it briefly with an example, "
+                + "then ask me one practice question on it, one topic at a time.\n\n"
+                + missed.map((d, n) => `${n + 1}. ${reviewing.questions.find((q) => q.id === d.question_id)?.prompt ?? ""}\nCorrect answer: ${d.correct_answer ?? d.correct_option}`).join("\n\n");
+              return <Link href={`/app/learn?ask=${encodeURIComponent(ask.slice(0, 1500))}`} className="btn btn-primary"><Icon name="lightbulb" /> Revise what I missed</Link>;
+            })()}
           </div>
         </div>
       )}
