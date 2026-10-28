@@ -588,7 +588,8 @@ def _on_topic(query_terms: set[str], content: str) -> bool:
     topical = {term for term in query_terms if term not in CHAT_WORDS and not term.isdigit()}
     if not topical:
         return False
-    return 2 * len(topical & content_terms(content)) > len(topical)
+    # Three shared words is enough for a long request (a quiz revision lists dozens of terms).
+    return len(topical & content_terms(content)) >= min(3, len(topical) // 2 + 1)
 
 
 LONG_FILE_NOTE = ("[Only the beginning of this long file fits here; a condensed version of the whole file is "

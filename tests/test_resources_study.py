@@ -449,3 +449,7 @@ def test_material_attaches_only_when_it_shares_the_subject():
     assert not _on_topic(terms("Quiz me with 3 questions on data structures"), sampling)
     assert not _on_topic(terms("What is the second question"), sampling)
     assert _on_topic(terms("Explain stratified sampling"), sampling)
+    revision = ("Help me revise what I got wrong. 1. How many majority records does random undersampling "
+                "remove? 2. Why does stratified sampling keep class proportion? 3. What does SMOTE interpolate? "
+                "4. When is cluster sampling cheap? 5. What causes sampling bias in online surveys?")
+    assert _on_topic(terms(revision), sampling)
