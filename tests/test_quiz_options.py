@@ -220,3 +220,19 @@ def test_topic_quiz_files_answers_under_ai_topic_labels(client: TestClient, monk
     assert len(having) == 1  # one concept for both questions, label tidied
     listed = client.get(f"/api/v1/assessments?context_id={cid}", headers=h).json()
     assert next(a for a in listed if a["id"] == quiz.json()["id"])["topic"] == "HAVING clause"
+
+
+def test_mixed_quiz_keeps_questions_that_need_their_options_as_multiple_choice():
+    def mcq(prompt):
+        return GeneratedMCQ(prompt=prompt, options=["Overfitting", "Faster training", "Less memory", "No change"],
+                            correct_option="A", concept_id=None)
+
+    which = mcq("Which of the following is a potential downside of SMOTE?")
+    negated = mcq("Each of these is a benefit of stratified sampling EXCEPT:")
+    plain = mcq("What usually happens when SMOTE oversamples noisy minority points?")
+    # Position 1 becomes true/false and 2 short answer in a mixed quiz.
+    assert [q.kind for q in shape_questions([plain, which, negated], "mixed", seed="s")] == ["mcq", "mcq", "mcq"]
+    assert [q.kind for q in shape_questions([plain, plain, plain], "mixed", seed="s")] == ["mcq", "true_false", "short_answer"]
+    assert to_short_answer(which).options == which.options
+    # An ordinary lowercase "not" in a question still converts.
+    assert shape_questions([plain, mcq("Why is accuracy not enough on imbalanced data?")], "mixed", seed="s")[1].kind == "true_false"

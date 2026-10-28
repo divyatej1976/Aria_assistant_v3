@@ -15,6 +15,18 @@ from app.assessment.mcq import GeneratedMCQ
 LETTERS = "ABCD"
 QUESTION_FORMATS = ("mcq", "true_false", "short_answer", "mixed")
 _BLANK_LINE = re.compile(r"“(?P<before>.*)____(?P<after>.*)”", re.DOTALL)
+# Stems that point at their own options, or ask for the wrong one, only make sense as multiple choice:
+# "Which of the following is FALSE?" with one proposed answer is a double negative, and typed it has no options.
+_NEEDS_CHOICES = re.compile(
+    r"which (?:of the following|of these|statement|option|one of)|(?:all|none|both) of the above"
+    r"|which statement matches this source quotation",
+    re.IGNORECASE,
+)
+_NEGATED = re.compile(r"\b(?:NOT|EXCEPT|FALSE|LEAST|INCORRECT)\b")  # emphasised capitals, as question writers use
+
+
+def needs_choices(question: GeneratedMCQ) -> bool:
+    return bool(_NEEDS_CHOICES.search(question.prompt) or _NEGATED.search(question.prompt))
 
 
 def correct_text(question: GeneratedMCQ) -> str:
@@ -54,8 +66,8 @@ def to_short_answer(question: GeneratedMCQ) -> GeneratedMCQ:
                 correct_option=missing,
                 explanation=question.explanation or f"The full sentence is: {answer}",
             )
-    if question.prompt.startswith("Which statement matches this source quotation"):
-        # A word-for-word recall stem cannot be answered by typing; keep the choices.
+    if needs_choices(question):
+        # Typed, "which of the following…" has nothing to choose from; keep the choices.
         return question
     return replace(
         question,
@@ -73,7 +85,7 @@ def shape_questions(questions: list[GeneratedMCQ], question_format: str, seed: s
         target = question_format
         if question_format == "mixed":
             target = ("mcq", "true_false", "short_answer")[index % 3]
-        if target == "true_false":
+        if target == "true_false" and not needs_choices(question):
             shaped.append(to_true_false(question, rng))
         elif target == "short_answer":
             shaped.append(to_short_answer(question))
